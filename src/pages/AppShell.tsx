@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -258,18 +259,134 @@ function ConfigPage() {
   )
 }
 
+/* ── SVG icons (copied from prototipo01) ─────────────── */
+const IC = {
+  target:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>,
+  clock:    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22a10 10 0 1 0-10-10"/><path d="M12 6v6l4 2"/></svg>,
+  calendar: <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>,
+  grid:     <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>,
+  mapPin:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+  chart:    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M7 16l4-7 4 4 5-9"/></svg>,
+  store:    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9v11h18V9"/><path d="M9 13h6"/></svg>,
+  users:    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+  scatter:  <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="6" cy="6" r="1"/><circle cx="18" cy="6" r="1"/><circle cx="6" cy="18" r="1"/><circle cx="18" cy="18" r="1"/><line x1="12" y1="12" x2="6" y2="6"/><line x1="12" y1="12" x2="18" y2="6"/><line x1="12" y1="12" x2="6" y2="18"/><line x1="12" y1="12" x2="18" y2="18"/></svg>,
+  check:    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>,
+  search:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>,
+  arrows:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>,
+  skin:     <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a9 9 0 0 1 9 9c0 4.17-2.84 7.67-6.69 8.69A9 9 0 1 1 12 2z"/><path d="M12 8c-1.5 1.5-2 3-2 4s.5 2.5 2 4"/><path d="M12 8c1.5 1.5 2 3 2 4s-.5 2.5-2 4"/></svg>,
+  doc:      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>,
+  dollar:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+}
+
 /* ── Sidebar nav item ───────────────────────────────── */
-interface SideItemProps { to: string; icon: string; label: string; badge?: string }
-function SideItem({ to, icon, label, badge }: SideItemProps) {
+interface SideItemProps { to: string; icon: ReactNode; label: string }
+function SideItem({ to, icon, label }: SideItemProps) {
   return (
     <NavLink
       to={to}
-      className={({ isActive }) => `sidebar-item${isActive ? ' active' : ''}`}
+      className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
     >
-      <span className="sidebar-icon">{icon}</span>
-      <span>{label}</span>
-      {badge && <span className="sidebar-badge">{badge}</span>}
+      {icon}
+      {label}
     </NavLink>
+  )
+}
+
+/* ── Placeholder page ───────────────────────────────── */
+function WipPage({ title }: { title: string }) {
+  return (
+    <div className="placeholder-page">
+      <div className="page-header">
+        <div className="page-title">{title}</div>
+        <div className="page-subtitle">Em construção</div>
+      </div>
+      <div className="wip-banner">
+        <span style={{ fontSize: 20 }}>🏗️</span>
+        <span><strong>Módulo em construção</strong> — Esta seção está sendo desenvolvida.</span>
+      </div>
+    </div>
+  )
+}
+
+/* ── Sidebar ────────────────────────────────────────── */
+function Sidebar({ onLogout, user }: { onLogout: () => void; user: { name?: string; initials?: string } | null }) {
+  const [periodo, setPeriodo] = useState<'mensal' | 'anual'>('mensal')
+
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-brand">
+        <div className="brand-mark">L</div>
+        <div className="brand-text">
+          <span className="brand-name">Prisma</span>
+          <span className="brand-sub">Operations Console</span>
+        </div>
+      </div>
+
+      <div className="sidebar-period-toggle">
+        <button
+          className={`period-btn${periodo === 'mensal' ? ' active' : ''}`}
+          onClick={() => setPeriodo('mensal')}
+        >Mensal</button>
+        <button
+          className={`period-btn${periodo === 'anual' ? ' active' : ''}`}
+          onClick={() => setPeriodo('anual')}
+        >Anual</button>
+      </div>
+
+      {periodo === 'mensal' && (
+        <nav className="nav-sections">
+          <div className="nav-group">
+            <div className="nav-group-title">Gestão Instantânea</div>
+            <SideItem to="/app/meta"          icon={IC.target}   label="Meta do Dia" />
+            <SideItem to="/app/parcial"       icon={IC.clock}    label="Parcial do Dia" />
+            <SideItem to="/app/dia-anterior"  icon={IC.calendar} label="Dia Anterior" />
+          </div>
+          <div className="nav-group">
+            <div className="nav-group-title">Lojas</div>
+            <SideItem to="/app/lojas"              icon={IC.grid}    label="Visão Geral" />
+            <SideItem to="/app/lojas/regioes"      icon={IC.mapPin}  label="Análise Regional" />
+            <SideItem to="/app/lojas/ranking"      icon={IC.chart}   label="Ranking de Lojas" />
+            <SideItem to="/app/lojas/detalhe"      icon={IC.store}   label="Detalhe da Loja" />
+            <SideItem to="/app/lojas/consultores"  icon={IC.users}   label="Consultores" />
+            <SideItem to="/app/lojas/dispersao"    icon={IC.scatter} label="Dispersão" />
+          </div>
+          <div className="nav-group">
+            <div className="nav-group-title">IAF</div>
+            <SideItem to="/app/iaf"            icon={IC.check}   label="Indicadores" />
+            <SideItem to="/app/iaf/detalhe"    icon={IC.search}  label="Detalhe" />
+            <SideItem to="/app/iaf/fluxo"      icon={IC.arrows}  label="Ação de Fluxo" />
+            <SideItem to="/app/iaf/skin"       icon={IC.skin}    label="Skin" />
+            <SideItem to="/app/iaf/servicos"   icon={IC.doc}     label="Serviços" />
+          </div>
+        </nav>
+      )}
+
+      {periodo === 'anual' && (
+        <nav className="nav-sections">
+          <div className="nav-group">
+            <div className="nav-group-title">Lojas</div>
+            <SideItem to="/app/anual/lojas"     icon={IC.grid}   label="Visão Geral" />
+            <SideItem to="/app/anual/regioes"   icon={IC.mapPin} label="Análise Regional" />
+            <SideItem to="/app/anual/ranking"   icon={IC.chart}  label="Ranking de Lojas" />
+            <SideItem to="/app/anual/detalhe"   icon={IC.store}  label="Detalhe da Loja" />
+            <SideItem to="/app/anual/fluxo"     icon={IC.arrows} label="Ação de Fluxo" />
+          </div>
+          <div className="nav-group">
+            <div className="nav-group-title">IAF</div>
+            <SideItem to="/app/anual/iaf"  icon={IC.check}  label="Indicadores" />
+            <SideItem to="/app/anual/pef"  icon={IC.dollar} label="Parcial PEF" />
+          </div>
+        </nav>
+      )}
+
+      <div className="sidebar-footer">
+        <div className="user-chip">{user?.initials ?? 'U'}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+          <span style={{ color: 'var(--text-1)', fontWeight: 500, fontSize: '12.5px' }}>{user?.name ?? ''}</span>
+          <button className="nav-item" style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-4)' }} onClick={onLogout}>Sair</button>
+        </div>
+      </div>
+    </aside>
   )
 }
 
@@ -315,44 +432,45 @@ export default function AppShell() {
 
       <div className="app-body">
         {/* Sidebar */}
-        <aside className="sidebar">
-          <SideItem to="/app/dashboard" icon="🏠" label="Painel" />
-
-          <div className="sidebar-section-label">Loja</div>
-          <SideItem to="/app/loja" icon="🏪" label="Visão Geral" />
-          <SideItem to="/app/loja" icon="🖥️" label="PDV" />
-          <SideItem to="/app/loja" icon="📦" label="Estoque" />
-          <SideItem to="/app/loja" icon="🛒" label="Pedidos" badge="5" />
-          <SideItem to="/app/loja" icon="👥" label="Clientes" />
-
-          <div className="sidebar-section-label">Venda Direta</div>
-          <SideItem to="/app/vd" icon="💄" label="Visão Geral" />
-          <SideItem to="/app/vd" icon="👩‍💼" label="Consultoras" />
-          <SideItem to="/app/vd" icon="📱" label="Catálogo" />
-          <SideItem to="/app/vd" icon="💰" label="Comissões" />
-
-          <div className="sidebar-section-label">Gestão</div>
-          <SideItem to="/app/relatorios" icon="📊" label="Relatórios" />
-          <SideItem to="/app/configuracoes" icon="⚙️" label="Configurações" />
-
-          <div className="sidebar-footer">
-            <button className="sidebar-item" onClick={handleLogout}>
-              <span className="sidebar-icon">🚪</span>
-              <span>Sair</span>
-            </button>
-          </div>
-        </aside>
+        <Sidebar onLogout={handleLogout} user={user} />
 
         {/* Main */}
         <main className="app-main">
           <Routes>
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard"    element={<DashboardPage />} />
-            <Route path="loja"         element={<LojaPage />} />
-            <Route path="vd"           element={<VDPage />} />
-            <Route path="relatorios"   element={<RelatoriosPage />} />
-            <Route path="configuracoes" element={<ConfigPage />} />
-            <Route path="*"            element={<Navigate to="dashboard" replace />} />
+            <Route index element={<Navigate to="meta" replace />} />
+            {/* Mensal – Gestão Instantânea */}
+            <Route path="meta"          element={<WipPage title="Meta do Dia" />} />
+            <Route path="parcial"       element={<WipPage title="Parcial do Dia" />} />
+            <Route path="dia-anterior"  element={<WipPage title="Dia Anterior" />} />
+            {/* Mensal – Lojas */}
+            <Route path="lojas"                    element={<WipPage title="Lojas — Visão Geral" />} />
+            <Route path="lojas/regioes"            element={<WipPage title="Análise Regional" />} />
+            <Route path="lojas/ranking"            element={<WipPage title="Ranking de Lojas" />} />
+            <Route path="lojas/detalhe"            element={<WipPage title="Detalhe da Loja" />} />
+            <Route path="lojas/consultores"        element={<WipPage title="Consultores" />} />
+            <Route path="lojas/dispersao"          element={<WipPage title="Dispersão" />} />
+            {/* Mensal – IAF */}
+            <Route path="iaf"            element={<WipPage title="IAF — Indicadores" />} />
+            <Route path="iaf/detalhe"    element={<WipPage title="IAF — Detalhe" />} />
+            <Route path="iaf/fluxo"      element={<WipPage title="Ação de Fluxo" />} />
+            <Route path="iaf/skin"       element={<WipPage title="Skin" />} />
+            <Route path="iaf/servicos"   element={<WipPage title="Serviços" />} />
+            {/* Anual – Lojas */}
+            <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas" />} />
+            <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional" />} />
+            <Route path="anual/ranking"  element={<WipPage title="Anual — Ranking de Lojas" />} />
+            <Route path="anual/detalhe"  element={<WipPage title="Anual — Detalhe da Loja" />} />
+            <Route path="anual/fluxo"    element={<WipPage title="Anual — Ação de Fluxo" />} />
+            {/* Anual – IAF */}
+            <Route path="anual/iaf"      element={<WipPage title="Anual — Indicadores" />} />
+            <Route path="anual/pef"      element={<WipPage title="Anual — Parcial PEF" />} />
+            {/* legado (mantidos para não quebrar links diretos) */}
+            <Route path="dashboard"      element={<DashboardPage />} />
+            <Route path="loja"           element={<LojaPage />} />
+            <Route path="vd"             element={<VDPage />} />
+            <Route path="relatorios"     element={<RelatoriosPage />} />
+            <Route path="configuracoes"  element={<ConfigPage />} />
+            <Route path="*"              element={<Navigate to="meta" replace />} />
           </Routes>
         </main>
       </div>
