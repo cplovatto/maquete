@@ -9,9 +9,10 @@ type FileStatus = 'embedded' | 'loaded' | 'pending'
 interface FileStatusCtxType {
   statuses: Record<string, FileStatus>
   setStatuses: Dispatch<SetStateAction<Record<string, FileStatus>>>
-  onFileLoaded: (id: string) => void
+  onFileLoaded: (id: string, filename: string) => void
   openImport: () => void
   lastLoaded: Record<string, Date>
+  fileDates: Record<string, Date | null>
   lastParcialUpload: Date | null
   alertEnabled: boolean
   setAlertEnabled: Dispatch<SetStateAction<boolean>>
@@ -394,16 +395,33 @@ const ANUAL_SOURCES: DataSource[] = [
   { id: 'anual-pef',   name: 'Parcial PEF',         format: 'XLSX', icon: IC.dollar, defaultStatus: 'pending', section: 'IAF'   },
 ]
 
-function formatImportDate(date: Date): { text: string; stale: boolean } {
-  const isToday = date.toDateString() === new Date().toDateString()
-  const d = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  const t = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+function extractDateFromFilename(name: string): Date | null {
+  // YYYYMMDD_ no início: 20260416_Loja_...
+  const m1 = name.match(/^(\d{4})(\d{2})(\d{2})_/)
+  if (m1) { const d = new Date(+m1[1], +m1[2] - 1, +m1[3]); if (!isNaN(d.getTime())) return d }
+  // DD-MM-YYYY em qualquer posição: GerencialVendas-02-05-2026
+  const m2 = name.match(/(\d{2})-(\d{2})-(\d{4})/)
+  if (m2) { const d = new Date(+m2[3], +m2[2] - 1, +m2[1]); if (!isNaN(d.getTime())) return d }
+  // YYYY-MM-DD em qualquer posição
+  const m3 = name.match(/(\d{4})-(\d{2})-(\d{2})/)
+  if (m3) { const d = new Date(+m3[1], +m3[2] - 1, +m3[3]); if (!isNaN(d.getTime())) return d }
+  // DDMMYYYY compacto
+  const m4 = name.match(/(\d{2})(\d{2})(\d{4})/)
+  if (m4) { const d = new Date(+m4[3], +m4[2] - 1, +m4[1]); if (!isNaN(d.getTime())) return d }
+  return null
+}
+
+function formatImportDate(fileDate: Date | null, loadedAt: Date): { text: string; stale: boolean } {
+  const refDate = fileDate ?? loadedAt
+  const isToday = refDate.toDateString() === new Date().toDateString()
+  const d = refDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const t = loadedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   return { text: `${d} às ${t}`, stale: !isToday }
 }
 
 function ImportModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'mensal' | 'anual'>('mensal')
-  const { statuses, onFileLoaded, lastLoaded } = useFileStatus()
+  const { statuses, onFileLoaded, lastLoaded, fileDates } = useFileStatus()
 
   const sources = tab === 'mensal' ? MENSAL_SOURCES : ANUAL_SOURCES
   const sections = Array.from(new Set(sources.map(s => s.section)))
@@ -431,13 +449,13 @@ function ImportModal({ onClose }: { onClose: () => void }) {
                     type="file"
                     accept={source.format === 'CSV' ? '.csv' : '.xlsx,.xls'}
                     style={{ display: 'none' }}
-                    onChange={() => onFileLoaded(source.id)}
+                    onChange={e => onFileLoaded(source.id, e.target.files?.[0]?.name ?? '')}
                   />
                   <span className="import-icon">{source.icon}</span>
                   <span className="import-meta">
                     <span className="import-name">{source.name}</span>
                     {lastLoaded[source.id]
-                      ? (() => { const { text, stale } = formatImportDate(lastLoaded[source.id]); return (
+                      ? (() => { const { text, stale } = formatImportDate(fileDates[source.id] ?? null, lastLoaded[source.id]); return (
                           <span className={`import-status ok${stale ? ' stale' : ''}`}>{text}</span>
                         )})()
                       : <span className="import-status">Não carregado</span>
@@ -592,6 +610,7 @@ export default function AppShell() {
     return init
   })
   const [lastLoaded, setLastLoaded] = useState<Record<string, Date>>({})
+  const [fileDates, setFileDates] = useState<Record<string, Date | null>>({})
   const [lastParcialUpload, setLastParcialUpload] = useState<Date | null>(null)
   const [alertEnabled, setAlertEnabled] = useState(true)
   const [alertIntervalMinutes, setAlertIntervalMinutes] = useState(60)
@@ -599,10 +618,11 @@ export default function AppShell() {
   const [toastVisible, setToastVisible] = useState(false)
   const loginTime = useRef(new Date())
 
-  const onFileLoaded = (id: string) => {
+  const onFileLoaded = (id: string, filename: string) => {
     const now = new Date()
     setFileStatuses(prev => ({ ...prev, [id]: 'loaded' }))
     setLastLoaded(prev => ({ ...prev, [id]: now }))
+    setFileDates(prev => ({ ...prev, [id]: extractDateFromFilename(filename) }))
     if (id === 'parcial') {
       setLastParcialUpload(now)
       setAlertActive(false)
@@ -634,7 +654,7 @@ export default function AppShell() {
     <FileStatusCtx.Provider value={{
       statuses: fileStatuses, setStatuses: setFileStatuses, onFileLoaded,
       openImport: () => setImportOpen(true),
-      lastLoaded, lastParcialUpload, alertEnabled, setAlertEnabled,
+      lastLoaded, fileDates, lastParcialUpload, alertEnabled, setAlertEnabled,
       alertIntervalMinutes, setAlertIntervalMinutes,
       alertActive, toastVisible, setToastVisible,
     }}>
