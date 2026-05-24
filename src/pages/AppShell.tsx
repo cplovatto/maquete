@@ -11,6 +11,7 @@ interface FileStatusCtxType {
   setStatuses: Dispatch<SetStateAction<Record<string, FileStatus>>>
   onFileLoaded: (id: string) => void
   openImport: () => void
+  lastLoaded: Record<string, Date>
   lastParcialUpload: Date | null
   alertEnabled: boolean
   setAlertEnabled: Dispatch<SetStateAction<boolean>>
@@ -393,9 +394,18 @@ const ANUAL_SOURCES: DataSource[] = [
   { id: 'anual-pef',   name: 'Parcial PEF',         format: 'XLSX', icon: IC.dollar, defaultStatus: 'pending', section: 'IAF'   },
 ]
 
+function formatImportDate(date: Date): { text: string; stale: boolean } {
+  const today = new Date()
+  const isToday = date.toDateString() === today.toDateString()
+  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  if (isToday) return { text: `Hoje às ${time}`, stale: false }
+  const d = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return { text: `${d} às ${time}`, stale: true }
+}
+
 function ImportModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'mensal' | 'anual'>('mensal')
-  const { statuses, onFileLoaded } = useFileStatus()
+  const { statuses, onFileLoaded, lastLoaded } = useFileStatus()
 
   const sources = tab === 'mensal' ? MENSAL_SOURCES : ANUAL_SOURCES
   const sections = Array.from(new Set(sources.map(s => s.section)))
@@ -428,9 +438,14 @@ function ImportModal({ onClose }: { onClose: () => void }) {
                   <span className="import-icon">{source.icon}</span>
                   <span className="import-meta">
                     <span className="import-name">{source.name}</span>
-                    <span className={`import-status${statuses[source.id] !== 'pending' ? ' ok' : ''}`}>
-                      {statuses[source.id] === 'embedded' ? 'Dados embutidos' : statuses[source.id] === 'loaded' ? 'Carregado' : 'Não carregado'}
-                    </span>
+                    {statuses[source.id] === 'loaded' && lastLoaded[source.id]
+                      ? (() => { const { text, stale } = formatImportDate(lastLoaded[source.id]); return (
+                          <span className={`import-status ok${stale ? ' stale' : ''}`}>{text}</span>
+                        )})()
+                      : <span className={`import-status${statuses[source.id] !== 'pending' ? ' ok' : ''}`}>
+                          {statuses[source.id] === 'embedded' ? 'Dados embutidos' : 'Não carregado'}
+                        </span>
+                    }
                   </span>
                   <span className={`import-format-badge format-${source.format.toLowerCase()}`}>{source.format}</span>
                 </label>
@@ -580,6 +595,7 @@ export default function AppShell() {
     ;[...MENSAL_SOURCES, ...ANUAL_SOURCES].forEach(s => { init[s.id] = s.defaultStatus })
     return init
   })
+  const [lastLoaded, setLastLoaded] = useState<Record<string, Date>>({})
   const [lastParcialUpload, setLastParcialUpload] = useState<Date | null>(null)
   const [alertEnabled, setAlertEnabled] = useState(true)
   const [alertIntervalMinutes, setAlertIntervalMinutes] = useState(60)
@@ -588,9 +604,11 @@ export default function AppShell() {
   const loginTime = useRef(new Date())
 
   const onFileLoaded = (id: string) => {
+    const now = new Date()
     setFileStatuses(prev => ({ ...prev, [id]: 'loaded' }))
+    setLastLoaded(prev => ({ ...prev, [id]: now }))
     if (id === 'parcial') {
-      setLastParcialUpload(new Date())
+      setLastParcialUpload(now)
       setAlertActive(false)
       setToastVisible(false)
     }
@@ -620,7 +638,7 @@ export default function AppShell() {
     <FileStatusCtx.Provider value={{
       statuses: fileStatuses, setStatuses: setFileStatuses, onFileLoaded,
       openImport: () => setImportOpen(true),
-      lastParcialUpload, alertEnabled, setAlertEnabled,
+      lastLoaded, lastParcialUpload, alertEnabled, setAlertEnabled,
       alertIntervalMinutes, setAlertIntervalMinutes,
       alertActive, toastVisible, setToastVisible,
     }}>
