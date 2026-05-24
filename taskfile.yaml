@@ -1,0 +1,92 @@
+# https://taskfile.dev
+version: "3"
+
+vars:
+  NODE_MODULES: node_modules
+  DIST: dist
+  PACKAGE_JSON: package.json
+  LOCKFILE: package-lock.json
+
+tasks:
+
+  default:
+    desc: "Show available tasks"
+    cmd: task --list
+
+  # ── Setup ──────────────────────────────────────────────────────────
+
+  install:
+    desc: "Install npm dependencies"
+    sources:
+      - "{{.PACKAGE_JSON}}"
+      - "{{.LOCKFILE}}"
+    generates:
+      - "{{.NODE_MODULES}}/.package-lock.json"
+    cmds:
+      - npm install
+
+  setup:
+    desc: "Install deps and run typecheck"
+    deps: [install]
+    cmds:
+      - task: typecheck
+
+  clean:
+    desc: "Remove node_modules and dist"
+    cmds:
+      - rm -rf {{.NODE_MODULES}} {{.DIST}}
+
+  reinstall:
+    desc: "Clean install from scratch"
+    cmds:
+      - task: clean
+      - task: install
+
+  # ── Dev server ─────────────────────────────────────────────────────
+
+  dev:
+    desc: "Start Vite dev server (localhost:5173)"
+    deps: [install]
+    cmds:
+      - npm run dev
+
+  preview:
+    desc: "Preview production build locally"
+    deps: [build]
+    cmds:
+      - npm run preview
+
+  # ── Build ──────────────────────────────────────────────────────────
+
+  build:
+    desc: "Build for production (outputs to docs/)"
+    deps: [install]
+    sources:
+      - src/**/*
+      - index.html
+      - vite.config.ts
+      - tsconfig.json
+    generates:
+      - "{{.DIST}}/**"
+    cmds:
+      - npm run build
+
+  # ── Type checking ──────────────────────────────────────────────────
+
+  typecheck:
+    desc: "Run TypeScript type checking (no emit)"
+    deps: [install]
+    sources:
+      - src/**/*.ts
+      - src/**/*.tsx
+      - tsconfig.json
+    cmds:
+      - npm run typecheck
+
+  # ── CI / quality ───────────────────────────────────────────────────
+
+  ci:
+    desc: "Full CI pipeline: typecheck + build"
+    cmds:
+      - task: typecheck
+      - task: build
