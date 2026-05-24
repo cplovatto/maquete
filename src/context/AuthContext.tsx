@@ -9,24 +9,19 @@ interface User {
 
 interface AuthContextType {
   user: User | null
-  login: (provider: 'google' | 'apple' | 'email', email?: string) => void
+  login: (provider: 'google' | 'apple' | 'email', username?: string, password?: string) => boolean
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
-const ANON_USER: User = { name: 'Anônimo', email: '', initials: 'AN', provider: 'email' }
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(ANON_USER)
+  const [user, setUser] = useState<User | null>(null)
 
-  const login = (provider: 'google' | 'apple' | 'email', email?: string) => {
-    setUser({
-      name: 'Maria Silva',
-      email: email || 'maria.silva@empresa.com.br',
-      initials: 'MS',
-      provider,
-    })
+  const login = (provider: 'google' | 'apple' | 'email', username?: string, password?: string): boolean => {
+    if (provider !== 'email' || username !== 'demo' || password !== 'demo') return false
+    setUser({ name: 'Demo', email: 'demo', initials: 'DM', provider: 'email' })
+    return true
   }
 
   const logout = () => setUser(null)
