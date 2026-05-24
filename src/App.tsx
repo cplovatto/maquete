@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { LojasProvider } from './context/LojasContext'
 import Landing from './pages/Landing'
 import SignIn from './pages/SignIn'
 import AppShell from './pages/AppShell'
@@ -16,6 +17,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
+        <LojasProvider>
         <HashRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -31,6 +33,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </HashRouter>
+        </LojasProvider>
       </AuthProvider>
     </ThemeProvider>
   )

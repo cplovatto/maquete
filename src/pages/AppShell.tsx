@@ -3,6 +3,7 @@ import type { ReactNode, Dispatch, SetStateAction } from 'react'
 import { Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
+import { useLojas, type Loja } from '../context/LojasContext'
 
 /* ── File status context ────────────────────────────── */
 type FileStatus = 'embedded' | 'loaded' | 'pending'
@@ -297,6 +298,156 @@ const IC = {
   skin:     <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a9 9 0 0 1 9 9c0 4.17-2.84 7.67-6.69 8.69A9 9 0 1 1 12 2z"/><path d="M12 8c-1.5 1.5-2 3-2 4s.5 2.5 2 4"/><path d="M12 8c1.5 1.5 2 3 2 4s-.5 2.5-2 4"/></svg>,
   doc:      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>,
   dollar:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+}
+
+/* ── Lojas ──────────────────────────────────────────── */
+const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']
+
+function LojasModal({ onClose }: { onClose: () => void }) {
+  const { lojas, addLoja, updateLoja, deleteLoja, importIds } = useLojas()
+  const [tab, setTab] = useState<'lista' | 'importar'>('lista')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({ apelido: '', cidade: '', estado: '' })
+  const [adding, setAdding] = useState(false)
+  const [newForm, setNewForm] = useState<Loja>({ id: '', apelido: '', cidade: '', estado: '' })
+  const [addError, setAddError] = useState('')
+  const [importText, setImportText] = useState('')
+  const [importResult, setImportResult] = useState<{ added: number; skipped: number } | null>(null)
+
+  function startEdit(l: Loja) {
+    setEditingId(l.id)
+    setEditForm({ apelido: l.apelido, cidade: l.cidade, estado: l.estado })
+    setAdding(false)
+  }
+
+  function saveEdit() {
+    if (editingId) { updateLoja(editingId, editForm); setEditingId(null) }
+  }
+
+  function startAdd() {
+    setAdding(true)
+    setNewForm({ id: '', apelido: '', cidade: '', estado: '' })
+    setAddError('')
+    setEditingId(null)
+  }
+
+  function saveAdd() {
+    const id = newForm.id.trim()
+    if (!id) { setAddError('ID é obrigatório'); return }
+    if (lojas.some(l => l.id === id)) { setAddError(`ID "${id}" já existe`); return }
+    addLoja({ ...newForm, id })
+    setAdding(false)
+    setAddError('')
+  }
+
+  function handleImport() {
+    const ids = importText.split(/[\n,;\t]/).map(s => s.trim()).filter(Boolean)
+    const result = importIds(ids)
+    setImportResult(result)
+    setImportText('')
+  }
+
+  const UfSelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
+    <select className="lojas-input lojas-uf" value={value} onChange={e => onChange(e.target.value)}>
+      <option value="">—</option>
+      {UFS.map(uf => <option key={uf}>{uf}</option>)}
+    </select>
+  )
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal--lg" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">Cadastro de Lojas</span>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-tabs">
+          <button className={`modal-tab${tab === 'lista' ? ' active' : ''}`} onClick={() => setTab('lista')}>
+            Lojas{lojas.length > 0 && <span className="lojas-count">{lojas.length}</span>}
+          </button>
+          <button className={`modal-tab${tab === 'importar' ? ' active' : ''}`} onClick={() => setTab('importar')}>Importar IDs</button>
+        </div>
+
+        {tab === 'lista' && (
+          <div className="modal-body">
+            {(lojas.length > 0 || adding) && (
+              <table className="lojas-table">
+                <thead>
+                  <tr><th>ID</th><th>Apelido</th><th>Cidade</th><th>UF</th><th /></tr>
+                </thead>
+                <tbody>
+                  {lojas.map(l => editingId === l.id ? (
+                    <tr key={l.id} className="lojas-row-editing">
+                      <td className="lojas-id-cell">{l.id}</td>
+                      <td><input className="lojas-input" value={editForm.apelido} onChange={e => setEditForm(f => ({ ...f, apelido: e.target.value }))} placeholder="Apelido" /></td>
+                      <td><input className="lojas-input" value={editForm.cidade}  onChange={e => setEditForm(f => ({ ...f, cidade:  e.target.value }))} placeholder="Cidade"  /></td>
+                      <td><UfSelect value={editForm.estado} onChange={v => setEditForm(f => ({ ...f, estado: v }))} /></td>
+                      <td className="lojas-actions">
+                        <button className="lojas-btn-save"   onClick={saveEdit}>✓</button>
+                        <button className="lojas-btn-cancel" onClick={() => setEditingId(null)}>✕</button>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={l.id}>
+                      <td className="lojas-id-cell">{l.id}</td>
+                      <td>{l.apelido || <span className="lojas-empty-cell">—</span>}</td>
+                      <td>{l.cidade  || <span className="lojas-empty-cell">—</span>}</td>
+                      <td>{l.estado  || <span className="lojas-empty-cell">—</span>}</td>
+                      <td className="lojas-actions">
+                        <button className="lojas-btn-icon" onClick={() => startEdit(l)} title="Editar">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <button className="lojas-btn-icon lojas-btn-delete" onClick={() => deleteLoja(l.id)} title="Excluir">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {adding && (
+                    <tr className="lojas-row-editing">
+                      <td><input className="lojas-input" value={newForm.id}      onChange={e => setNewForm(f => ({ ...f, id:      e.target.value }))} placeholder="ID *"    autoFocus /></td>
+                      <td><input className="lojas-input" value={newForm.apelido} onChange={e => setNewForm(f => ({ ...f, apelido: e.target.value }))} placeholder="Apelido" /></td>
+                      <td><input className="lojas-input" value={newForm.cidade}  onChange={e => setNewForm(f => ({ ...f, cidade:  e.target.value }))} placeholder="Cidade"  /></td>
+                      <td><UfSelect value={newForm.estado} onChange={v => setNewForm(f => ({ ...f, estado: v }))} /></td>
+                      <td className="lojas-actions">
+                        <button className="lojas-btn-save"   onClick={saveAdd}>✓</button>
+                        <button className="lojas-btn-cancel" onClick={() => { setAdding(false); setAddError('') }}>✕</button>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+            {lojas.length === 0 && !adding && (
+              <div className="lojas-empty">Nenhuma loja cadastrada ainda.<br/><span style={{ fontSize: 12 }}>Use "Importar IDs" para cadastrar em massa a partir de uma planilha.</span></div>
+            )}
+            {addError && <p className="lojas-error">{addError}</p>}
+            {!adding && <button className="lojas-add-btn" onClick={startAdd}>+ Adicionar loja</button>}
+          </div>
+        )}
+
+        {tab === 'importar' && (
+          <div className="modal-body">
+            <p className="lojas-import-desc">Cole abaixo os IDs das lojas — um por linha, ou separados por vírgula/ponto-e-vírgula. As lojas são criadas sem apelido, cidade ou estado; edite-as depois na aba Lojas. IDs já cadastrados são ignorados.</p>
+            <textarea
+              className="lojas-import-textarea"
+              rows={8}
+              placeholder={"001\n002\nSP-003\n..."}
+              value={importText}
+              onChange={e => { setImportText(e.target.value); setImportResult(null) }}
+            />
+            {importResult && (
+              <div className="lojas-import-result">
+                {importResult.added} loja{importResult.added !== 1 ? 's' : ''} adicionada{importResult.added !== 1 ? 's' : ''}
+                {importResult.skipped > 0 && ` · ${importResult.skipped} ignorada${importResult.skipped !== 1 ? 's' : ''} (ID já existe)`}.
+              </div>
+            )}
+            <button className="lojas-import-btn" onClick={handleImport} disabled={!importText.trim()}>Importar</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 /* ── Alert settings modal ───────────────────────────── */
@@ -604,6 +755,7 @@ export default function AppShell() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [alertSettingsOpen, setAlertSettingsOpen] = useState(false)
+  const [lojasOpen, setLojasOpen] = useState(false)
   const [fileStatuses, setFileStatuses] = useState<Record<string, FileStatus>>(() => {
     const init: Record<string, FileStatus> = {}
     ;[...MENSAL_SOURCES, ...ANUAL_SOURCES].forEach(s => { init[s.id] = s.defaultStatus })
@@ -712,6 +864,10 @@ export default function AppShell() {
               <>
                 <div className="profile-backdrop" onClick={() => setProfileOpen(false)} />
                 <div className="profile-dropdown">
+                  <button className="profile-dropdown-item" onClick={() => { setLojasOpen(true); setProfileOpen(false) }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9v11h18V9"/><path d="M9 13h6"/></svg>
+                    Cadastro de lojas
+                  </button>
                   <button className="profile-dropdown-item" onClick={() => { setImportOpen(true); setProfileOpen(false) }}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     Importar planilhas
@@ -732,6 +888,7 @@ export default function AppShell() {
         </div>
       </header>
 
+      {lojasOpen && <LojasModal onClose={() => setLojasOpen(false)} />}
       {importOpen && <ImportModal onClose={() => setImportOpen(false)} />}
       {alertSettingsOpen && <AlertSettingsModal onClose={() => setAlertSettingsOpen(false)} />}
       {toastVisible && (

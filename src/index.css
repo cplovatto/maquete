@@ -541,6 +541,41 @@ input, textarea { font-family: inherit; }
 .profile-dropdown-item--danger:hover { background: rgba(239,68,68,.08); }
 .profile-dropdown-divider { height: 1px; background: var(--bg-border); margin: 4px 0; }
 
+/* Lojas modal */
+.modal--lg { max-width: 700px; }
+.lojas-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.lojas-table th { padding: 7px 10px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); border-bottom: 1px solid var(--bg-border); white-space: nowrap; }
+.lojas-table td { padding: 6px 10px; border-bottom: 1px solid var(--bg-border); color: var(--text-primary); vertical-align: middle; }
+.lojas-table tbody tr:last-child td { border-bottom: none; }
+.lojas-table tbody tr:hover td { background: var(--bg-surface-hover); }
+.lojas-row-editing td { background: var(--bg-surface-2) !important; padding: 4px 6px; }
+.lojas-id-cell { font-family: monospace; font-size: 13px; color: var(--brand-primary); font-weight: 600; width: 100px; }
+.lojas-empty-cell { color: var(--text-muted); }
+.lojas-actions { text-align: right; white-space: nowrap; width: 64px; }
+.lojas-btn-icon { background: none; border: none; cursor: pointer; padding: 4px 5px; border-radius: 4px; color: var(--text-secondary); transition: background .12s, color .12s; }
+.lojas-btn-icon:hover { background: var(--bg-surface-hover); color: var(--text-primary); }
+.lojas-btn-delete:hover { color: #dc2626; }
+.lojas-input { width: 100%; padding: 4px 7px; border: 1px solid var(--bg-border); border-radius: 4px; background: var(--bg-surface); color: var(--text-primary); font-size: 13px; box-sizing: border-box; }
+.lojas-input:focus { outline: none; border-color: var(--brand-primary); }
+.lojas-uf { width: 64px; }
+.lojas-btn-save { background: #16a34a; color: #fff; border: none; border-radius: 4px; padding: 3px 9px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.lojas-btn-save:hover { background: #15803d; }
+.lojas-btn-cancel { background: none; border: 1px solid var(--bg-border); border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 13px; color: var(--text-secondary); margin-left: 4px; }
+.lojas-btn-cancel:hover { background: var(--bg-surface-hover); }
+.lojas-add-btn { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 12px; padding: 8px; border: 1.5px dashed var(--bg-border); border-radius: 6px; background: none; color: var(--text-secondary); font-size: 13px; cursor: pointer; width: 100%; transition: border-color .15s, color .15s; }
+.lojas-add-btn:hover { border-color: var(--brand-primary); color: var(--brand-primary); }
+.lojas-empty { text-align: center; padding: 32px 16px; color: var(--text-muted); font-size: 14px; line-height: 1.6; }
+.lojas-error { color: #dc2626; font-size: 12px; margin: 4px 0 0; }
+.lojas-count { display: inline-flex; align-items: center; justify-content: center; background: var(--brand-primary); color: #fff; border-radius: 10px; font-size: 10px; padding: 1px 6px; margin-left: 5px; vertical-align: middle; }
+.lojas-import-desc { font-size: 13px; color: var(--text-secondary); margin: 0 0 12px; line-height: 1.5; }
+.lojas-import-textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--bg-border); border-radius: 6px; background: var(--bg-surface); color: var(--text-primary); font-family: monospace; font-size: 13px; resize: vertical; box-sizing: border-box; }
+.lojas-import-textarea:focus { outline: none; border-color: var(--brand-primary); }
+.lojas-import-result { margin-top: 8px; padding: 8px 12px; background: #dcfce7; color: #16a34a; border-radius: 6px; font-size: 13px; }
+[data-theme="dark"] .lojas-import-result { background: #14532d40; color: #86efac; }
+.lojas-import-btn { margin-top: 10px; padding: 8px 20px; background: var(--brand-primary); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+.lojas-import-btn:disabled { opacity: .5; cursor: not-allowed; }
+.lojas-import-btn:not(:disabled):hover { opacity: .9; }
+
 /* Alert settings modal */
 .modal--sm { width: 340px; }
 .alert-settings-body { padding: 16px 20px 20px; }
