@@ -32,7 +32,7 @@ export interface FluxoTotal {
   conv_pct: number
 }
 
-// Valores consolidados da aba CP, coluna B (RESULTADO)
+// Valores consolidados da aba CP, coluna B (RESULTADO) e coluna F (EFC)
 export interface CPData {
   vf_valor: number    // Receita GMV (R$)
   vf_var_aa: number   // Receita (%) — variação vs. ano anterior, em pontos percentuais ex: -1.24
@@ -40,6 +40,9 @@ export interface CPData {
   bm_valor: number    // Boleto Médio (R$)
   iv_valor: number    // Itens por Boleto
   pm_valor: number    // Preço Médio (R$)
+  bm_efc: number      // Boleto Médio EFC (col F)
+  iv_efc: number      // Itens por Boleto EFC (col F)
+  pm_efc: number      // Preço Médio EFC (col F)
 }
 
 interface DataCtxType {
@@ -120,6 +123,9 @@ function parseCPSheet(wb: XLSX.WorkBook): CPData | null {
     bm_valor:  parseBRL(rowBM?.[1] ?? 0),
     iv_valor:  parseBRL(rowIV?.[1] ?? 0),
     pm_valor:  parseBRL(rowPM?.[1] ?? 0),
+    bm_efc:    parseBRL(rowBM?.[5] ?? 0),
+    iv_efc:    parseBRL(rowIV?.[5] ?? 0),
+    pm_efc:    parseBRL(rowPM?.[5] ?? 0),
   }
 }
 

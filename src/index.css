@@ -874,6 +874,7 @@ input, textarea { font-family: inherit; }
 .kpi-var.pos { color: #059669; }
 .kpi-var.neg { color: #dc2626; }
 .kpi-var-note { font-size: 10px; font-weight: 400; opacity: .65; margin-left: 5px; }
+.kpi-efc { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
 
 /* Variation badge */
 .var-badge {
@@ -923,6 +924,99 @@ input, textarea { font-family: inherit; }
 .meta-bar-track { flex: 1; height: 6px; background: var(--bg-surface-2); border-radius: 99px; overflow: hidden; min-width: 50px; }
 .meta-bar-fill  { height: 100%; border-radius: 99px; transition: width .3s; }
 .meta-pct-label { font-size: 11.5px; font-weight: 700; min-width: 36px; text-align: right; }
+
+/* Region revenue donut chart */
+.rev-chart-card {
+  background: var(--bg-surface); border: 1px solid var(--bg-border);
+  border-radius: 12px; padding: 20px 24px; margin-bottom: 24px;
+}
+.rev-chart-title {
+  font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 20px;
+}
+.rev-chart-layout { display: flex; align-items: center; gap: 36px; }
+.pie-svg { width: 220px; height: 220px; flex-shrink: 0; }
+.pie-legend { display: flex; flex-direction: column; gap: 11px; flex: 1; }
+.pie-legend-row {
+  display: grid; grid-template-columns: 10px 1fr 52px 140px;
+  align-items: center; gap: 10px;
+}
+.pie-legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+.pie-legend-name { font-size: 13px; color: var(--text-primary); }
+.pie-legend-pct {
+  font-size: 12.5px; font-weight: 700; color: var(--text-secondary);
+  text-align: right; font-variant-numeric: tabular-nums;
+}
+.pie-legend-val {
+  font-size: 12px; color: var(--text-muted); text-align: right;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
+/* Impact table */
+.impact-table-card {
+  background: var(--bg-surface); border: 1px solid var(--bg-border);
+  border-radius: 12px; overflow: hidden; margin-bottom: 24px;
+}
+.impact-table-header {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+  padding: 16px 20px 12px; border-bottom: 1px solid var(--bg-border);
+}
+.impact-table-title {
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
+}
+.impact-filter-note { font-weight: 400; color: var(--text-muted); font-size: 12px; }
+.impact-bar-th { width: 180px; }
+.impact-bar-cell { padding: 9px 12px; width: 180px; }
+.impact-bar-track {
+  height: 7px; background: var(--bg-surface-2);
+  border-radius: 99px; overflow: hidden;
+}
+.impact-bar-fill {
+  height: 100%; border-radius: 99px;
+  background: var(--brand-primary); opacity: .7;
+  transition: width .3s;
+}
+.impact-pp-neg {
+  font-weight: 700; color: #dc2626 !important;
+  white-space: nowrap;
+}
+
+/* Region filter bar */
+.region-filter-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin-bottom: 16px;
+}
+.region-filter-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--text-muted); margin-right: 4px;
+}
+.region-filter-btn {
+  padding: 4px 12px; border-radius: 99px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--bg-border); background: var(--bg-surface);
+  color: var(--text-secondary); cursor: pointer; transition: all .15s;
+}
+.region-filter-btn:hover { border-color: var(--brand-primary); color: var(--brand-primary); }
+.region-filter-btn.active {
+  background: var(--brand-primary); border-color: var(--brand-primary);
+  color: #fff;
+}
+
+/* GAP table — Receita deixada na mesa */
+.gap-section-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; margin-bottom: 12px;
+}
+.gap-section-title { font-size: 14px; font-weight: 700; color: var(--text-primary); margin-bottom: 2px; }
+.gap-section-sub   { font-size: 12px; color: var(--text-muted); }
+.gap-section-total { text-align: right; flex-shrink: 0; }
+.gap-section-total-label { display: block; font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+.gap-section-total-value { font-size: 20px; font-weight: 700; color: #f59e0b; }
+.col-muted-val { color: var(--text-muted) !important; }
+.col-neg-val   { color: #dc2626 !important; font-weight: 600; }
+.col-gap-head  { color: #f59e0b !important; }
+.col-gap-val   { font-weight: 700; color: #f59e0b !important; }
+.gap-table-total td { padding: 10px 12px; background: var(--bg-surface-2); border-top: 2px solid var(--bg-border); }
+.gap-total-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-align: right; }
 
 /* Regional analysis */
 .region-block { margin-bottom: 28px; }

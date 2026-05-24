@@ -802,7 +802,7 @@ function VarBadge({ v }: { v: number }) {
   return <span className={`var-badge${v > 0.05 ? ' var-pos' : v < -0.05 ? ' var-neg' : ''}`}>{fVar(v)}</span>
 }
 
-function KpiCard({ label, value, var: varV, varNote }: { label: string; value: string; var?: number; varNote?: string }) {
+function KpiCard({ label, value, var: varV, varNote, efc }: { label: string; value: string; var?: number; varNote?: string; efc?: string }) {
   return (
     <div className="kpi-card">
       <div className="kpi-label">{label}</div>
@@ -812,6 +812,7 @@ function KpiCard({ label, value, var: varV, varNote }: { label: string; value: s
           {fVar(varV)}{varNote && <span className="kpi-var-note">{varNote}</span>}
         </div>
       )}
+      {efc && <div className="kpi-efc">EFC {efc}</div>}
     </div>
   )
 }
@@ -832,7 +833,7 @@ function LojasEmptyState() {
   )
 }
 
-type SortKey = keyof MainRow | 'conv_pct' | 'meta_pct'
+type SortKey = keyof MainRow | 'conv_pct'
 
 function useStoreTableData(sortKey: SortKey, sortDir: 'asc' | 'desc') {
   const { mainRows, fluxoRows } = useData()
@@ -849,7 +850,6 @@ function useStoreTableData(sortKey: SortKey, sortDir: 'asc' | 'desc') {
     rows.sort((a, b) => {
       let va = 0, vb = 0
       if (sortKey === 'conv_pct') { va = a.fluxo?.conv_pct ?? -1; vb = b.fluxo?.conv_pct ?? -1 }
-      else if (sortKey === 'meta_pct') { va = a.main.vf_atual; vb = b.main.vf_atual }
       else { va = (a.main as unknown as Record<string, number>)[sortKey] ?? 0; vb = (b.main as unknown as Record<string, number>)[sortKey] ?? 0 }
       return sortDir === 'desc' ? vb - va : va - vb
     })
@@ -864,12 +864,10 @@ function StoreRow({ rank, main, loja, fluxo, labels: allLabels }: {
   fluxo: FluxoRow | undefined
   labels: ReturnType<typeof useLabels>['labels']
 }) {
-  const metaPct = main.vf_atual / META_PADRAO
   return (
     <tr>
       <td className="col-rank">{rank}</td>
       <td className="col-pdv">{main.pdv}</td>
-      <td className="col-apelido">{loja?.apelido || <span className="dash-muted">—</span>}</td>
       <td>
         <div className="label-chips-group">
           {(loja?.labels ?? []).map(lid => {
@@ -881,20 +879,14 @@ function StoreRow({ rank, main, loja, fluxo, labels: allLabels }: {
       <td className="col-num">{fBRL(main.vf_atual)}</td>
       <td className="col-var"><VarBadge v={main.vf_var} /></td>
       <td className="col-num">{fInt(main.qb_atual)}</td>
+      <td className="col-var"><VarBadge v={main.qb_var} /></td>
       <td className="col-num">{fBRL(main.bm_atual)}</td>
       <td className="col-var"><VarBadge v={main.bm_var} /></td>
       <td className="col-num">{fDec(main.iv_atual)}</td>
+      <td className="col-var"><VarBadge v={main.iv_var} /></td>
+      <td className="col-num">{fBRLR(main.pm_atual)}</td>
+      <td className="col-var"><VarBadge v={main.pm_var} /></td>
       <td className="col-num">{fluxo ? fPct(fluxo.conv_pct) : <span className="dash-muted">—</span>}</td>
-      <td className="col-meta">
-        <div className="meta-bar-wrap">
-          <div className="meta-bar-track">
-            <div className="meta-bar-fill" style={{ width: `${Math.min(metaPct * 100, 100)}%`, background: metaPct >= 1 ? '#059669' : metaPct >= 0.7 ? '#f59e0b' : '#dc2626' }} />
-          </div>
-          <span className="meta-pct-label" style={{ color: metaPct >= 1 ? '#059669' : metaPct >= 0.7 ? '#f59e0b' : '#dc2626' }}>
-            {Math.round(metaPct * 100)}%
-          </span>
-        </div>
-      </td>
     </tr>
   )
 }
@@ -913,16 +905,18 @@ function StoreTableHead({ sortKey, sortDir, onSort }: { sortKey: SortKey; sortDi
       <tr>
         <th className="col-rank">#</th>
         <th className="col-pdv">PDV</th>
-        <th className="col-apelido">Apelido</th>
         <th>Labels</th>
         <Th k="vf_atual" right>VF Atual</Th>
         <th className="col-var">Var.</th>
         <Th k="qb_atual" right>QB</Th>
+        <th className="col-var">Var.</th>
         <Th k="bm_atual" right>BM</Th>
         <th className="col-var">Var.</th>
         <Th k="iv_atual" right>IV</Th>
+        <th className="col-var">Var.</th>
+        <Th k="pm_atual" right>PM</Th>
+        <th className="col-var">Var.</th>
         <Th k="conv_pct" right>Conv.%</Th>
-        <Th k="meta_pct" right>Meta</Th>
       </tr>
     </thead>
   )
@@ -931,51 +925,302 @@ function StoreTableHead({ sortKey, sortDir, onSort }: { sortKey: SortKey; sortDi
 /* ── Lojas — Visão Geral ─────────────────────────────── */
 function VisaoGeralPage() {
   const { mainRows, mainTotal, cpData, fluxoRows, fluxoTotal } = useData()
-  const [sortKey, setSortKey] = useState<SortKey>('vf_atual')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-  const { rows, labels } = useStoreTableData(sortKey, sortDir)
-
-  function toggleSort(k: SortKey) {
-    if (sortKey === k) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
-    else { setSortKey(k); setSortDir('desc') }
-  }
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [selectedImpactLabels, setSelectedImpactLabels] = useState<string[]>([])
 
   if (mainRows.length === 0) return <LojasEmptyState />
 
-  // Valores das KPIs: prioriza CP (consolidado da rede), fallback PDV TOTAL
-  const vfValor  = cpData?.vf_valor  ?? mainTotal?.vf_atual ?? 0
-  const qbValor  = cpData?.qb_valor  ?? mainTotal?.qb_atual ?? 0
-  const bmValor  = cpData?.bm_valor  ?? mainTotal?.bm_atual ?? 0
-  const ivValor  = cpData?.iv_valor  ?? mainTotal?.iv_atual ?? 0
-  const pmValor  = cpData?.pm_valor  ?? mainTotal?.pm_atual ?? 0
+  const vfValor   = cpData?.vf_valor  ?? mainTotal?.vf_atual ?? 0
+  const qbValor   = cpData?.qb_valor  ?? mainTotal?.qb_atual ?? 0
+  const bmValor   = cpData?.bm_valor  ?? mainTotal?.bm_atual ?? 0
+  const ivValor   = cpData?.iv_valor  ?? mainTotal?.iv_atual ?? 0
+  const pmValor   = cpData?.pm_valor  ?? mainTotal?.pm_atual ?? 0
   const convTotal = fluxoTotal?.conv_pct ?? (fluxoRows.length > 0
     ? fluxoRows.reduce((s, r) => s + r.conversoes, 0) / Math.max(fluxoRows.reduce((s, r) => s + r.resgates, 0), 1)
     : 0)
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  // BM médio do grupo (rede toda, independente do filtro)
+  const totalVF = mainRows.reduce((s, r) => s + r.vf_atual, 0)
+  const totalQB = mainRows.reduce((s, r) => s + r.qb_atual, 0)
+  const groupBM = totalQB > 0 ? totalVF / totalQB : 0
+
+  function toggleLabel(id: string) {
+    setSelectedLabels(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  const gapRows = useMemo(() => {
+    const rows = mainRows
+      .filter(r => r.bm_atual < groupBM)
+      .map(r => ({
+        ...r,
+        loja: lojaMap.get(r.pdv),
+        gapBM: groupBM - r.bm_atual,
+        gapRevenue: (groupBM - r.bm_atual) * r.qb_atual,
+      }))
+      .sort((a, b) => b.gapRevenue - a.gapRevenue)
+
+    if (selectedLabels.length === 0) return rows
+    return rows.filter(r =>
+      selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid))
+    )
+  }, [mainRows, groupBM, lojaMap, selectedLabels])
+
+  const totalGap = gapRows.reduce((s, r) => s + r.gapRevenue, 0)
+
+  const regionRevenue = useMemo(() => {
+    const map = new Map<string, { label: typeof labels[0] | null; vf: number }>()
+    labels.forEach(lb => map.set(lb.id, { label: lb, vf: 0 }))
+    map.set('__none__', { label: null, vf: 0 })
+    mainRows.forEach(r => {
+      const loja = lojaMap.get(r.pdv)
+      const lids = loja?.labels ?? []
+      if (lids.length === 0) { map.get('__none__')!.vf += r.vf_atual }
+      else { lids.forEach(lid => { const e = map.get(lid); if (e) e.vf += r.vf_atual }) }
+    })
+    return [...map.values()].filter(g => g.vf > 0).sort((a, b) => b.vf - a.vf)
+  }, [mainRows, labels, lojaMap])
+
+  const totalRegionVF = regionRevenue.reduce((s, g) => s + g.vf, 0)
 
   return (
     <div className="page-content">
       <div className="page-title-row">
         <div>
           <h2 className="page-title">Lojas — Visão Geral</h2>
-          <p className="page-subtitle">{mainRows.length} lojas · Meta R$ {fBRL(META_PADRAO)} / loja</p>
+          <p className="page-subtitle">{mainRows.length} lojas</p>
         </div>
       </div>
       <div className="kpi-row">
-        <KpiCard label="Receita"      value={fBRLR(vfValor)} var={mainTotal?.vf_var} />
-        <KpiCard label="Qtd. Boletos" value={fInt(qbValor)}  var={mainTotal?.qb_var} />
-        <KpiCard label="Boleto Médio" value={fBRLR(bmValor)} var={mainTotal?.bm_var} />
-        <KpiCard label="Itens/Boleto" value={fDec(ivValor)}  var={mainTotal?.iv_var} />
-        <KpiCard label="Preço Médio"  value={fBRLR(pmValor)} var={mainTotal?.pm_var} />
+        <KpiCard label="Receita"      value={fBRLR(vfValor)} var={mainTotal?.vf_var} varNote="vs LY" />
+        <KpiCard label="Qtd. Boletos" value={fInt(qbValor)}  var={mainTotal?.qb_var} varNote="vs LY" />
+        <KpiCard label="Boleto Médio" value={fBRLR(bmValor)} var={mainTotal?.bm_var} varNote="vs LY" efc={cpData?.bm_efc ? fBRLR(cpData.bm_efc) : undefined} />
+        <KpiCard label="Itens/Boleto" value={fDec(ivValor)}  var={mainTotal?.iv_var} varNote="vs LY" efc={cpData?.iv_efc ? fDec(cpData.iv_efc)  : undefined} />
+        <KpiCard label="Preço Médio"  value={fBRLR(pmValor)} var={mainTotal?.pm_var} varNote="vs LY" efc={cpData?.pm_efc ? fBRLR(cpData.pm_efc) : undefined} />
         <KpiCard label="Conv. Fluxo"  value={fPct(convTotal)} />
       </div>
+
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button
+            className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`}
+            onClick={() => setSelectedLabels([])}
+          >Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { '--chip-color': lb.color, background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => toggleLabel(lb.id)}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      <div className="gap-section-header">
+        <div>
+          <h3 className="gap-section-title">Receita deixada na mesa — BM abaixo da média do grupo</h3>
+          <p className="gap-section-sub">
+            {gapRows.length} loja{gapRows.length !== 1 ? 's' : ''} com BM abaixo de {fBRLR(groupBM)} (média do grupo)
+            {selectedLabels.length > 0 && ' · filtrado por região'}
+          </p>
+        </div>
+        <div className="gap-section-total">
+          <span className="gap-section-total-label">Total deixado na mesa</span>
+          <span className="gap-section-total-value">{fBRLR(totalGap)}</span>
+        </div>
+      </div>
+
       <div className="dash-table-wrap">
         <table className="dash-table">
-          <StoreTableHead sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+          <thead>
+            <tr>
+              <th className="col-rank">#</th>
+              <th className="col-pdv">PDV</th>
+              <th>Labels</th>
+              <th className="col-num">BM Loja</th>
+              <th className="col-num">BM Grupo</th>
+              <th className="col-num">Gap BM</th>
+              <th className="col-num">Clientes (QB)</th>
+              <th className="col-num col-gap-head">Receita na Mesa</th>
+            </tr>
+          </thead>
           <tbody>
-            {rows.map((r, i) => <StoreRow key={r.main.pdv} rank={i + 1} {...r} labels={labels} />)}
+            {gapRows.map((r, i) => (
+              <tr key={r.pdv}>
+                <td className="col-rank">{i + 1}</td>
+                <td className="col-pdv">{r.pdv}</td>
+                <td>
+                  <div className="label-chips-group">
+                    {(r.loja?.labels ?? []).map(lid => {
+                      const lb = labels.find(x => x.id === lid)
+                      return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                    })}
+                  </div>
+                </td>
+                <td className="col-num">{fBRLR(r.bm_atual)}</td>
+                <td className="col-num col-muted-val">{fBRLR(groupBM)}</td>
+                <td className="col-num col-neg-val">-{fBRLR(r.gapBM)}</td>
+                <td className="col-num">{fInt(r.qb_atual)}</td>
+                <td className="col-num col-gap-val">{fBRLR(r.gapRevenue)}</td>
+              </tr>
+            ))}
           </tbody>
+          <tfoot>
+            <tr className="gap-table-total">
+              <td colSpan={7} className="gap-total-label">Total deixado na mesa</td>
+              <td className="col-num col-gap-val">{fBRLR(totalGap)}</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
+
+      {regionRevenue.length > 1 && (() => {
+        const R = 46, CX = 50, CY = 50
+        let angle = -Math.PI / 2
+        const segs = regionRevenue.map(g => {
+          const pct = totalRegionVF > 0 ? g.vf / totalRegionVF : 0
+          const sweep = pct * 2 * Math.PI
+          const a0 = angle
+          const a1 = angle + sweep
+          angle = a1
+          const x0 = CX + R * Math.cos(a0)
+          const y0 = CY + R * Math.sin(a0)
+          const x1 = CX + R * Math.cos(a1)
+          const y1 = CY + R * Math.sin(a1)
+          const large = sweep > Math.PI ? 1 : 0
+          const path = pct >= 1
+            ? `M ${CX} ${CY} m -${R} 0 a ${R} ${R} 0 1 0 ${R * 2} 0 a ${R} ${R} 0 1 0 -${R * 2} 0`
+            : `M ${CX} ${CY} L ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} Z`
+          return { g, pct, path }
+        })
+        return (
+          <div className="rev-chart-card">
+            <div className="rev-chart-title">Receita por Região</div>
+            <div className="rev-chart-layout">
+              <svg viewBox="0 0 100 100" className="pie-svg">
+                {segs.map(({ g, path }, i) => (
+                  <path key={i} d={path} fill={g.label?.color ?? '#94a3b8'}
+                    stroke="var(--bg-surface)" strokeWidth="1.5" strokeLinejoin="round" />
+                ))}
+              </svg>
+              <div className="pie-legend">
+                {segs.map(({ g, pct }, i) => (
+                  <div key={i} className="pie-legend-row">
+                    <span className="pie-legend-dot" style={{ background: g.label?.color ?? '#94a3b8' }} />
+                    <span className="pie-legend-name">{g.label ? g.label.name : 'Sem região'}</span>
+                    <span className="pie-legend-pct">{(pct * 100).toFixed(1).replace('.', ',')}%</span>
+                    <span className="pie-legend-val">{fBRLR(g.vf)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {(() => {
+        const totalVFAnt = mainRows.reduce((s, r) => s + r.vf_ant, 0)
+        if (totalVFAnt === 0) return null
+
+        const impactRows = mainRows
+          .map(r => ({
+            ...r,
+            loja: lojaMap.get(r.pdv),
+            pp: (r.vf_ant / totalVFAnt) * r.vf_var,
+          }))
+          .filter(r => selectedImpactLabels.length === 0 || selectedImpactLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+          .sort((a, b) => a.pp - b.pp)
+
+        if (impactRows.length === 0) return null
+
+        const maxAbsPP = Math.max(...impactRows.map(r => Math.abs(r.pp)))
+        const totalPP = impactRows.reduce((s, r) => s + r.pp, 0)
+
+        return (
+          <div className="impact-table-card">
+            <div className="impact-table-header">
+              <div className="impact-table-title">Impacto de Cada Loja no Resultado do Grupo</div>
+              {labels.length > 0 && (
+                <div className="region-filter-bar" style={{ marginBottom: 0 }}>
+                  <span className="region-filter-label">Região</span>
+                  <button
+                    className={`region-filter-btn${selectedImpactLabels.length === 0 ? ' active' : ''}`}
+                    onClick={() => setSelectedImpactLabels([])}
+                  >Todas</button>
+                  {labels.map(lb => (
+                    <button
+                      key={lb.id}
+                      className={`region-filter-btn${selectedImpactLabels.includes(lb.id) ? ' active' : ''}`}
+                      style={selectedImpactLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+                      onClick={() => setSelectedImpactLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+                    >{lb.name}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th className="col-rank">#</th>
+                    <th className="col-pdv">PDV</th>
+                    <th>Região</th>
+                    <th className="col-num">VF Ano Ant.</th>
+                    <th className="col-var">Var. LY</th>
+                    <th className="impact-bar-th">Magnitude</th>
+                    <th className="col-num">Impacto (pp)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {impactRows.map((r, i) => {
+                    const isPos = r.pp >= 0
+                    const barColor = isPos ? '#059669' : '#dc2626'
+                    return (
+                      <tr key={r.pdv}>
+                        <td className="col-rank">{i + 1}</td>
+                        <td className="col-pdv">{r.pdv}</td>
+                        <td>
+                          <div className="label-chips-group">
+                            {(r.loja?.labels ?? []).map(lid => {
+                              const lb = labels.find(x => x.id === lid)
+                              return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                            })}
+                          </div>
+                        </td>
+                        <td className="col-num">{fBRLR(r.vf_ant)}</td>
+                        <td className="col-var"><VarBadge v={r.vf_var} /></td>
+                        <td className="impact-bar-cell">
+                          <div className="impact-bar-track">
+                            <div className="impact-bar-fill" style={{ width: `${(Math.abs(r.pp) / maxAbsPP) * 100}%`, background: barColor }} />
+                          </div>
+                        </td>
+                        <td className="col-num" style={{ color: barColor, fontWeight: 700 }}>
+                          {isPos ? '+' : ''}{r.pp.toFixed(2).replace('.', ',')} pp
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="gap-table-total">
+                    <td colSpan={6} className="gap-total-label">Resultado consolidado do grupo</td>
+                    <td className="col-num" style={{ fontWeight: 700, color: totalPP >= 0 ? '#059669' : '#dc2626' }}>
+                      {totalPP >= 0 ? '+' : ''}{totalPP.toFixed(2).replace('.', ',')} pp
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -1088,44 +1333,38 @@ function RegioesPage() {
                   <tr>
                     <th className="col-rank">#</th>
                     <th className="col-pdv">PDV</th>
-                    <th className="col-apelido">Apelido</th>
                     <th className="col-num">VF Atual</th>
                     <th className="col-var">Var.</th>
                     <th className="col-num">QB</th>
+                    <th className="col-var">Var.</th>
                     <th className="col-num">BM</th>
                     <th className="col-var">Var.</th>
                     <th className="col-num">IV</th>
+                    <th className="col-var">Var.</th>
+                    <th className="col-num">PM</th>
+                    <th className="col-var">Var.</th>
                     <th className="col-num">Conv.%</th>
-                    <th className="col-meta">Meta</th>
                   </tr>
                 </thead>
                 <tbody>
                   {[...groupRows].sort((a, b) => b.vf_atual - a.vf_atual).map((r, i) => {
                     const loja  = lojaMap.get(r.pdv)
                     const fluxo = fluxoMap.get(r.pdv)
-                    const metaPct = r.vf_atual / META_PADRAO
                     return (
                       <tr key={r.pdv}>
                         <td className="col-rank">{i + 1}</td>
                         <td className="col-pdv">{r.pdv}</td>
-                        <td className="col-apelido">{loja?.apelido || <span className="dash-muted">—</span>}</td>
                         <td className="col-num">{fBRL(r.vf_atual)}</td>
                         <td className="col-var"><VarBadge v={r.vf_var} /></td>
                         <td className="col-num">{fInt(r.qb_atual)}</td>
+                        <td className="col-var"><VarBadge v={r.qb_var} /></td>
                         <td className="col-num">{fBRL(r.bm_atual)}</td>
                         <td className="col-var"><VarBadge v={r.bm_var} /></td>
                         <td className="col-num">{fDec(r.iv_atual)}</td>
+                        <td className="col-var"><VarBadge v={r.iv_var} /></td>
+                        <td className="col-num">{fBRLR(r.pm_atual)}</td>
+                        <td className="col-var"><VarBadge v={r.pm_var} /></td>
                         <td className="col-num">{fluxo ? fPct(fluxo.conv_pct) : <span className="dash-muted">—</span>}</td>
-                        <td className="col-meta">
-                          <div className="meta-bar-wrap">
-                            <div className="meta-bar-track">
-                              <div className="meta-bar-fill" style={{ width: `${Math.min(metaPct * 100, 100)}%`, background: metaPct >= 1 ? '#059669' : metaPct >= 0.7 ? '#f59e0b' : '#dc2626' }} />
-                            </div>
-                            <span className="meta-pct-label" style={{ color: metaPct >= 1 ? '#059669' : metaPct >= 0.7 ? '#f59e0b' : '#dc2626' }}>
-                              {Math.round(metaPct * 100)}%
-                            </span>
-                          </div>
-                        </td>
                       </tr>
                     )
                   })}
