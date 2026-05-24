@@ -542,7 +542,7 @@ input, textarea { font-family: inherit; }
 .profile-dropdown-divider { height: 1px; background: var(--bg-border); margin: 4px 0; }
 
 /* Lojas modal */
-.modal--lg { width: 1050px; max-width: 95vw; }
+.modal.modal--lg { width: 1050px; max-width: 95vw; }
 .lojas-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .lojas-table th { padding: 7px 10px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); border-bottom: 1px solid var(--bg-border); white-space: nowrap; }
 .lojas-table td { padding: 6px 10px; border-bottom: 1px solid var(--bg-border); color: var(--text-primary); vertical-align: middle; }
