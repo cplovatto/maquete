@@ -961,11 +961,11 @@ function VisaoGeralPage() {
         </div>
       </div>
       <div className="kpi-row">
-        <KpiCard label="Receita"      value={fBRLR(vfValor)} var={cpData?.vf_var_aa ?? mainTotal?.vf_var} varNote="vs. ano ant." />
-        <KpiCard label="Qtd. Boletos" value={fInt(qbValor)}  var={mainTotal?.qb_var} varNote="vs. per. ant." />
-        <KpiCard label="Boleto Médio" value={fBRLR(bmValor)} var={mainTotal?.bm_var} varNote="vs. per. ant." />
-        <KpiCard label="Itens/Boleto" value={fDec(ivValor)}  var={mainTotal?.iv_var} varNote="vs. per. ant." />
-        <KpiCard label="Preço Médio"  value={fBRLR(pmValor)} var={mainTotal?.pm_var} varNote="vs. per. ant." />
+        <KpiCard label="Receita"      value={fBRLR(vfValor)} var={mainTotal?.vf_var} />
+        <KpiCard label="Qtd. Boletos" value={fInt(qbValor)}  var={mainTotal?.qb_var} />
+        <KpiCard label="Boleto Médio" value={fBRLR(bmValor)} var={mainTotal?.bm_var} />
+        <KpiCard label="Itens/Boleto" value={fDec(ivValor)}  var={mainTotal?.iv_var} />
+        <KpiCard label="Preço Médio"  value={fBRLR(pmValor)} var={mainTotal?.pm_var} />
         <KpiCard label="Conv. Fluxo"  value={fPct(convTotal)} />
       </div>
       <div className="dash-table-wrap">
