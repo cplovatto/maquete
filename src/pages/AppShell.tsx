@@ -395,12 +395,10 @@ const ANUAL_SOURCES: DataSource[] = [
 ]
 
 function formatImportDate(date: Date): { text: string; stale: boolean } {
-  const today = new Date()
-  const isToday = date.toDateString() === today.toDateString()
-  const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-  if (isToday) return { text: `Hoje às ${time}`, stale: false }
+  const isToday = date.toDateString() === new Date().toDateString()
   const d = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-  return { text: `${d} às ${time}`, stale: true }
+  const t = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  return { text: `${d} às ${t}`, stale: !isToday }
 }
 
 function ImportModal({ onClose }: { onClose: () => void }) {
@@ -414,7 +412,7 @@ function ImportModal({ onClose }: { onClose: () => void }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <span className="modal-title">Fontes de dados</span>
+          <span className="modal-title">Fontes de Dados</span>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
 
@@ -438,13 +436,11 @@ function ImportModal({ onClose }: { onClose: () => void }) {
                   <span className="import-icon">{source.icon}</span>
                   <span className="import-meta">
                     <span className="import-name">{source.name}</span>
-                    {statuses[source.id] === 'loaded' && lastLoaded[source.id]
+                    {lastLoaded[source.id]
                       ? (() => { const { text, stale } = formatImportDate(lastLoaded[source.id]); return (
                           <span className={`import-status ok${stale ? ' stale' : ''}`}>{text}</span>
                         )})()
-                      : <span className={`import-status${statuses[source.id] !== 'pending' ? ' ok' : ''}`}>
-                          {statuses[source.id] === 'embedded' ? 'Dados embutidos' : 'Não carregado'}
-                        </span>
+                      : <span className="import-status">Não carregado</span>
                     }
                   </span>
                   <span className={`import-format-badge format-${source.format.toLowerCase()}`}>{source.format}</span>
