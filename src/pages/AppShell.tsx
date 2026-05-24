@@ -802,12 +802,16 @@ function VarBadge({ v }: { v: number }) {
   return <span className={`var-badge${v > 0.05 ? ' var-pos' : v < -0.05 ? ' var-neg' : ''}`}>{fVar(v)}</span>
 }
 
-function KpiCard({ label, value, var: varV }: { label: string; value: string; var?: number }) {
+function KpiCard({ label, value, var: varV, varNote }: { label: string; value: string; var?: number; varNote?: string }) {
   return (
     <div className="kpi-card">
       <div className="kpi-label">{label}</div>
       <div className="kpi-value">{value}</div>
-      {varV !== undefined && <div className={`kpi-var${varV > 0.05 ? ' pos' : varV < -0.05 ? ' neg' : ''}`}>{fVar(varV)}</div>}
+      {varV !== undefined && (
+        <div className={`kpi-var${varV > 0.05 ? ' pos' : varV < -0.05 ? ' neg' : ''}`}>
+          {fVar(varV)}{varNote && <span className="kpi-var-note">{varNote}</span>}
+        </div>
+      )}
     </div>
   )
 }
@@ -926,7 +930,7 @@ function StoreTableHead({ sortKey, sortDir, onSort }: { sortKey: SortKey; sortDi
 
 /* ── Lojas — Visão Geral ─────────────────────────────── */
 function VisaoGeralPage() {
-  const { mainRows, mainTotal, fluxoRows, fluxoTotal } = useData()
+  const { mainRows, mainTotal, cpData, fluxoRows, fluxoTotal } = useData()
   const [sortKey, setSortKey] = useState<SortKey>('vf_atual')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const { rows, labels } = useStoreTableData(sortKey, sortDir)
@@ -938,11 +942,12 @@ function VisaoGeralPage() {
 
   if (mainRows.length === 0) return <LojasEmptyState />
 
-  const vfTotal   = mainTotal?.vf_atual ?? mainRows.reduce((s, r) => s + r.vf_atual, 0)
-  const qbTotal   = mainTotal?.qb_atual ?? mainRows.reduce((s, r) => s + r.qb_atual, 0)
-  const bmMedia   = mainTotal?.bm_atual ?? (qbTotal > 0 ? vfTotal / qbTotal : 0)
-  const ivMedia   = mainTotal?.iv_atual ?? 0
-  const pmMedia   = mainTotal?.pm_atual ?? 0
+  // Valores das KPIs: prioriza CP (consolidado da rede), fallback PDV TOTAL
+  const vfValor  = cpData?.vf_valor  ?? mainTotal?.vf_atual ?? 0
+  const qbValor  = cpData?.qb_valor  ?? mainTotal?.qb_atual ?? 0
+  const bmValor  = cpData?.bm_valor  ?? mainTotal?.bm_atual ?? 0
+  const ivValor  = cpData?.iv_valor  ?? mainTotal?.iv_atual ?? 0
+  const pmValor  = cpData?.pm_valor  ?? mainTotal?.pm_atual ?? 0
   const convTotal = fluxoTotal?.conv_pct ?? (fluxoRows.length > 0
     ? fluxoRows.reduce((s, r) => s + r.conversoes, 0) / Math.max(fluxoRows.reduce((s, r) => s + r.resgates, 0), 1)
     : 0)
@@ -956,12 +961,12 @@ function VisaoGeralPage() {
         </div>
       </div>
       <div className="kpi-row">
-        <KpiCard label="Receita (VF)"   value={fBRLR(vfTotal)}  var={mainTotal?.vf_var} />
-        <KpiCard label="Boletos (QB)"   value={fInt(qbTotal)}   var={mainTotal?.qb_var} />
-        <KpiCard label="Boleto Médio"   value={fBRLR(bmMedia)}  var={mainTotal?.bm_var} />
-        <KpiCard label="Itens/Boleto"   value={fDec(ivMedia)}   var={mainTotal?.iv_var} />
-        <KpiCard label="Preço Médio"    value={fBRLR(pmMedia)}  var={mainTotal?.pm_var} />
-        <KpiCard label="Conv. Fluxo"    value={fPct(convTotal)} />
+        <KpiCard label="Receita"      value={fBRLR(vfValor)} var={cpData?.vf_var_aa ?? mainTotal?.vf_var} varNote="vs. ano ant." />
+        <KpiCard label="Qtd. Boletos" value={fInt(qbValor)}  var={mainTotal?.qb_var} varNote="vs. per. ant." />
+        <KpiCard label="Boleto Médio" value={fBRLR(bmValor)} var={mainTotal?.bm_var} varNote="vs. per. ant." />
+        <KpiCard label="Itens/Boleto" value={fDec(ivValor)}  var={mainTotal?.iv_var} varNote="vs. per. ant." />
+        <KpiCard label="Preço Médio"  value={fBRLR(pmValor)} var={mainTotal?.pm_var} varNote="vs. per. ant." />
+        <KpiCard label="Conv. Fluxo"  value={fPct(convTotal)} />
       </div>
       <div className="dash-table-wrap">
         <table className="dash-table">

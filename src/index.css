@@ -873,6 +873,7 @@ input, textarea { font-family: inherit; }
 }
 .kpi-var.pos { color: #059669; }
 .kpi-var.neg { color: #dc2626; }
+.kpi-var-note { font-size: 10px; font-weight: 400; opacity: .65; margin-left: 5px; }
 
 /* Variation badge */
 .var-badge {

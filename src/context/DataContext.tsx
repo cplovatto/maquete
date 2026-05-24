@@ -32,15 +32,36 @@ export interface FluxoTotal {
   conv_pct: number
 }
 
+// Valores consolidados da aba CP, coluna B (RESULTADO)
+export interface CPData {
+  vf_valor: number    // Receita GMV (R$)
+  vf_var_aa: number   // Receita (%) — variação vs. ano anterior, em pontos percentuais ex: -1.24
+  qb_valor: number    // Quantidade de Boletos
+  bm_valor: number    // Boleto Médio (R$)
+  iv_valor: number    // Itens por Boleto
+  pm_valor: number    // Preço Médio (R$)
+}
+
 interface DataCtxType {
   mainRows: MainRow[]
   mainTotal: MainTotal | null
+  cpData: CPData | null
   fluxoRows: FluxoRow[]
   fluxoTotal: FluxoTotal | null
   loadFile: (id: string, file: File) => Promise<void>
 }
 
 const DataCtx = createContext<DataCtxType | null>(null)
+
+// Números no formato brasileiro: "5.484.610,37" → 5484610.37
+function parseBRL(v: unknown): number {
+  if (typeof v === 'number') return v
+  if (typeof v === 'string') {
+    const n = parseFloat(v.replace(/\./g, '').replace(',', '.').replace('%', '').trim())
+    return isNaN(n) ? 0 : n
+  }
+  return 0
+}
 
 function parseVar(v: unknown): number {
   if (typeof v === 'string') {
@@ -69,11 +90,47 @@ function toMainRow(a: unknown[]): MainRow {
   }
 }
 
-async function parseMainFile(file: File): Promise<{ rows: MainRow[]; total: MainTotal | null }> {
+// Localiza uma linha da aba CP pelo nome do indicador (col A)
+function findCPRow(raw: unknown[][], name: string): unknown[] | null {
+  const row = raw.find(r => {
+    const cell = (r as unknown[])[0]
+    return typeof cell === 'string' && cell.toLowerCase().includes(name.toLowerCase())
+  })
+  return (row as unknown[] | undefined) ?? null
+}
+
+function parseCPSheet(wb: XLSX.WorkBook): CPData | null {
+  const ws = wb.Sheets['CP']
+  if (!ws) return null
+  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+
+  const rowReceita    = findCPRow(raw, 'Receita GMV (R$)')
+  const rowReceitaPct = findCPRow(raw, 'Receita (%)')
+  const rowQB         = findCPRow(raw, 'Quantidade de Boletos')
+  const rowBM         = findCPRow(raw, 'Boleto Médio (R$)')
+  const rowIV         = findCPRow(raw, 'Itens por Boleto')
+  const rowPM         = findCPRow(raw, 'Preço Médio (R$)')
+
+  if (!rowReceita) return null
+
+  return {
+    vf_valor:  parseBRL(rowReceita?.[1]),
+    vf_var_aa: parseBRL(rowReceitaPct?.[1] ?? 0),
+    qb_valor:  parseBRL(rowQB?.[1] ?? 0),
+    bm_valor:  parseBRL(rowBM?.[1] ?? 0),
+    iv_valor:  parseBRL(rowIV?.[1] ?? 0),
+    pm_valor:  parseBRL(rowPM?.[1] ?? 0),
+  }
+}
+
+async function parseMainFile(file: File): Promise<{ rows: MainRow[]; total: MainTotal | null; cp: CPData | null }> {
   const buf = await file.arrayBuffer()
   const wb = XLSX.read(buf)
+
+  const cp = parseCPSheet(wb)
+
   const ws = wb.Sheets['PDV']
-  if (!ws) return { rows: [], total: null }
+  if (!ws) return { rows: [], total: null, cp }
   const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   let total: MainTotal | null = null
   const tr = raw[2] as unknown[]
@@ -88,7 +145,7 @@ async function parseMainFile(file: File): Promise<{ rows: MainRow[]; total: Main
     }
   }
   const rows = raw.slice(3).filter(r => (r as unknown[])[0]).map(r => toMainRow(r as unknown[]))
-  return { rows, total }
+  return { rows, total, cp }
 }
 
 async function parseFluxoFile(file: File): Promise<{ rows: FluxoRow[]; total: FluxoTotal | null }> {
@@ -114,20 +171,22 @@ function tryParse<T>(key: string, fallback: T): T {
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [mainRows, setMainRows]   = useState<MainRow[]>(() => tryParse('prisma-data-main', []))
-  const [mainTotal, setMainTotal] = useState<MainTotal | null>(() => tryParse('prisma-data-main-total', null))
-  const [fluxoRows, setFluxoRows] = useState<FluxoRow[]>(() => tryParse('prisma-data-fluxo', []))
+  const [mainRows, setMainRows]     = useState<MainRow[]>(() => tryParse('prisma-data-main', []))
+  const [mainTotal, setMainTotal]   = useState<MainTotal | null>(() => tryParse('prisma-data-main-total', null))
+  const [cpData, setCpData]         = useState<CPData | null>(() => tryParse('prisma-data-cp', null))
+  const [fluxoRows, setFluxoRows]   = useState<FluxoRow[]>(() => tryParse('prisma-data-fluxo', []))
   const [fluxoTotal, setFluxoTotal] = useState<FluxoTotal | null>(() => tryParse('prisma-data-fluxo-total', null))
 
   useEffect(() => { try { localStorage.setItem('prisma-data-main', JSON.stringify(mainRows)) } catch {} }, [mainRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-main-total', JSON.stringify(mainTotal)) } catch {} }, [mainTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-cp', JSON.stringify(cpData)) } catch {} }, [cpData])
   useEffect(() => { try { localStorage.setItem('prisma-data-fluxo', JSON.stringify(fluxoRows)) } catch {} }, [fluxoRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-fluxo-total', JSON.stringify(fluxoTotal)) } catch {} }, [fluxoTotal])
 
   async function loadFile(id: string, file: File) {
     if (id === 'main') {
-      const { rows, total } = await parseMainFile(file)
-      setMainRows(rows); setMainTotal(total)
+      const { rows, total, cp } = await parseMainFile(file)
+      setMainRows(rows); setMainTotal(total); setCpData(cp)
     } else if (id === 'fluxo') {
       const { rows, total } = await parseFluxoFile(file)
       setFluxoRows(rows); setFluxoTotal(total)
@@ -135,7 +194,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <DataCtx.Provider value={{ mainRows, mainTotal, fluxoRows, fluxoTotal, loadFile }}>
+    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, loadFile }}>
       {children}
     </DataCtx.Provider>
   )
