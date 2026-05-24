@@ -1,10 +1,11 @@
-import { useState, createContext, useContext, useEffect, useRef } from 'react'
+import { useState, createContext, useContext, useEffect, useRef, useMemo } from 'react'
 import type { ReactNode, Dispatch, SetStateAction } from 'react'
 import { Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useLojas, type Loja } from '../context/LojasContext'
 import { useLabels, LABEL_COLORS } from '../context/LabelsContext'
+import { useData, type MainRow, type FluxoRow, type MainTotal, type FluxoTotal } from '../context/DataContext'
 
 /* ── File status context ────────────────────────────── */
 type FileStatus = 'embedded' | 'loaded' | 'pending'
@@ -709,6 +710,7 @@ function formatImportDate(fileDate: Date | null, loadedAt: Date): { text: string
 function ImportModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'mensal' | 'anual'>('mensal')
   const { statuses, onFileLoaded, lastLoaded, fileDates } = useFileStatus()
+  const { loadFile } = useData()
 
   const sources = tab === 'mensal' ? MENSAL_SOURCES : ANUAL_SOURCES
   const sections = Array.from(new Set(sources.map(s => s.section)))
@@ -736,7 +738,12 @@ function ImportModal({ onClose }: { onClose: () => void }) {
                     type="file"
                     accept={source.format === 'CSV' ? '.csv' : '.xlsx,.xls'}
                     style={{ display: 'none' }}
-                    onChange={e => onFileLoaded(source.id, e.target.files?.[0]?.name ?? '')}
+                    onChange={e => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      onFileLoaded(source.id, file.name)
+                      loadFile(source.id, file)
+                    }}
                   />
                   <span className="import-icon">{source.icon}</span>
                   <span className="import-meta">
@@ -778,6 +785,352 @@ function SideItem({ to, icon, label, requires }: SideItemProps) {
         ? <span className="nav-warn-dot nav-warn-dot--pulse" title="Hora de atualizar o Parcial do Dia" />
         : hasMissing && <span className="nav-warn-dot" title="Arquivo necessário não carregado" />}
     </NavLink>
+  )
+}
+
+/* ── Dashboard utilities ────────────────────────────── */
+const META_PADRAO = 100_000
+
+const fBRL  = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+const fBRLR = (v: number) => `R$ ${fBRL(v)}`
+const fInt  = (v: number) => Math.round(v).toLocaleString('pt-BR')
+const fDec  = (v: number, d = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d })
+const fPct  = (v: number) => (v * 100).toFixed(1).replace('.', ',') + '%'
+const fVar  = (v: number) => (v > 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%'
+
+function VarBadge({ v }: { v: number }) {
+  return <span className={`var-badge${v > 0.05 ? ' var-pos' : v < -0.05 ? ' var-neg' : ''}`}>{fVar(v)}</span>
+}
+
+function KpiCard({ label, value, var: varV }: { label: string; value: string; var?: number }) {
+  return (
+    <div className="kpi-card">
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-value">{value}</div>
+      {varV !== undefined && <div className={`kpi-var${varV > 0.05 ? ' pos' : varV < -0.05 ? ' neg' : ''}`}>{fVar(varV)}</div>}
+    </div>
+  )
+}
+
+function LojasEmptyState() {
+  const { openImport } = useFileStatus()
+  return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3 3 3-3"/></svg>
+      <div className="page-empty-title">Dados de Lojas não carregados</div>
+      <div className="page-empty-desc">Importe as planilhas para visualizar este relatório</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Indicadores principais <span className="import-format-badge format-xlsx">XLSX</span></span>
+        <span className="missing-file-chip">Ação de Fluxo <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilhas</button>
+    </div>
+  )
+}
+
+type SortKey = keyof MainRow | 'conv_pct' | 'meta_pct'
+
+function useStoreTableData(sortKey: SortKey, sortDir: 'asc' | 'desc') {
+  const { mainRows, fluxoRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  return useMemo(() => {
+    const fluxoMap = new Map(fluxoRows.map(r => [r.pdv, r]))
+    const lojaMap  = new Map(lojas.map(l => [l.id, l]))
+    const rows = mainRows.map(r => ({
+      main: r,
+      loja: lojaMap.get(r.pdv),
+      fluxo: fluxoMap.get(r.pdv),
+    }))
+    rows.sort((a, b) => {
+      let va = 0, vb = 0
+      if (sortKey === 'conv_pct') { va = a.fluxo?.conv_pct ?? -1; vb = b.fluxo?.conv_pct ?? -1 }
+      else if (sortKey === 'meta_pct') { va = a.main.vf_atual; vb = b.main.vf_atual }
+      else { va = (a.main as unknown as Record<string, number>)[sortKey] ?? 0; vb = (b.main as unknown as Record<string, number>)[sortKey] ?? 0 }
+      return sortDir === 'desc' ? vb - va : va - vb
+    })
+    return { rows, labels }
+  }, [mainRows, fluxoRows, lojas, labels, sortKey, sortDir])
+}
+
+function StoreRow({ rank, main, loja, fluxo, labels: allLabels }: {
+  rank: number
+  main: MainRow
+  loja: ReturnType<typeof useLojas>['lojas'][0] | undefined
+  fluxo: FluxoRow | undefined
+  labels: ReturnType<typeof useLabels>['labels']
+}) {
+  const metaPct = main.vf_atual / META_PADRAO
+  return (
+    <tr>
+      <td className="col-rank">{rank}</td>
+      <td className="col-pdv">{main.pdv}</td>
+      <td className="col-apelido">{loja?.apelido || <span className="dash-muted">—</span>}</td>
+      <td>
+        <div className="label-chips-group">
+          {(loja?.labels ?? []).map(lid => {
+            const lb = allLabels.find(x => x.id === lid)
+            return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+          })}
+        </div>
+      </td>
+      <td className="col-num">{fBRL(main.vf_atual)}</td>
+      <td className="col-var"><VarBadge v={main.vf_var} /></td>
+      <td className="col-num">{fInt(main.qb_atual)}</td>
+      <td className="col-num">{fBRL(main.bm_atual)}</td>
+      <td className="col-var"><VarBadge v={main.bm_var} /></td>
+      <td className="col-num">{fDec(main.iv_atual)}</td>
+      <td className="col-num">{fluxo ? fPct(fluxo.conv_pct) : <span className="dash-muted">—</span>}</td>
+      <td className="col-meta">
+        <div className="meta-bar-wrap">
+          <div className="meta-bar-track">
+            <div className="meta-bar-fill" style={{ width: `${Math.min(metaPct * 100, 100)}%`, background: metaPct >= 1 ? '#059669' : metaPct >= 0.7 ? '#f59e0b' : '#dc2626' }} />
+          </div>
+          <span className="meta-pct-label" style={{ color: metaPct >= 1 ? '#059669' : metaPct >= 0.7 ? '#f59e0b' : '#dc2626' }}>
+            {Math.round(metaPct * 100)}%
+          </span>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function StoreTableHead({ sortKey, sortDir, onSort }: { sortKey: SortKey; sortDir: 'asc' | 'desc'; onSort: (k: SortKey) => void }) {
+  const Th = ({ k, children, right }: { k: SortKey; children: React.ReactNode; right?: boolean }) => {
+    const active = sortKey === k
+    return (
+      <th className={`${right ? 'col-num' : ''} sort-th${active ? ' sort-active' : ''}`} onClick={() => onSort(k)}>
+        {children} <span className="sort-arrow">{active ? (sortDir === 'desc' ? '▼' : '▲') : '⇅'}</span>
+      </th>
+    )
+  }
+  return (
+    <thead>
+      <tr>
+        <th className="col-rank">#</th>
+        <th className="col-pdv">PDV</th>
+        <th className="col-apelido">Apelido</th>
+        <th>Labels</th>
+        <Th k="vf_atual" right>VF Atual</Th>
+        <th className="col-var">Var.</th>
+        <Th k="qb_atual" right>QB</Th>
+        <Th k="bm_atual" right>BM</Th>
+        <th className="col-var">Var.</th>
+        <Th k="iv_atual" right>IV</Th>
+        <Th k="conv_pct" right>Conv.%</Th>
+        <Th k="meta_pct" right>Meta</Th>
+      </tr>
+    </thead>
+  )
+}
+
+/* ── Lojas — Visão Geral ─────────────────────────────── */
+function VisaoGeralPage() {
+  const { mainRows, mainTotal, fluxoRows, fluxoTotal } = useData()
+  const [sortKey, setSortKey] = useState<SortKey>('vf_atual')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const { rows, labels } = useStoreTableData(sortKey, sortDir)
+
+  function toggleSort(k: SortKey) {
+    if (sortKey === k) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortKey(k); setSortDir('desc') }
+  }
+
+  if (mainRows.length === 0) return <LojasEmptyState />
+
+  const vfTotal   = mainTotal?.vf_atual ?? mainRows.reduce((s, r) => s + r.vf_atual, 0)
+  const qbTotal   = mainTotal?.qb_atual ?? mainRows.reduce((s, r) => s + r.qb_atual, 0)
+  const bmMedia   = mainTotal?.bm_atual ?? (qbTotal > 0 ? vfTotal / qbTotal : 0)
+  const ivMedia   = mainTotal?.iv_atual ?? 0
+  const pmMedia   = mainTotal?.pm_atual ?? 0
+  const convTotal = fluxoTotal?.conv_pct ?? (fluxoRows.length > 0
+    ? fluxoRows.reduce((s, r) => s + r.conversoes, 0) / Math.max(fluxoRows.reduce((s, r) => s + r.resgates, 0), 1)
+    : 0)
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Lojas — Visão Geral</h2>
+          <p className="page-subtitle">{mainRows.length} lojas · Meta R$ {fBRL(META_PADRAO)} / loja</p>
+        </div>
+      </div>
+      <div className="kpi-row">
+        <KpiCard label="Receita (VF)"   value={fBRLR(vfTotal)}  var={mainTotal?.vf_var} />
+        <KpiCard label="Boletos (QB)"   value={fInt(qbTotal)}   var={mainTotal?.qb_var} />
+        <KpiCard label="Boleto Médio"   value={fBRLR(bmMedia)}  var={mainTotal?.bm_var} />
+        <KpiCard label="Itens/Boleto"   value={fDec(ivMedia)}   var={mainTotal?.iv_var} />
+        <KpiCard label="Preço Médio"    value={fBRLR(pmMedia)}  var={mainTotal?.pm_var} />
+        <KpiCard label="Conv. Fluxo"    value={fPct(convTotal)} />
+      </div>
+      <div className="dash-table-wrap">
+        <table className="dash-table">
+          <StoreTableHead sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+          <tbody>
+            {rows.map((r, i) => <StoreRow key={r.main.pdv} rank={i + 1} {...r} labels={labels} />)}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/* ── Lojas — Ranking ─────────────────────────────────── */
+function RankingPage() {
+  const { mainRows } = useData()
+  const [sortKey, setSortKey] = useState<SortKey>('vf_atual')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const { rows, labels } = useStoreTableData(sortKey, sortDir)
+
+  function toggleSort(k: SortKey) {
+    if (sortKey === k) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortKey(k); setSortDir('desc') }
+  }
+
+  if (mainRows.length === 0) return <LojasEmptyState />
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Ranking de Lojas</h2>
+          <p className="page-subtitle">{mainRows.length} lojas · ordenadas por {sortKey === 'vf_atual' ? 'receita' : sortKey}</p>
+        </div>
+      </div>
+      <div className="dash-table-wrap">
+        <table className="dash-table">
+          <StoreTableHead sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+          <tbody>
+            {rows.map((r, i) => <StoreRow key={r.main.pdv} rank={i + 1} {...r} labels={labels} />)}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/* ── Lojas — Análise Regional ────────────────────────── */
+function RegioesPage() {
+  const { mainRows, fluxoRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+
+  if (mainRows.length === 0) return <LojasEmptyState />
+
+  const fluxoMap = useMemo(() => new Map(fluxoRows.map(r => [r.pdv, r])), [fluxoRows])
+  const lojaMap  = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  type RegionGroup = { label: ReturnType<typeof useLabels>['labels'][0] | null; rows: MainRow[] }
+  const groups = useMemo((): RegionGroup[] => {
+    if (labels.length === 0) return [{ label: null, rows: mainRows }]
+    const map = new Map<string | '__none__', MainRow[]>()
+    map.set('__none__', [])
+    labels.forEach(lb => map.set(lb.id, []))
+    mainRows.forEach(r => {
+      const loja = lojaMap.get(r.pdv)
+      const lids = loja?.labels ?? []
+      if (lids.length === 0) { map.get('__none__')!.push(r) }
+      else { lids.forEach(lid => map.get(lid)?.push(r)) }
+    })
+    const result: RegionGroup[] = labels
+      .filter(lb => (map.get(lb.id)?.length ?? 0) > 0)
+      .map(lb => ({ label: lb, rows: map.get(lb.id)! }))
+    const noneRows = map.get('__none__')!
+    if (noneRows.length > 0) result.push({ label: null, rows: noneRows })
+    return result
+  }, [mainRows, labels, lojaMap])
+
+  function groupKpis(rows: MainRow[]) {
+    const vf = rows.reduce((s, r) => s + r.vf_atual, 0)
+    const qb = rows.reduce((s, r) => s + r.qb_atual, 0)
+    const bm = qb > 0 ? vf / qb : 0
+    const iv = rows.length > 0 ? rows.reduce((s, r) => s + r.iv_atual, 0) / rows.length : 0
+    const fl = fluxoRows.filter(r => rows.some(mr => mr.pdv === r.pdv))
+    const conv = fl.length > 0
+      ? fl.reduce((s, r) => s + r.conversoes, 0) / Math.max(fl.reduce((s, r) => s + r.resgates, 0), 1)
+      : null
+    return { vf, qb, bm, iv, conv }
+  }
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Análise Regional</h2>
+          <p className="page-subtitle">{labels.length > 0 ? `${groups.length} regiões · ` : ''}{mainRows.length} lojas</p>
+        </div>
+      </div>
+      {groups.map(({ label: lb, rows: groupRows }) => {
+        const k = groupKpis(groupRows)
+        return (
+          <div key={lb?.id ?? '__none__'} className="region-block">
+            <div className="region-header">
+              {lb
+                ? <span className="label-chip region-label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span>
+                : <span className="region-label-chip region-label-chip--none">Sem região</span>}
+              <span className="region-count">{groupRows.length} loja{groupRows.length !== 1 ? 's' : ''}</span>
+              <div className="region-kpis">
+                <span className="region-kpi"><span className="region-kpi-label">VF</span> <b>{fBRLR(k.vf)}</b></span>
+                <span className="region-kpi"><span className="region-kpi-label">QB</span> <b>{fInt(k.qb)}</b></span>
+                <span className="region-kpi"><span className="region-kpi-label">BM</span> <b>{fBRLR(k.bm)}</b></span>
+                <span className="region-kpi"><span className="region-kpi-label">IV</span> <b>{fDec(k.iv)}</b></span>
+                {k.conv !== null && <span className="region-kpi"><span className="region-kpi-label">Conv.</span> <b>{fPct(k.conv)}</b></span>}
+              </div>
+            </div>
+            <div className="dash-table-wrap">
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th className="col-rank">#</th>
+                    <th className="col-pdv">PDV</th>
+                    <th className="col-apelido">Apelido</th>
+                    <th className="col-num">VF Atual</th>
+                    <th className="col-var">Var.</th>
+                    <th className="col-num">QB</th>
+                    <th className="col-num">BM</th>
+                    <th className="col-var">Var.</th>
+                    <th className="col-num">IV</th>
+                    <th className="col-num">Conv.%</th>
+                    <th className="col-meta">Meta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...groupRows].sort((a, b) => b.vf_atual - a.vf_atual).map((r, i) => {
+                    const loja  = lojaMap.get(r.pdv)
+                    const fluxo = fluxoMap.get(r.pdv)
+                    const metaPct = r.vf_atual / META_PADRAO
+                    return (
+                      <tr key={r.pdv}>
+                        <td className="col-rank">{i + 1}</td>
+                        <td className="col-pdv">{r.pdv}</td>
+                        <td className="col-apelido">{loja?.apelido || <span className="dash-muted">—</span>}</td>
+                        <td className="col-num">{fBRL(r.vf_atual)}</td>
+                        <td className="col-var"><VarBadge v={r.vf_var} /></td>
+                        <td className="col-num">{fInt(r.qb_atual)}</td>
+                        <td className="col-num">{fBRL(r.bm_atual)}</td>
+                        <td className="col-var"><VarBadge v={r.bm_var} /></td>
+                        <td className="col-num">{fDec(r.iv_atual)}</td>
+                        <td className="col-num">{fluxo ? fPct(fluxo.conv_pct) : <span className="dash-muted">—</span>}</td>
+                        <td className="col-meta">
+                          <div className="meta-bar-wrap">
+                            <div className="meta-bar-track">
+                              <div className="meta-bar-fill" style={{ width: `${Math.min(metaPct * 100, 100)}%`, background: metaPct >= 1 ? '#059669' : metaPct >= 0.7 ? '#f59e0b' : '#dc2626' }} />
+                            </div>
+                            <span className="meta-pct-label" style={{ color: metaPct >= 1 ? '#059669' : metaPct >= 0.7 ? '#f59e0b' : '#dc2626' }}>
+                              {Math.round(metaPct * 100)}%
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -1113,9 +1466,9 @@ export default function AppShell() {
             <Route path="parcial"       element={<WipPage title="Parcial do Dia"  requires={['parcial']} />} />
             <Route path="dia-anterior"  element={<WipPage title="Dia Anterior"    requires={['dia-ant','meta-diaant']} />} />
             {/* Mensal – Lojas */}
-            <Route path="lojas"               element={<WipPage title="Lojas — Visão Geral"   requires={['main','fluxo']} />} />
-            <Route path="lojas/regioes"       element={<WipPage title="Análise Regional"       requires={['main','fluxo']} />} />
-            <Route path="lojas/ranking"       element={<WipPage title="Ranking de Lojas"       requires={['main','fluxo']} />} />
+            <Route path="lojas"               element={<VisaoGeralPage />} />
+            <Route path="lojas/regioes"       element={<RegioesPage />} />
+            <Route path="lojas/ranking"       element={<RankingPage />} />
             <Route path="lojas/detalhe"       element={<WipPage title="Detalhe da Loja"        requires={['main','fluxo']} />} />
             <Route path="lojas/consultores"   element={<WipPage title="Consultores"            requires={['main','fluxo']} />} />
             <Route path="lojas/dispersao"     element={<WipPage title="Dispersão"              requires={['main','fluxo']} />} />

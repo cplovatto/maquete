@@ -4,6 +4,7 @@ import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { LojasProvider } from './context/LojasContext'
 import { LabelsProvider } from './context/LabelsContext'
+import { DataProvider } from './context/DataContext'
 import Landing from './pages/Landing'
 import SignIn from './pages/SignIn'
 import AppShell from './pages/AppShell'
@@ -20,6 +21,7 @@ export default function App() {
       <AuthProvider>
         <LojasProvider>
         <LabelsProvider>
+        <DataProvider>
         <HashRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -35,6 +37,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </HashRouter>
+        </DataProvider>
         </LabelsProvider>
         </LojasProvider>
       </AuthProvider>
