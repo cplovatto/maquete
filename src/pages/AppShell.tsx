@@ -1,16 +1,25 @@
-import { useState, createContext, useContext } from 'react'
+import { useState, createContext, useContext, useEffect, useRef } from 'react'
 import type { ReactNode, Dispatch, SetStateAction } from 'react'
 import { Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 
 /* ── File status context ────────────────────────────── */
+type FileStatus = 'embedded' | 'loaded' | 'pending'
 interface FileStatusCtxType {
   statuses: Record<string, FileStatus>
   setStatuses: Dispatch<SetStateAction<Record<string, FileStatus>>>
+  onFileLoaded: (id: string) => void
   openImport: () => void
+  lastParcialUpload: Date | null
+  alertEnabled: boolean
+  setAlertEnabled: Dispatch<SetStateAction<boolean>>
+  alertIntervalMinutes: number
+  setAlertIntervalMinutes: Dispatch<SetStateAction<number>>
+  alertActive: boolean
+  toastVisible: boolean
+  setToastVisible: Dispatch<SetStateAction<boolean>>
 }
-type FileStatus = 'embedded' | 'loaded' | 'pending'
 const FileStatusCtx = createContext<FileStatusCtxType | null>(null)
 function useFileStatus() { return useContext(FileStatusCtx)! }
 
@@ -288,6 +297,80 @@ const IC = {
   dollar:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
 }
 
+/* ── Alert settings modal ───────────────────────────── */
+const ALERT_INTERVALS = [
+  { value: 15,  label: '15 minutos' },
+  { value: 30,  label: '30 minutos' },
+  { value: 60,  label: '1 hora'     },
+  { value: 120, label: '2 horas'    },
+  { value: 240, label: '4 horas'    },
+]
+
+function AlertSettingsModal({ onClose }: { onClose: () => void }) {
+  const { alertEnabled, setAlertEnabled, alertIntervalMinutes, setAlertIntervalMinutes, lastParcialUpload } = useFileStatus()
+  const minutesSince = lastParcialUpload ? Math.floor((Date.now() - lastParcialUpload.getTime()) / 60000) : null
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">Configurações de alerta</span>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="alert-settings-body">
+          <div className="alert-setting-row">
+            <div>
+              <div className="alert-setting-name">Alerta — Parcial do Dia</div>
+              <div className="alert-setting-desc">Avisa quando é hora de carregar nova planilha</div>
+            </div>
+            <label className="toggle-switch">
+              <input type="checkbox" checked={alertEnabled} onChange={e => setAlertEnabled(e.target.checked)} />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+
+          {alertEnabled && (
+            <>
+              <div className="alert-intervals-label">Frequência</div>
+              <div className="alert-intervals">
+                {ALERT_INTERVALS.map(i => (
+                  <button
+                    key={i.value}
+                    className={`alert-interval-btn${alertIntervalMinutes === i.value ? ' active' : ''}`}
+                    onClick={() => setAlertIntervalMinutes(i.value)}
+                  >{i.label}</button>
+                ))}
+              </div>
+              <div className="alert-last-import">
+                {minutesSince === null
+                  ? 'Parcial do dia ainda não importada nesta sessão'
+                  : minutesSince === 0
+                    ? 'Última importação: agora mesmo'
+                    : `Última importação: ${minutesSince} min atrás`}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Parcial alert toast ─────────────────────────────── */
+function ParcialAlertToast({ onDismiss, onImport }: { onDismiss: () => void; onImport: () => void }) {
+  return (
+    <div className="parcial-toast">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M12 22a10 10 0 1 0-10-10"/><path d="M12 6v6l4 2"/></svg>
+      <div className="parcial-toast-text">
+        <div className="parcial-toast-title">Hora de atualizar o Parcial do Dia</div>
+        <div className="parcial-toast-sub">Importe a planilha para manter os dados em tempo real.</div>
+      </div>
+      <button className="parcial-toast-import" onClick={onImport}>Importar agora</button>
+      <button className="parcial-toast-dismiss" onClick={onDismiss}>✕</button>
+    </div>
+  )
+}
+
 /* ── Import modal data ──────────────────────────────── */
 interface DataSource { id: string; name: string; format: 'XLSX' | 'CSV'; icon: ReactNode; defaultStatus: FileStatus; section: string }
 
@@ -312,7 +395,7 @@ const ANUAL_SOURCES: DataSource[] = [
 
 function ImportModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'mensal' | 'anual'>('mensal')
-  const { statuses, setStatuses } = useFileStatus()
+  const { statuses, onFileLoaded } = useFileStatus()
 
   const sources = tab === 'mensal' ? MENSAL_SOURCES : ANUAL_SOURCES
   const sections = Array.from(new Set(sources.map(s => s.section)))
@@ -340,7 +423,7 @@ function ImportModal({ onClose }: { onClose: () => void }) {
                     type="file"
                     accept={source.format === 'CSV' ? '.csv' : '.xlsx,.xls'}
                     style={{ display: 'none' }}
-                    onChange={() => setStatuses(prev => ({ ...prev, [source.id]: 'loaded' }))}
+                    onChange={() => onFileLoaded(source.id)}
                   />
                   <span className="import-icon">{source.icon}</span>
                   <span className="import-meta">
@@ -363,8 +446,10 @@ function ImportModal({ onClose }: { onClose: () => void }) {
 /* ── Sidebar nav item ───────────────────────────────── */
 interface SideItemProps { to: string; icon: ReactNode; label: string; requires?: string[] }
 function SideItem({ to, icon, label, requires }: SideItemProps) {
-  const { statuses } = useFileStatus()
+  const { statuses, alertActive } = useFileStatus()
   const hasMissing = requires?.some(id => statuses[id] === 'pending') ?? false
+  const isParcial = requires?.includes('parcial') ?? false
+  const showPulse = isParcial && alertActive
 
   return (
     <NavLink
@@ -373,7 +458,9 @@ function SideItem({ to, icon, label, requires }: SideItemProps) {
     >
       {icon}
       {label}
-      {hasMissing && <span className="nav-warn-dot" title="Arquivo necessário não carregado" />}
+      {showPulse
+        ? <span className="nav-warn-dot nav-warn-dot--pulse" title="Hora de atualizar o Parcial do Dia" />
+        : hasMissing && <span className="nav-warn-dot" title="Arquivo necessário não carregado" />}
     </NavLink>
   )
 }
@@ -487,11 +574,42 @@ export default function AppShell() {
   const navigate = useNavigate()
   const [profileOpen, setProfileOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [alertSettingsOpen, setAlertSettingsOpen] = useState(false)
   const [fileStatuses, setFileStatuses] = useState<Record<string, FileStatus>>(() => {
     const init: Record<string, FileStatus> = {}
     ;[...MENSAL_SOURCES, ...ANUAL_SOURCES].forEach(s => { init[s.id] = s.defaultStatus })
     return init
   })
+  const [lastParcialUpload, setLastParcialUpload] = useState<Date | null>(null)
+  const [alertEnabled, setAlertEnabled] = useState(true)
+  const [alertIntervalMinutes, setAlertIntervalMinutes] = useState(60)
+  const [alertActive, setAlertActive] = useState(false)
+  const [toastVisible, setToastVisible] = useState(false)
+  const loginTime = useRef(new Date())
+
+  const onFileLoaded = (id: string) => {
+    setFileStatuses(prev => ({ ...prev, [id]: 'loaded' }))
+    if (id === 'parcial') {
+      setLastParcialUpload(new Date())
+      setAlertActive(false)
+      setToastVisible(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!alertEnabled) { setAlertActive(false); setToastVisible(false); return }
+    const check = () => {
+      const baseline = lastParcialUpload ?? loginTime.current
+      const elapsed = (Date.now() - baseline.getTime()) / 60000
+      if (elapsed >= alertIntervalMinutes) {
+        setAlertActive(true)
+        setToastVisible(true)
+      }
+    }
+    check()
+    const id = setInterval(check, 60000)
+    return () => clearInterval(id)
+  }, [alertEnabled, alertIntervalMinutes, lastParcialUpload])
 
   function handleLogout() {
     logout()
@@ -499,7 +617,13 @@ export default function AppShell() {
   }
 
   return (
-    <FileStatusCtx.Provider value={{ statuses: fileStatuses, setStatuses: setFileStatuses, openImport: () => setImportOpen(true) }}>
+    <FileStatusCtx.Provider value={{
+      statuses: fileStatuses, setStatuses: setFileStatuses, onFileLoaded,
+      openImport: () => setImportOpen(true),
+      lastParcialUpload, alertEnabled, setAlertEnabled,
+      alertIntervalMinutes, setAlertIntervalMinutes,
+      alertActive, toastVisible, setToastVisible,
+    }}>
     <div className="app-shell">
       {/* Header */}
       <header className="app-header">
@@ -540,6 +664,11 @@ export default function AppShell() {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     Importar planilhas
                   </button>
+                  <button className="profile-dropdown-item" onClick={() => { setAlertSettingsOpen(true); setProfileOpen(false) }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    Configurações de alerta
+                  </button>
+                  <div className="profile-dropdown-divider" />
                   <button className="profile-dropdown-item profile-dropdown-item--danger" onClick={handleLogout}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                     Sair
@@ -552,6 +681,13 @@ export default function AppShell() {
       </header>
 
       {importOpen && <ImportModal onClose={() => setImportOpen(false)} />}
+      {alertSettingsOpen && <AlertSettingsModal onClose={() => setAlertSettingsOpen(false)} />}
+      {toastVisible && (
+        <ParcialAlertToast
+          onDismiss={() => setToastVisible(false)}
+          onImport={() => { setToastVisible(false); setImportOpen(true) }}
+        />
+      )}
 
       <div className="app-body">
         {/* Sidebar */}
