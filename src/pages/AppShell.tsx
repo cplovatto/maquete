@@ -767,13 +767,45 @@ export default function AppShell() {
   const [alertSettingsOpen, setAlertSettingsOpen] = useState(false)
   const [lojasOpen, setLojasOpen] = useState(false)
   const [fileStatuses, setFileStatuses] = useState<Record<string, FileStatus>>(() => {
-    const init: Record<string, FileStatus> = {}
-    ;[...MENSAL_SOURCES, ...ANUAL_SOURCES].forEach(s => { init[s.id] = s.defaultStatus })
-    return init
+    const defaults: Record<string, FileStatus> = {}
+    ;[...MENSAL_SOURCES, ...ANUAL_SOURCES].forEach(s => { defaults[s.id] = s.defaultStatus })
+    try {
+      const saved = localStorage.getItem('prisma-file-statuses')
+      if (saved) return { ...defaults, ...(JSON.parse(saved) as Record<string, FileStatus>) }
+    } catch {}
+    return defaults
   })
-  const [lastLoaded, setLastLoaded] = useState<Record<string, Date>>({})
-  const [fileDates, setFileDates] = useState<Record<string, Date | null>>({})
-  const [lastParcialUpload, setLastParcialUpload] = useState<Date | null>(null)
+  const [lastLoaded, setLastLoaded] = useState<Record<string, Date>>(() => {
+    try {
+      const saved = localStorage.getItem('prisma-file-lastloaded')
+      if (saved) {
+        const raw = JSON.parse(saved) as Record<string, string>
+        const out: Record<string, Date> = {}
+        for (const [k, v] of Object.entries(raw)) { const d = new Date(v); if (!isNaN(d.getTime())) out[k] = d }
+        return out
+      }
+    } catch {}
+    return {}
+  })
+  const [fileDates, setFileDates] = useState<Record<string, Date | null>>(() => {
+    try {
+      const saved = localStorage.getItem('prisma-file-dates')
+      if (saved) {
+        const raw = JSON.parse(saved) as Record<string, string | null>
+        const out: Record<string, Date | null> = {}
+        for (const [k, v] of Object.entries(raw)) { if (!v) { out[k] = null } else { const d = new Date(v); out[k] = isNaN(d.getTime()) ? null : d } }
+        return out
+      }
+    } catch {}
+    return {}
+  })
+  const [lastParcialUpload, setLastParcialUpload] = useState<Date | null>(() => {
+    try {
+      const saved = localStorage.getItem('prisma-parcial-upload')
+      if (saved) { const d = new Date(saved); return isNaN(d.getTime()) ? null : d }
+    } catch {}
+    return null
+  })
   const [alertEnabled, setAlertEnabled] = useState(() => {
     try {
       const v = localStorage.getItem('prisma-prefs-alertEnabled')
@@ -824,6 +856,33 @@ export default function AppShell() {
   useEffect(() => {
     try { localStorage.setItem('prisma-prefs-alertInterval', String(alertIntervalMinutes)) } catch {}
   }, [alertIntervalMinutes])
+
+  useEffect(() => {
+    try { localStorage.setItem('prisma-file-statuses', JSON.stringify(fileStatuses)) } catch {}
+  }, [fileStatuses])
+
+  useEffect(() => {
+    try {
+      const s: Record<string, string> = {}
+      for (const [k, v] of Object.entries(lastLoaded)) s[k] = v.toISOString()
+      localStorage.setItem('prisma-file-lastloaded', JSON.stringify(s))
+    } catch {}
+  }, [lastLoaded])
+
+  useEffect(() => {
+    try {
+      const s: Record<string, string | null> = {}
+      for (const [k, v] of Object.entries(fileDates)) s[k] = v ? v.toISOString() : null
+      localStorage.setItem('prisma-file-dates', JSON.stringify(s))
+    } catch {}
+  }, [fileDates])
+
+  useEffect(() => {
+    try {
+      if (lastParcialUpload) localStorage.setItem('prisma-parcial-upload', lastParcialUpload.toISOString())
+      else localStorage.removeItem('prisma-parcial-upload')
+    } catch {}
+  }, [lastParcialUpload])
 
   function handleLogout() {
     logout()
