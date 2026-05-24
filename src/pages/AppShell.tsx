@@ -528,16 +528,19 @@ function ParcialAlertToast({ onDismiss, onImport }: { onDismiss: () => void; onI
 interface DataSource { id: string; name: string; format: 'XLSX' | 'CSV'; icon: ReactNode; defaultStatus: FileStatus; section: string }
 
 const MENSAL_SOURCES: DataSource[] = [
-  { id: 'main',         name: 'Indicadores principais',  format: 'XLSX', icon: IC.grid,     defaultStatus: 'embedded', section: 'Gestão Instantânea' },
+  // Gestão Instantânea
   { id: 'meta',         name: 'Meta do dia',             format: 'XLSX', icon: IC.target,   defaultStatus: 'embedded', section: 'Gestão Instantânea' },
   { id: 'parcial',      name: 'Parcial do dia',          format: 'CSV',  icon: IC.clock,    defaultStatus: 'pending',  section: 'Gestão Instantânea' },
   { id: 'dia-ant',      name: 'Dia anterior',            format: 'CSV',  icon: IC.calendar, defaultStatus: 'pending',  section: 'Gestão Instantânea' },
   { id: 'meta-diaant',  name: 'Meta — Dia anterior',     format: 'XLSX', icon: IC.calendar, defaultStatus: 'pending',  section: 'Gestão Instantânea' },
-  { id: 'iaf',          name: 'Relatório IAF',           format: 'XLSX', icon: IC.check,    defaultStatus: 'embedded', section: 'IAF / Operações' },
-  { id: 'fluxo',        name: 'Ação de Fluxo',           format: 'XLSX', icon: IC.arrows,   defaultStatus: 'embedded', section: 'IAF / Operações' },
-  { id: 'skin',         name: 'Skin (Cuidados Faciais)', format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'IAF / Operações' },
-  { id: 'parcial-skin', name: 'Parcial Skin',            format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'IAF / Operações' },
-  { id: 'servicos',     name: 'Serviços',                format: 'XLSX', icon: IC.doc,      defaultStatus: 'pending',  section: 'IAF / Operações' },
+  // Lojas
+  { id: 'main',         name: 'Indicadores principais',  format: 'XLSX', icon: IC.grid,     defaultStatus: 'embedded', section: 'Lojas' },
+  { id: 'fluxo',        name: 'Ação de Fluxo',           format: 'XLSX', icon: IC.arrows,   defaultStatus: 'embedded', section: 'Lojas' },
+  // IAF
+  { id: 'iaf',          name: 'Relatório IAF',           format: 'XLSX', icon: IC.check,    defaultStatus: 'embedded', section: 'IAF' },
+  { id: 'skin',         name: 'Skin (Cuidados Faciais)', format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'parcial-skin', name: 'Parcial Skin',            format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'servicos',     name: 'Serviços',                format: 'XLSX', icon: IC.doc,      defaultStatus: 'pending',  section: 'IAF' },
 ]
 
 const ANUAL_SOURCES: DataSource[] = [
@@ -707,12 +710,12 @@ function Sidebar() {
           </div>
           <div className="nav-group">
             <div className="nav-group-title">Lojas</div>
-            <SideItem to="/app/lojas"              icon={IC.grid}    label="Visão Geral" />
-            <SideItem to="/app/lojas/regioes"      icon={IC.mapPin}  label="Análise Regional" />
-            <SideItem to="/app/lojas/ranking"      icon={IC.chart}   label="Ranking de Lojas" />
-            <SideItem to="/app/lojas/detalhe"      icon={IC.store}   label="Detalhe da Loja" />
-            <SideItem to="/app/lojas/consultores"  icon={IC.users}   label="Consultores" />
-            <SideItem to="/app/lojas/dispersao"    icon={IC.scatter} label="Dispersão" />
+            <SideItem to="/app/lojas"              icon={IC.grid}    label="Visão Geral"      requires={['main','fluxo']} />
+            <SideItem to="/app/lojas/regioes"      icon={IC.mapPin}  label="Análise Regional" requires={['main','fluxo']} />
+            <SideItem to="/app/lojas/ranking"      icon={IC.chart}   label="Ranking de Lojas" requires={['main','fluxo']} />
+            <SideItem to="/app/lojas/detalhe"      icon={IC.store}   label="Detalhe da Loja"  requires={['main','fluxo']} />
+            <SideItem to="/app/lojas/consultores"  icon={IC.users}   label="Consultores"      requires={['main','fluxo']} />
+            <SideItem to="/app/lojas/dispersao"    icon={IC.scatter} label="Dispersão"        requires={['main','fluxo']} />
           </div>
           <div className="nav-group">
             <div className="nav-group-title">IAF</div>
@@ -911,12 +914,12 @@ export default function AppShell() {
             <Route path="parcial"       element={<WipPage title="Parcial do Dia"  requires={['parcial']} />} />
             <Route path="dia-anterior"  element={<WipPage title="Dia Anterior"    requires={['dia-ant','meta-diaant']} />} />
             {/* Mensal – Lojas */}
-            <Route path="lojas"               element={<WipPage title="Lojas — Visão Geral" />} />
-            <Route path="lojas/regioes"       element={<WipPage title="Análise Regional" />} />
-            <Route path="lojas/ranking"       element={<WipPage title="Ranking de Lojas" />} />
-            <Route path="lojas/detalhe"       element={<WipPage title="Detalhe da Loja" />} />
-            <Route path="lojas/consultores"   element={<WipPage title="Consultores" />} />
-            <Route path="lojas/dispersao"     element={<WipPage title="Dispersão" />} />
+            <Route path="lojas"               element={<WipPage title="Lojas — Visão Geral"   requires={['main','fluxo']} />} />
+            <Route path="lojas/regioes"       element={<WipPage title="Análise Regional"       requires={['main','fluxo']} />} />
+            <Route path="lojas/ranking"       element={<WipPage title="Ranking de Lojas"       requires={['main','fluxo']} />} />
+            <Route path="lojas/detalhe"       element={<WipPage title="Detalhe da Loja"        requires={['main','fluxo']} />} />
+            <Route path="lojas/consultores"   element={<WipPage title="Consultores"            requires={['main','fluxo']} />} />
+            <Route path="lojas/dispersao"     element={<WipPage title="Dispersão"              requires={['main','fluxo']} />} />
             {/* Mensal – IAF */}
             <Route path="iaf"          element={<WipPage title="IAF — Indicadores" />} />
             <Route path="iaf/detalhe"  element={<WipPage title="IAF — Detalhe" />} />
