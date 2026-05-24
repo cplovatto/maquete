@@ -1221,15 +1221,121 @@ function VisaoGeralPage() {
           </div>
         )
       })()}
+
+      {/* ── Progresso do Mês ── */}
+      {(() => {
+        // TODO: substituir META_PADRAO pela meta mensal real de cada loja
+        // quando o módulo de metas for implementado.
+        // progressoRows precisará cruzar com a fonte "parcial" do mês corrente.
+        const progressoRows = mainRows
+          .map(r => ({
+            ...r,
+            loja: lojaMap.get(r.pdv),
+            meta: META_PADRAO,                          // <- trocar pela meta real
+            realizado: r.vf_atual,                      // <- trocar pelo parcial do mês
+            pct: r.vf_atual / META_PADRAO,
+          }))
+          .sort((a, b) => b.pct - a.pct)
+
+        const totalRealizado = progressoRows.reduce((s, r) => s + r.realizado, 0)
+        const totalMeta      = progressoRows.reduce((s, r) => s + r.meta, 0)
+        const totalPct       = totalMeta > 0 ? totalRealizado / totalMeta : 0
+
+        return (
+          <div className="impact-table-card">
+            <div className="impact-table-header">
+              <div className="impact-table-title">Progresso do Mês</div>
+              <span className="progresso-placeholder-badge">Meta provisória · R$ 100k / loja</span>
+            </div>
+            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th className="col-rank">#</th>
+                    <th className="col-pdv">PDV</th>
+                    <th>Região</th>
+                    <th className="col-num">Realizado</th>
+                    <th className="col-num">Meta</th>
+                    <th className="impact-bar-th">Progresso</th>
+                    <th className="col-num">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {progressoRows.map((r, i) => {
+                    const pct     = r.pct
+                    const barW    = Math.min(pct, 1) * 100
+                    const color   = pct >= 1 ? '#059669' : pct >= 0.7 ? '#f59e0b' : '#dc2626'
+                    return (
+                      <tr key={r.pdv}>
+                        <td className="col-rank">{i + 1}</td>
+                        <td className="col-pdv">{r.pdv}</td>
+                        <td>
+                          <div className="label-chips-group">
+                            {(r.loja?.labels ?? []).map(lid => {
+                              const lb = labels.find(x => x.id === lid)
+                              return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                            })}
+                          </div>
+                        </td>
+                        <td className="col-num">{fBRLR(r.realizado)}</td>
+                        <td className="col-num col-muted-val">{fBRLR(r.meta)}</td>
+                        <td className="impact-bar-cell">
+                          <div className="impact-bar-track">
+                            <div className="impact-bar-fill" style={{ width: `${barW}%`, background: color }} />
+                          </div>
+                        </td>
+                        <td className="col-num" style={{ fontWeight: 700, color }}>
+                          {(pct * 100).toFixed(1).replace('.', ',')}%
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="gap-table-total">
+                    <td colSpan={3} className="gap-total-label" style={{ textAlign: 'left', paddingLeft: 12 }}>
+                      Total do grupo
+                    </td>
+                    <td className="col-num">{fBRLR(totalRealizado)}</td>
+                    <td className="col-num col-muted-val">{fBRLR(totalMeta)}</td>
+                    <td className="impact-bar-cell">
+                      <div className="impact-bar-track">
+                        <div className="impact-bar-fill" style={{
+                          width: `${Math.min(totalPct, 1) * 100}%`,
+                          background: totalPct >= 1 ? '#059669' : totalPct >= 0.7 ? '#f59e0b' : '#dc2626'
+                        }} />
+                      </div>
+                    </td>
+                    <td className="col-num" style={{ fontWeight: 700, color: totalPct >= 1 ? '#059669' : totalPct >= 0.7 ? '#f59e0b' : '#dc2626' }}>
+                      {(totalPct * 100).toFixed(1).replace('.', ',')}%
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
 
 /* ── Lojas — Ranking ─────────────────────────────────── */
+type ChartMetric = 'vf_var' | 'vf_atual' | 'bm_atual' | 'iv_atual' | 'pm_atual' | 'conv_pct'
+const CHART_METRICS: { key: ChartMetric; label: string }[] = [
+  { key: 'vf_var',   label: '% Receita' },
+  { key: 'vf_atual', label: 'Maior Receita' },
+  { key: 'bm_atual', label: 'Boleto Médio' },
+  { key: 'iv_atual', label: 'IV' },
+  { key: 'pm_atual', label: 'Preço Médio' },
+  { key: 'conv_pct', label: 'Ação de Fluxo' },
+]
+
 function RankingPage() {
-  const { mainRows } = useData()
+  const { mainRows, fluxoRows } = useData()
   const [sortKey, setSortKey] = useState<SortKey>('vf_atual')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [chartMetric, setChartMetric] = useState<ChartMetric>('vf_var')
   const { rows, labels } = useStoreTableData(sortKey, sortDir)
 
   function toggleSort(k: SortKey) {
@@ -1239,14 +1345,118 @@ function RankingPage() {
 
   if (mainRows.length === 0) return <LojasEmptyState />
 
+  const fluxoMap = new Map(fluxoRows.map(r => [r.pdv, r]))
+
+  const chartData = useMemo(() => {
+    return [...mainRows].map(r => {
+      const fl = fluxoMap.get(r.pdv)
+      let value = 0
+      switch (chartMetric) {
+        case 'vf_var':   value = r.vf_var;          break
+        case 'vf_atual': value = r.vf_atual;         break
+        case 'bm_atual': value = r.bm_atual;         break
+        case 'iv_atual': value = r.iv_atual;         break
+        case 'pm_atual': value = r.pm_atual;         break
+        case 'conv_pct': value = (fl?.conv_pct ?? 0) * 100; break
+      }
+      return { pdv: r.pdv, value }
+    }).sort((a, b) => b.value - a.value)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mainRows, fluxoRows, chartMetric])
+
+  const maxAbs = Math.max(...chartData.map(r => Math.abs(r.value)), 1)
+  const isVar  = chartMetric === 'vf_var'
+  const avg    = chartData.length > 0 ? chartData.reduce((s, r) => s + r.value, 0) / chartData.length : 0
+  const avgPct = (avg / maxAbs) * 100
+
+  function fChartVal(v: number): string {
+    switch (chartMetric) {
+      case 'vf_var':   return (v > 0 ? '+' : '') + v.toFixed(1).replace('.', ',') + '%'
+      case 'vf_atual': return fBRLR(v)
+      case 'bm_atual': return fBRLR(v)
+      case 'iv_atual': return fDec(v)
+      case 'pm_atual': return fBRLR(v)
+      case 'conv_pct': return v.toFixed(1).replace('.', ',') + '%'
+    }
+  }
+
   return (
     <div className="page-content">
       <div className="page-title-row">
         <div>
           <h2 className="page-title">Ranking de Lojas</h2>
-          <p className="page-subtitle">{mainRows.length} lojas · ordenadas por {sortKey === 'vf_atual' ? 'receita' : sortKey}</p>
+          <p className="page-subtitle">{mainRows.length} lojas</p>
         </div>
       </div>
+
+      {/* Chart */}
+      <div className="ranking-chart-card">
+        <div className="ranking-chart-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span className="ranking-chart-title">Performance por Loja</span>
+            {!isVar && (
+              <span className="ranking-chart-legend">
+                <span className="ranking-chart-legend-line" />
+                Média do grupo: {fChartVal(avg)}
+              </span>
+            )}
+          </div>
+          <div className="ranking-chart-metrics">
+            {CHART_METRICS.map(m => (
+              <button
+                key={m.key}
+                className={`ranking-metric-btn${chartMetric === m.key ? ' active' : ''}`}
+                onClick={() => setChartMetric(m.key)}
+              >{m.label}</button>
+            ))}
+          </div>
+        </div>
+        <div className="ranking-chart-body">
+          {isVar ? (
+            // Diverging chart — zero no centro
+            chartData.map(({ pdv, value }) => {
+              const isPos  = value >= 0
+              const barPct = (Math.abs(value) / maxAbs) * 50
+              const color  = isPos ? '#059669' : '#dc2626'
+              return (
+                <div key={pdv} className="ranking-chart-row">
+                  <span className="ranking-chart-pdv">{pdv}</span>
+                  <div className="ranking-chart-bar-wrap">
+                    <div className="ranking-chart-zero-line" />
+                    <div className="ranking-chart-bar ranking-chart-bar--diverging" style={{
+                      left:       isPos ? '50%'                     : `${50 - barPct}%`,
+                      width:      `${barPct}%`,
+                      background: color,
+                    }} />
+                  </div>
+                  <span className="ranking-chart-val" style={{ color }}>{fChartVal(value)}</span>
+                </div>
+              )
+            })
+          ) : (
+            // Barra normal + linha de referência (média do grupo)
+            chartData.map(({ pdv, value }) => {
+              const barW = (value / maxAbs) * 100
+              const isAbove = value >= avg
+              return (
+                <div key={pdv} className="ranking-chart-row">
+                  <span className="ranking-chart-pdv">{pdv}</span>
+                  <div className="ranking-chart-bar-wrap">
+                    <div className="ranking-chart-bar" style={{
+                      width: `${barW}%`,
+                      background: isAbove ? '#7c3aed' : '#a78bfa',
+                    }} />
+                    <div className="ranking-chart-avg-line" style={{ left: `${avgPct}%` }} />
+                  </div>
+                  <span className="ranking-chart-val">{fChartVal(value)}</span>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Table */}
       <div className="dash-table-wrap">
         <table className="dash-table">
           <StoreTableHead sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
@@ -1264,6 +1474,7 @@ function RegioesPage() {
   const { mainRows, fluxoRows } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
+  const [selectedPotLabels, setSelectedPotLabels] = useState<string[]>([])
 
   if (mainRows.length === 0) return <LojasEmptyState />
 
@@ -1290,16 +1501,37 @@ function RegioesPage() {
     return result
   }, [mainRows, labels, lojaMap])
 
-  function groupKpis(rows: MainRow[]) {
-    const vf = rows.reduce((s, r) => s + r.vf_atual, 0)
-    const qb = rows.reduce((s, r) => s + r.qb_atual, 0)
-    const bm = qb > 0 ? vf / qb : 0
-    const iv = rows.length > 0 ? rows.reduce((s, r) => s + r.iv_atual, 0) / rows.length : 0
-    const fl = fluxoRows.filter(r => rows.some(mr => mr.pdv === r.pdv))
-    const conv = fl.length > 0
-      ? fl.reduce((s, r) => s + r.conversoes, 0) / Math.max(fl.reduce((s, r) => s + r.resgates, 0), 1)
-      : null
-    return { vf, qb, bm, iv, conv }
+  function computeStats(rows: MainRow[]) {
+    const vf_ant   = rows.reduce((s, r) => s + r.vf_ant,   0)
+    const vf_atual = rows.reduce((s, r) => s + r.vf_atual, 0)
+    const vf_var   = vf_ant > 0 ? (vf_atual - vf_ant) / vf_ant * 100 : 0
+
+    const qb_ant   = rows.reduce((s, r) => s + r.qb_ant,   0)
+    const qb_atual = rows.reduce((s, r) => s + r.qb_atual, 0)
+    const qb_var   = qb_ant > 0 ? (qb_atual - qb_ant) / qb_ant * 100 : 0
+
+    const bm_atual = qb_atual > 0 ? vf_atual / qb_atual : 0
+    const bm_ant   = qb_ant   > 0 ? vf_ant   / qb_ant   : 0
+    const bm_var   = bm_ant   > 0 ? (bm_atual - bm_ant) / bm_ant * 100 : 0
+
+    // IV ponderado: total itens / total QB
+    const ti_atual = rows.reduce((s, r) => s + r.iv_atual * r.qb_atual, 0)
+    const ti_ant   = rows.reduce((s, r) => s + r.iv_ant   * r.qb_ant,   0)
+    const iv_atual = qb_atual > 0 ? ti_atual / qb_atual : 0
+    const iv_ant   = qb_ant   > 0 ? ti_ant   / qb_ant   : 0
+    const iv_var   = iv_ant   > 0 ? (iv_atual - iv_ant) / iv_ant * 100 : 0
+
+    // PM = VF / total itens
+    const pm_atual = ti_atual > 0 ? vf_atual / ti_atual : 0
+    const pm_ant   = ti_ant   > 0 ? vf_ant   / ti_ant   : 0
+    const pm_var   = pm_ant   > 0 ? (pm_atual - pm_ant) / pm_ant * 100 : 0
+
+    const fl       = rows.map(r => fluxoMap.get(r.pdv)).filter((f): f is FluxoRow => !!f)
+    const resgates = fl.reduce((s, r) => s + r.resgates,   0)
+    const conversoes = fl.reduce((s, r) => s + r.conversoes, 0)
+    const conv_pct = resgates > 0 ? conversoes / resgates : null
+
+    return { vf_atual, vf_var, qb_atual, qb_var, bm_atual, bm_var, iv_atual, iv_var, pm_atual, pm_var, conv_pct }
   }
 
   return (
@@ -1310,70 +1542,363 @@ function RegioesPage() {
           <p className="page-subtitle">{labels.length > 0 ? `${groups.length} regiões · ` : ''}{mainRows.length} lojas</p>
         </div>
       </div>
-      {groups.map(({ label: lb, rows: groupRows }) => {
-        const k = groupKpis(groupRows)
-        return (
-          <div key={lb?.id ?? '__none__'} className="region-block">
-            <div className="region-header">
-              {lb
-                ? <span className="label-chip region-label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span>
-                : <span className="region-label-chip region-label-chip--none">Sem região</span>}
-              <span className="region-count">{groupRows.length} loja{groupRows.length !== 1 ? 's' : ''}</span>
-              <div className="region-kpis">
-                <span className="region-kpi"><span className="region-kpi-label">VF</span> <b>{fBRLR(k.vf)}</b></span>
-                <span className="region-kpi"><span className="region-kpi-label">QB</span> <b>{fInt(k.qb)}</b></span>
-                <span className="region-kpi"><span className="region-kpi-label">BM</span> <b>{fBRLR(k.bm)}</b></span>
-                <span className="region-kpi"><span className="region-kpi-label">IV</span> <b>{fDec(k.iv)}</b></span>
-                {k.conv !== null && <span className="region-kpi"><span className="region-kpi-label">Conv.</span> <b>{fPct(k.conv)}</b></span>}
+
+      <div className="region-cards-row" style={{ marginBottom: 32 }}>
+        {groups.map(({ label: lb, rows: groupRows }) => {
+          const s = computeStats(groupRows)
+          const accent = lb?.color ?? '#94a3b8'
+          return (
+            <div key={lb?.id ?? '__none__'} className="region-card">
+              <div className="region-card-header" style={{ borderColor: accent }}>
+                {lb
+                  ? <span className="label-chip region-label-chip" style={{ '--chip-color': accent } as React.CSSProperties}>{lb.name}</span>
+                  : <span className="region-label-chip region-label-chip--none">Sem região</span>}
+                <span className="region-count">{groupRows.length} loja{groupRows.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="region-card-kpis">
+                {[
+                  { label: 'Receita',       value: fBRLR(s.vf_atual), varV: s.vf_var },
+                  { label: 'Qtd. Boletos',  value: fInt(s.qb_atual),  varV: s.qb_var },
+                  { label: 'Boleto Médio',  value: fBRLR(s.bm_atual), varV: s.bm_var },
+                  { label: 'Itens/Boleto',  value: fDec(s.iv_atual),  varV: s.iv_var },
+                  { label: 'Preço Médio',   value: fBRLR(s.pm_atual), varV: s.pm_var },
+                  ...(s.conv_pct !== null ? [{ label: 'Conv. Fluxo', value: fPct(s.conv_pct), varV: undefined }] : []),
+                ].map(({ label, value, varV }) => (
+                  <div key={label} className="region-kpi-row">
+                    <span className="region-kpi-row-label">{label}</span>
+                    <span className="region-kpi-row-value">{value}</span>
+                    {varV !== undefined && (
+                      <span className={`region-kpi-row-var${varV > 0.05 ? ' pos' : varV < -0.05 ? ' neg' : ''}`}>
+                        {varV > 0 ? '+' : ''}{varV.toFixed(1).replace('.', ',')}%
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="dash-table-wrap">
-              <table className="dash-table">
+          )
+        })}
+      </div>
+
+      {groups.map(({ label: lb, rows: groupRows }) => (
+        <div key={(lb?.id ?? '__none__') + '-table'} className="region-detail-block">
+          <div className="region-detail-header" style={{ borderLeftColor: lb?.color ?? '#94a3b8' }}>
+            {lb
+              ? <span className="label-chip region-label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span>
+              : <span className="region-label-chip region-label-chip--none">Sem região</span>}
+            <span className="region-count">{groupRows.length} loja{groupRows.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table
+              className="dash-table dash-table--accented"
+              style={{ '--table-accent-color': lb?.color ?? '#94a3b8' } as React.CSSProperties}
+            >
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th className="col-pdv">PDV</th>
+                  <th className="col-num">Receita</th>
+                  <th className="col-var">Var.</th>
+                  <th className="col-num">QB</th>
+                  <th className="col-var">Var.</th>
+                  <th className="col-num">BM</th>
+                  <th className="col-var">Var.</th>
+                  <th className="col-num">IV</th>
+                  <th className="col-var">Var.</th>
+                  <th className="col-num">PM</th>
+                  <th className="col-var">Var.</th>
+                  <th className="col-num">Conv.%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...groupRows].sort((a, b) => b.vf_atual - a.vf_atual).map((r, i) => {
+                  const fluxo = fluxoMap.get(r.pdv)
+                  return (
+                    <tr key={r.pdv}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-pdv">{r.pdv}</td>
+                      <td className="col-num">{fBRLR(r.vf_atual)}</td>
+                      <td className="col-var"><VarBadge v={r.vf_var} /></td>
+                      <td className="col-num">{fInt(r.qb_atual)}</td>
+                      <td className="col-var"><VarBadge v={r.qb_var} /></td>
+                      <td className="col-num">{fBRLR(r.bm_atual)}</td>
+                      <td className="col-var"><VarBadge v={r.bm_var} /></td>
+                      <td className="col-num">{fDec(r.iv_atual)}</td>
+                      <td className="col-var"><VarBadge v={r.iv_var} /></td>
+                      <td className="col-num">{fBRLR(r.pm_atual)}</td>
+                      <td className="col-var"><VarBadge v={r.pm_var} /></td>
+                      <td className="col-num">{fluxo ? fPct(fluxo.conv_pct) : <span className="dash-muted">—</span>}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ))}
+
+      {/* ── Potencial por Região ── */}
+      {(() => {
+        // TODO: BM_FLUXO deve ser lido da planilha Ação de Fluxo quando disponível
+        const META_CONV = 0.28
+        const BM_FLUXO  = 91.58
+
+        const globalVF = mainRows.reduce((s, r) => s + r.vf_atual, 0)
+        const globalQB = mainRows.reduce((s, r) => s + r.qb_atual, 0)
+        const globalBM = globalQB > 0 ? globalVF / globalQB : 0
+
+        const potRows = groups.map(({ label: lb, rows: groupRows }) => {
+          const gapBM = groupRows
+            .filter(r => r.bm_atual < globalBM)
+            .reduce((s, r) => s + (globalBM - r.bm_atual) * r.qb_atual, 0)
+
+          const gapFluxo = groupRows.reduce((s, r) => {
+            const fl = fluxoMap.get(r.pdv)
+            if (!fl) return s
+            const faltou = fl.resgates * META_CONV - fl.conversoes
+            return faltou > 0 ? s + faltou * BM_FLUXO : s
+          }, 0)
+
+          return { label: lb, lojas: groupRows.length, gapBM, gapFluxo, total: gapBM + gapFluxo }
+        })
+
+        const filteredPotRows = selectedPotLabels.length === 0
+          ? potRows
+          : potRows.filter(r => r.label && selectedPotLabels.includes(r.label.id))
+
+        const totBM    = filteredPotRows.reduce((s, r) => s + r.gapBM,    0)
+        const totFluxo = filteredPotRows.reduce((s, r) => s + r.gapFluxo, 0)
+        const totTotal = filteredPotRows.reduce((s, r) => s + r.total,     0)
+
+        // Per-store breakdown
+        const lojaMap2 = new Map(groups.flatMap(({ label: lb, rows: groupRows }) =>
+          groupRows.map(r => [r.pdv, lb] as [string, typeof lb])
+        ))
+        const storeRows = mainRows
+          .map(r => {
+            const fl = fluxoMap.get(r.pdv)
+            const gapBM    = r.bm_atual < globalBM ? (globalBM - r.bm_atual) * r.qb_atual : 0
+            const faltou   = fl ? fl.resgates * META_CONV - fl.conversoes : 0
+            const gapFluxo = faltou > 0 ? faltou * BM_FLUXO : 0
+            return { pdv: r.pdv, label: lojaMap2.get(r.pdv) ?? null, gapBM, gapFluxo, total: gapBM + gapFluxo }
+          })
+          .filter(r => r.total > 0 && (
+            selectedPotLabels.length === 0 ||
+            (r.label && selectedPotLabels.includes(r.label.id))
+          ))
+          .sort((a, b) => b.total - a.total)
+
+        // Receita potencial por região
+        const potencialRows = groups
+          .filter(({ label: lb }) =>
+            selectedPotLabels.length === 0 || (lb && selectedPotLabels.includes(lb.id))
+          )
+          .map(({ label: lb, rows: groupRows }) => {
+            const pot = potRows.find(p => (p.label?.id ?? '__none__') === (lb?.id ?? '__none__'))
+            const vf_ant   = groupRows.reduce((s, r) => s + r.vf_ant,   0)
+            const vf_atual = groupRows.reduce((s, r) => s + r.vf_atual, 0)
+            const gapBM    = pot?.gapBM    ?? 0
+            const gapFluxo = pot?.gapFluxo ?? 0
+            const potencial = vf_atual + gapBM + gapFluxo
+            const var_atual    = vf_ant > 0 ? (vf_atual - vf_ant)  / vf_ant * 100 : 0
+            const var_potencial = vf_ant > 0 ? (potencial - vf_ant) / vf_ant * 100 : 0
+            return { label: lb, vf_ant, vf_atual, gapBM, gapFluxo, potencial, var_atual, var_potencial }
+          })
+
+        const totVfAnt     = potencialRows.reduce((s, r) => s + r.vf_ant,   0)
+        const totVfAtual   = potencialRows.reduce((s, r) => s + r.vf_atual, 0)
+        const totPotencial = potencialRows.reduce((s, r) => s + r.potencial, 0)
+        const totVarAtual    = totVfAnt > 0 ? (totVfAtual   - totVfAnt) / totVfAnt * 100 : 0
+        const totVarPotencial = totVfAnt > 0 ? (totPotencial - totVfAnt) / totVfAnt * 100 : 0
+
+        return (
+          <div className="potencial-card">
+            <div className="potencial-card-header">
+              <div>
+                <h3 className="potencial-title">Potencial por Região</h3>
+                <p className="potencial-sub">
+                  GAP BM: lojas abaixo de {fBRLR(globalBM)} (média do grupo) ·
+                  GAP Fluxo: lojas abaixo de {(META_CONV * 100).toFixed(0)}% de conversão
+                </p>
+              </div>
+              <div className="potencial-total-badge">
+                <span className="potencial-total-label">Potencial total</span>
+                <span className="potencial-total-value">{fBRLR(totTotal)}</span>
+              </div>
+            </div>
+
+            {/* Filtro de região */}
+            {labels.length > 0 && (
+              <div className="region-filter-bar" style={{ padding: '10px 16px', borderBottom: '1px solid var(--bg-border)', marginBottom: 0 }}>
+                <span className="region-filter-label">Região</span>
+                <button
+                  className={`region-filter-btn${selectedPotLabels.length === 0 ? ' active' : ''}`}
+                  onClick={() => setSelectedPotLabels([])}
+                >Todas</button>
+                {labels.map(lb => (
+                  <button
+                    key={lb.id}
+                    className={`region-filter-btn${selectedPotLabels.includes(lb.id) ? ' active' : ''}`}
+                    style={selectedPotLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+                    onClick={() => setSelectedPotLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+                  >{lb.name}</button>
+                ))}
+              </div>
+            )}
+
+            {/* Resumo por região */}
+            <div className="potencial-section-label">Resumo por região</div>
+            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+              <table className="dash-table dash-table--potential">
+                <thead>
+                  <tr>
+                    <th>Região</th>
+                    <th className="col-num">Lojas</th>
+                    <th className="col-num">GAP Boleto Médio</th>
+                    <th className="col-num">GAP Ação de Fluxo</th>
+                    <th className="col-num col-gap-head">Total Potencial</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPotRows.map(r => (
+                    <tr key={r.label?.id ?? '__none__'}>
+                      <td>
+                        {r.label
+                          ? <span className="label-chip" style={{ '--chip-color': r.label.color } as React.CSSProperties}>{r.label.name}</span>
+                          : <span className="dash-muted">Sem região</span>}
+                      </td>
+                      <td className="col-num">{r.lojas}</td>
+                      <td className="col-num col-neg-val">{r.gapBM > 0 ? fBRLR(r.gapBM) : <span className="dash-muted">—</span>}</td>
+                      <td className="col-num col-neg-val">{r.gapFluxo > 0 ? fBRLR(r.gapFluxo) : <span className="dash-muted">—</span>}</td>
+                      <td className="col-num col-gap-val">{fBRLR(r.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="gap-table-total">
+                    <td colSpan={2} className="gap-total-label">
+                      {selectedPotLabels.length > 0 ? 'Total filtrado' : 'Total geral'}
+                    </td>
+                    <td className="col-num col-neg-val">{fBRLR(totBM)}</td>
+                    <td className="col-num col-neg-val">{fBRLR(totFluxo)}</td>
+                    <td className="col-num col-gap-val">{fBRLR(totTotal)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Detalhe por loja */}
+            <div className="potencial-section-label" style={{ borderTop: '1px solid var(--bg-border)' }}>
+              Detalhe por loja · {storeRows.length} loja{storeRows.length !== 1 ? 's' : ''} com potencial
+              {selectedPotLabels.length > 0 && ' · filtrado por região'}
+            </div>
+            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+              <table className="dash-table dash-table--potential">
                 <thead>
                   <tr>
                     <th className="col-rank">#</th>
                     <th className="col-pdv">PDV</th>
-                    <th className="col-num">VF Atual</th>
-                    <th className="col-var">Var.</th>
-                    <th className="col-num">QB</th>
-                    <th className="col-var">Var.</th>
-                    <th className="col-num">BM</th>
-                    <th className="col-var">Var.</th>
-                    <th className="col-num">IV</th>
-                    <th className="col-var">Var.</th>
-                    <th className="col-num">PM</th>
-                    <th className="col-var">Var.</th>
-                    <th className="col-num">Conv.%</th>
+                    <th>Região</th>
+                    <th className="col-num">GAP Boleto Médio</th>
+                    <th className="col-num">GAP Ação de Fluxo</th>
+                    <th className="col-num col-gap-head">Total Potencial</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {[...groupRows].sort((a, b) => b.vf_atual - a.vf_atual).map((r, i) => {
-                    const loja  = lojaMap.get(r.pdv)
-                    const fluxo = fluxoMap.get(r.pdv)
-                    return (
-                      <tr key={r.pdv}>
-                        <td className="col-rank">{i + 1}</td>
-                        <td className="col-pdv">{r.pdv}</td>
-                        <td className="col-num">{fBRL(r.vf_atual)}</td>
-                        <td className="col-var"><VarBadge v={r.vf_var} /></td>
-                        <td className="col-num">{fInt(r.qb_atual)}</td>
-                        <td className="col-var"><VarBadge v={r.qb_var} /></td>
-                        <td className="col-num">{fBRL(r.bm_atual)}</td>
-                        <td className="col-var"><VarBadge v={r.bm_var} /></td>
-                        <td className="col-num">{fDec(r.iv_atual)}</td>
-                        <td className="col-var"><VarBadge v={r.iv_var} /></td>
-                        <td className="col-num">{fBRLR(r.pm_atual)}</td>
-                        <td className="col-var"><VarBadge v={r.pm_var} /></td>
-                        <td className="col-num">{fluxo ? fPct(fluxo.conv_pct) : <span className="dash-muted">—</span>}</td>
-                      </tr>
-                    )
-                  })}
+                  {storeRows.map((r, i) => (
+                    <tr key={r.pdv}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-pdv">{r.pdv}</td>
+                      <td>
+                        {r.label
+                          ? <span className="label-chip" style={{ '--chip-color': r.label.color } as React.CSSProperties}>{r.label.name}</span>
+                          : <span className="dash-muted">—</span>}
+                      </td>
+                      <td className="col-num col-neg-val">{r.gapBM > 0 ? fBRLR(r.gapBM) : <span className="dash-muted">—</span>}</td>
+                      <td className="col-num col-neg-val">{r.gapFluxo > 0 ? fBRLR(r.gapFluxo) : <span className="dash-muted">—</span>}</td>
+                      <td className="col-num col-gap-val">{fBRLR(r.total)}</td>
+                    </tr>
+                  ))}
                 </tbody>
+                <tfoot>
+                  <tr className="gap-table-total">
+                    <td colSpan={3} className="gap-total-label">
+                      {selectedPotLabels.length > 0 ? 'Total filtrado' : 'Total'}
+                    </td>
+                    <td className="col-num col-neg-val">{fBRLR(storeRows.reduce((s, r) => s + r.gapBM,    0))}</td>
+                    <td className="col-num col-neg-val">{fBRLR(storeRows.reduce((s, r) => s + r.gapFluxo, 0))}</td>
+                    <td className="col-num col-gap-val">{fBRLR(storeRows.reduce((s, r) => s + r.total,    0))}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Receita Potencial */}
+            <div className="potencial-section-label" style={{ borderTop: '1px solid var(--bg-border)' }}>
+              Receita potencial — se todos os GAPs forem recuperados
+            </div>
+            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+              <table className="dash-table dash-table--potential">
+                <thead>
+                  <tr>
+                    <th>Região</th>
+                    <th className="col-num">Receita Atual</th>
+                    <th className="col-num">+ GAP BM</th>
+                    <th className="col-num">+ GAP Fluxo</th>
+                    <th className="col-num col-gap-head">Receita Potencial</th>
+                    <th className="col-num">Var. LY Atual</th>
+                    <th className="col-num">Var. LY Potencial</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {potencialRows.map(r => (
+                    <tr key={r.label?.id ?? '__none__'}>
+                      <td>
+                        {r.label
+                          ? <span className="label-chip" style={{ '--chip-color': r.label.color } as React.CSSProperties}>{r.label.name}</span>
+                          : <span className="dash-muted">Sem região</span>}
+                      </td>
+                      <td className="col-num">{fBRLR(r.vf_atual)}</td>
+                      <td className="col-num col-neg-val">{r.gapBM > 0 ? `+ ${fBRL(r.gapBM)}` : <span className="dash-muted">—</span>}</td>
+                      <td className="col-num col-neg-val">{r.gapFluxo > 0 ? `+ ${fBRL(r.gapFluxo)}` : <span className="dash-muted">—</span>}</td>
+                      <td className="col-num col-gap-val">{fBRLR(r.potencial)}</td>
+                      <td className="col-num">
+                        <span className={`var-badge${r.var_atual > 0.05 ? ' var-pos' : r.var_atual < -0.05 ? ' var-neg' : ''}`}>
+                          {r.var_atual > 0 ? '+' : ''}{r.var_atual.toFixed(1).replace('.', ',')}%
+                        </span>
+                      </td>
+                      <td className="col-num">
+                        <span className={`var-badge${r.var_potencial > 0.05 ? ' var-pos' : r.var_potencial < -0.05 ? ' var-neg' : ''} potencial-var-highlight`}>
+                          {r.var_potencial > 0 ? '+' : ''}{r.var_potencial.toFixed(1).replace('.', ',')}%
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="gap-table-total">
+                    <td className="gap-total-label">{selectedPotLabels.length > 0 ? 'Total filtrado' : 'Total do grupo'}</td>
+                    <td className="col-num">{fBRLR(totVfAtual)}</td>
+                    <td className="col-num col-neg-val">+ {fBRL(potRows.filter(r => selectedPotLabels.length === 0 || (r.label && selectedPotLabels.includes(r.label.id))).reduce((s, r) => s + r.gapBM, 0))}</td>
+                    <td className="col-num col-neg-val">+ {fBRL(potRows.filter(r => selectedPotLabels.length === 0 || (r.label && selectedPotLabels.includes(r.label.id))).reduce((s, r) => s + r.gapFluxo, 0))}</td>
+                    <td className="col-num col-gap-val">{fBRLR(totPotencial)}</td>
+                    <td className="col-num">
+                      <span className={`var-badge${totVarAtual > 0.05 ? ' var-pos' : totVarAtual < -0.05 ? ' var-neg' : ''}`}>
+                        {totVarAtual > 0 ? '+' : ''}{totVarAtual.toFixed(1).replace('.', ',')}%
+                      </span>
+                    </td>
+                    <td className="col-num">
+                      <span className={`var-badge${totVarPotencial > 0.05 ? ' var-pos' : totVarPotencial < -0.05 ? ' var-neg' : ''} potencial-var-highlight`}>
+                        {totVarPotencial > 0 ? '+' : ''}{totVarPotencial.toFixed(1).replace('.', ',')}%
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
         )
-      })}
+      })()}
     </div>
   )
 }
