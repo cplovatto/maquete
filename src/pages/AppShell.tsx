@@ -1,8 +1,18 @@
-import { useState } from 'react'
-import type { ReactNode } from 'react'
+import { useState, createContext, useContext } from 'react'
+import type { ReactNode, Dispatch, SetStateAction } from 'react'
 import { Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
+
+/* ── File status context ────────────────────────────── */
+interface FileStatusCtxType {
+  statuses: Record<string, FileStatus>
+  setStatuses: Dispatch<SetStateAction<Record<string, FileStatus>>>
+  openImport: () => void
+}
+type FileStatus = 'embedded' | 'loaded' | 'pending'
+const FileStatusCtx = createContext<FileStatusCtxType | null>(null)
+function useFileStatus() { return useContext(FileStatusCtx)! }
 
 /* ── Fake data ──────────────────────────────────────── */
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -279,7 +289,6 @@ const IC = {
 }
 
 /* ── Import modal data ──────────────────────────────── */
-type FileStatus = 'embedded' | 'loaded' | 'pending'
 interface DataSource { id: string; name: string; format: 'XLSX' | 'CSV'; icon: ReactNode; defaultStatus: FileStatus; section: string }
 
 const MENSAL_SOURCES: DataSource[] = [
@@ -303,11 +312,7 @@ const ANUAL_SOURCES: DataSource[] = [
 
 function ImportModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'mensal' | 'anual'>('mensal')
-  const [statuses, setStatuses] = useState<Record<string, FileStatus>>(() => {
-    const init: Record<string, FileStatus> = {}
-    ;[...MENSAL_SOURCES, ...ANUAL_SOURCES].forEach(s => { init[s.id] = s.defaultStatus })
-    return init
-  })
+  const { statuses, setStatuses } = useFileStatus()
 
   const sources = tab === 'mensal' ? MENSAL_SOURCES : ANUAL_SOURCES
   const sections = Array.from(new Set(sources.map(s => s.section)))
@@ -356,8 +361,11 @@ function ImportModal({ onClose }: { onClose: () => void }) {
 }
 
 /* ── Sidebar nav item ───────────────────────────────── */
-interface SideItemProps { to: string; icon: ReactNode; label: string }
-function SideItem({ to, icon, label }: SideItemProps) {
+interface SideItemProps { to: string; icon: ReactNode; label: string; requires?: string[] }
+function SideItem({ to, icon, label, requires }: SideItemProps) {
+  const { statuses } = useFileStatus()
+  const hasMissing = requires?.some(id => statuses[id] === 'pending') ?? false
+
   return (
     <NavLink
       to={to}
@@ -365,18 +373,38 @@ function SideItem({ to, icon, label }: SideItemProps) {
     >
       {icon}
       {label}
+      {hasMissing && <span className="nav-warn-dot" title="Arquivo necessário não carregado" />}
     </NavLink>
   )
 }
 
 /* ── Placeholder page ───────────────────────────────── */
-function WipPage({ title }: { title: string }) {
+function WipPage({ title, requires }: { title: string; requires?: string[] }) {
+  const { statuses, openImport } = useFileStatus()
+  const missing = requires
+    ?.map(id => [...MENSAL_SOURCES, ...ANUAL_SOURCES].find(s => s.id === id))
+    .filter(s => s && statuses[s.id] === 'pending') as DataSource[] | undefined
+
   return (
     <div className="placeholder-page">
       <div className="page-header">
         <div className="page-title">{title}</div>
         <div className="page-subtitle">Em construção</div>
       </div>
+      {missing && missing.length > 0 && (
+        <div className="missing-files-banner">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div>
+            <strong>Arquivo não carregado</strong>
+            <div style={{ marginTop: 4, fontSize: 13 }}>
+              {missing.map(s => (
+                <span key={s.id} className="missing-file-chip">{s.name} <span className={`import-format-badge format-${s.format.toLowerCase()}`}>{s.format}</span></span>
+              ))}
+            </div>
+          </div>
+          <button className="missing-files-btn" onClick={openImport}>Importar</button>
+        </div>
+      )}
       <div className="wip-banner">
         <span style={{ fontSize: 20 }}>🏗️</span>
         <span><strong>Módulo em construção</strong> — Esta seção está sendo desenvolvida.</span>
@@ -407,8 +435,8 @@ function Sidebar() {
           <div className="nav-group">
             <div className="nav-group-title">Gestão Instantânea</div>
             <SideItem to="/app/meta"          icon={IC.target}   label="Meta do Dia" />
-            <SideItem to="/app/parcial"       icon={IC.clock}    label="Parcial do Dia" />
-            <SideItem to="/app/dia-anterior"  icon={IC.calendar} label="Dia Anterior" />
+            <SideItem to="/app/parcial"       icon={IC.clock}    label="Parcial do Dia"  requires={['parcial']} />
+            <SideItem to="/app/dia-anterior"  icon={IC.calendar} label="Dia Anterior"    requires={['dia-ant','meta-diaant']} />
           </div>
           <div className="nav-group">
             <div className="nav-group-title">Lojas</div>
@@ -424,8 +452,8 @@ function Sidebar() {
             <SideItem to="/app/iaf"            icon={IC.check}   label="Indicadores" />
             <SideItem to="/app/iaf/detalhe"    icon={IC.search}  label="Detalhe" />
             <SideItem to="/app/iaf/fluxo"      icon={IC.arrows}  label="Ação de Fluxo" />
-            <SideItem to="/app/iaf/skin"       icon={IC.skin}    label="Skin" />
-            <SideItem to="/app/iaf/servicos"   icon={IC.doc}     label="Serviços" />
+            <SideItem to="/app/iaf/skin"       icon={IC.skin}    label="Skin"     requires={['skin','parcial-skin']} />
+            <SideItem to="/app/iaf/servicos"   icon={IC.doc}     label="Serviços" requires={['servicos']} />
           </div>
         </nav>
       )}
@@ -434,16 +462,16 @@ function Sidebar() {
         <nav className="nav-sections">
           <div className="nav-group">
             <div className="nav-group-title">Lojas</div>
-            <SideItem to="/app/anual/lojas"     icon={IC.grid}   label="Visão Geral" />
-            <SideItem to="/app/anual/regioes"   icon={IC.mapPin} label="Análise Regional" />
-            <SideItem to="/app/anual/ranking"   icon={IC.chart}  label="Ranking de Lojas" />
-            <SideItem to="/app/anual/detalhe"   icon={IC.store}  label="Detalhe da Loja" />
-            <SideItem to="/app/anual/fluxo"     icon={IC.arrows} label="Ação de Fluxo" />
+            <SideItem to="/app/anual/lojas"    icon={IC.grid}   label="Visão Geral"       requires={['anual-main']} />
+            <SideItem to="/app/anual/regioes"  icon={IC.mapPin} label="Análise Regional"  requires={['anual-main']} />
+            <SideItem to="/app/anual/ranking"  icon={IC.chart}  label="Ranking de Lojas"  requires={['anual-main']} />
+            <SideItem to="/app/anual/detalhe"  icon={IC.store}  label="Detalhe da Loja"   requires={['anual-main']} />
+            <SideItem to="/app/anual/fluxo"    icon={IC.arrows} label="Ação de Fluxo"     requires={['anual-fluxo']} />
           </div>
           <div className="nav-group">
             <div className="nav-group-title">IAF</div>
-            <SideItem to="/app/anual/iaf"  icon={IC.check}  label="Indicadores" />
-            <SideItem to="/app/anual/pef"  icon={IC.dollar} label="Parcial PEF" />
+            <SideItem to="/app/anual/iaf"  icon={IC.check}  label="Indicadores" requires={['anual-main']} />
+            <SideItem to="/app/anual/pef"  icon={IC.dollar} label="Parcial PEF" requires={['anual-pef']} />
           </div>
         </nav>
       )}
@@ -459,6 +487,11 @@ export default function AppShell() {
   const navigate = useNavigate()
   const [profileOpen, setProfileOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [fileStatuses, setFileStatuses] = useState<Record<string, FileStatus>>(() => {
+    const init: Record<string, FileStatus> = {}
+    ;[...MENSAL_SOURCES, ...ANUAL_SOURCES].forEach(s => { init[s.id] = s.defaultStatus })
+    return init
+  })
 
   function handleLogout() {
     logout()
@@ -466,6 +499,7 @@ export default function AppShell() {
   }
 
   return (
+    <FileStatusCtx.Provider value={{ statuses: fileStatuses, setStatuses: setFileStatuses, openImport: () => setImportOpen(true) }}>
     <div className="app-shell">
       {/* Header */}
       <header className="app-header">
@@ -529,31 +563,31 @@ export default function AppShell() {
             <Route index element={<Navigate to="meta" replace />} />
             {/* Mensal – Gestão Instantânea */}
             <Route path="meta"          element={<WipPage title="Meta do Dia" />} />
-            <Route path="parcial"       element={<WipPage title="Parcial do Dia" />} />
-            <Route path="dia-anterior"  element={<WipPage title="Dia Anterior" />} />
+            <Route path="parcial"       element={<WipPage title="Parcial do Dia"  requires={['parcial']} />} />
+            <Route path="dia-anterior"  element={<WipPage title="Dia Anterior"    requires={['dia-ant','meta-diaant']} />} />
             {/* Mensal – Lojas */}
-            <Route path="lojas"                    element={<WipPage title="Lojas — Visão Geral" />} />
-            <Route path="lojas/regioes"            element={<WipPage title="Análise Regional" />} />
-            <Route path="lojas/ranking"            element={<WipPage title="Ranking de Lojas" />} />
-            <Route path="lojas/detalhe"            element={<WipPage title="Detalhe da Loja" />} />
-            <Route path="lojas/consultores"        element={<WipPage title="Consultores" />} />
-            <Route path="lojas/dispersao"          element={<WipPage title="Dispersão" />} />
+            <Route path="lojas"               element={<WipPage title="Lojas — Visão Geral" />} />
+            <Route path="lojas/regioes"       element={<WipPage title="Análise Regional" />} />
+            <Route path="lojas/ranking"       element={<WipPage title="Ranking de Lojas" />} />
+            <Route path="lojas/detalhe"       element={<WipPage title="Detalhe da Loja" />} />
+            <Route path="lojas/consultores"   element={<WipPage title="Consultores" />} />
+            <Route path="lojas/dispersao"     element={<WipPage title="Dispersão" />} />
             {/* Mensal – IAF */}
-            <Route path="iaf"            element={<WipPage title="IAF — Indicadores" />} />
-            <Route path="iaf/detalhe"    element={<WipPage title="IAF — Detalhe" />} />
-            <Route path="iaf/fluxo"      element={<WipPage title="Ação de Fluxo" />} />
-            <Route path="iaf/skin"       element={<WipPage title="Skin" />} />
-            <Route path="iaf/servicos"   element={<WipPage title="Serviços" />} />
+            <Route path="iaf"          element={<WipPage title="IAF — Indicadores" />} />
+            <Route path="iaf/detalhe"  element={<WipPage title="IAF — Detalhe" />} />
+            <Route path="iaf/fluxo"    element={<WipPage title="Ação de Fluxo" />} />
+            <Route path="iaf/skin"     element={<WipPage title="Skin"     requires={['skin','parcial-skin']} />} />
+            <Route path="iaf/servicos" element={<WipPage title="Serviços" requires={['servicos']} />} />
             {/* Anual – Lojas */}
-            <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas" />} />
-            <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional" />} />
-            <Route path="anual/ranking"  element={<WipPage title="Anual — Ranking de Lojas" />} />
-            <Route path="anual/detalhe"  element={<WipPage title="Anual — Detalhe da Loja" />} />
-            <Route path="anual/fluxo"    element={<WipPage title="Anual — Ação de Fluxo" />} />
+            <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas"              requires={['anual-main']} />} />
+            <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional"   requires={['anual-main']} />} />
+            <Route path="anual/ranking"  element={<WipPage title="Anual — Ranking de Lojas"   requires={['anual-main']} />} />
+            <Route path="anual/detalhe"  element={<WipPage title="Anual — Detalhe da Loja"    requires={['anual-main']} />} />
+            <Route path="anual/fluxo"    element={<WipPage title="Anual — Ação de Fluxo"      requires={['anual-fluxo']} />} />
             {/* Anual – IAF */}
-            <Route path="anual/iaf"      element={<WipPage title="Anual — Indicadores" />} />
-            <Route path="anual/pef"      element={<WipPage title="Anual — Parcial PEF" />} />
-            {/* legado (mantidos para não quebrar links diretos) */}
+            <Route path="anual/iaf"  element={<WipPage title="Anual — Indicadores" requires={['anual-main']} />} />
+            <Route path="anual/pef"  element={<WipPage title="Anual — Parcial PEF" requires={['anual-pef']} />} />
+            {/* legado */}
             <Route path="dashboard"      element={<DashboardPage />} />
             <Route path="loja"           element={<LojaPage />} />
             <Route path="vd"             element={<VDPage />} />
@@ -564,5 +598,6 @@ export default function AppShell() {
         </main>
       </div>
     </div>
+    </FileStatusCtx.Provider>
   )
 }
