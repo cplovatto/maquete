@@ -535,8 +535,8 @@ const MENSAL_SOURCES: DataSource[] = [
   { id: 'meta-diaant',  name: 'Meta — Dia anterior',     format: 'XLSX', icon: IC.calendar, defaultStatus: 'pending',  section: 'Gestão Instantânea' },
   { id: 'parcial-skin', name: 'Parcial Skin',            format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'Gestão Instantânea' },
   // Lojas
-  { id: 'main',         name: 'Indicadores principais',  format: 'XLSX', icon: IC.grid,     defaultStatus: 'embedded', section: 'Lojas' },
-  { id: 'fluxo',        name: 'Ação de Fluxo',           format: 'XLSX', icon: IC.arrows,   defaultStatus: 'embedded', section: 'Lojas' },
+  { id: 'main',         name: 'Indicadores principais',  format: 'XLSX', icon: IC.grid,     defaultStatus: 'pending',  section: 'Lojas' },
+  { id: 'fluxo',        name: 'Ação de Fluxo',           format: 'XLSX', icon: IC.arrows,   defaultStatus: 'pending',  section: 'Lojas' },
   // IAF
   { id: 'iaf',          name: 'Relatório IAF',           format: 'XLSX', icon: IC.check,    defaultStatus: 'embedded', section: 'IAF' },
   { id: 'skin',         name: 'Skin (Cuidados Faciais)', format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'IAF' },
@@ -651,9 +651,30 @@ function SideItem({ to, icon, label, requires }: SideItemProps) {
 /* ── Placeholder page ───────────────────────────────── */
 function WipPage({ title, requires }: { title: string; requires?: string[] }) {
   const { statuses, openImport } = useFileStatus()
-  const missing = requires
-    ?.map(id => [...MENSAL_SOURCES, ...ANUAL_SOURCES].find(s => s.id === id))
-    .filter(s => s && statuses[s.id] === 'pending') as DataSource[] | undefined
+  const missing = (requires ?? [])
+    .map(id => [...MENSAL_SOURCES, ...ANUAL_SOURCES].find(s => s.id === id))
+    .filter((s): s is DataSource => !!s && statuses[s.id] === 'pending')
+
+  if (missing.length > 0) {
+    return (
+      <div className="page-empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3 3 3-3"/></svg>
+        <div className="page-empty-title">{title}</div>
+        <div className="page-empty-desc">
+          Para visualizar esta página, importe {missing.length === 1 ? 'a planilha' : 'as planilhas'}:
+        </div>
+        <div className="page-empty-chips">
+          {missing.map(s => (
+            <span key={s.id} className="missing-file-chip">
+              {s.name}
+              <span className={`import-format-badge format-${s.format.toLowerCase()}`}>{s.format}</span>
+            </span>
+          ))}
+        </div>
+        <button className="page-empty-btn" onClick={openImport}>Importar planilhas</button>
+      </div>
+    )
+  }
 
   return (
     <div className="placeholder-page">
@@ -661,20 +682,6 @@ function WipPage({ title, requires }: { title: string; requires?: string[] }) {
         <div className="page-title">{title}</div>
         <div className="page-subtitle">Em construção</div>
       </div>
-      {missing && missing.length > 0 && (
-        <div className="missing-files-banner">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <div>
-            <strong>Arquivo não carregado</strong>
-            <div style={{ marginTop: 4, fontSize: 13 }}>
-              {missing.map(s => (
-                <span key={s.id} className="missing-file-chip">{s.name} <span className={`import-format-badge format-${s.format.toLowerCase()}`}>{s.format}</span></span>
-              ))}
-            </div>
-          </div>
-          <button className="missing-files-btn" onClick={openImport}>Importar</button>
-        </div>
-      )}
       <div className="wip-banner">
         <span style={{ fontSize: 20 }}>🏗️</span>
         <span><strong>Módulo em construção</strong> — Esta seção está sendo desenvolvida.</span>

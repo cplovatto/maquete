@@ -803,6 +803,20 @@ input, textarea { font-family: inherit; }
   background: rgba(124,58,237,.08); color: var(--brand-primary);
   border-radius: 100px; font-size: 11px; font-weight: 600;
 }
+/* Page empty state (files not yet loaded) */
+.page-empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; padding: 80px 24px; text-align: center;
+}
+.page-empty-title { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+.page-empty-desc { font-size: 14px; color: var(--text-secondary); }
+.page-empty-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 4px; }
+.page-empty-btn {
+  margin-top: 8px; padding: 10px 24px; background: var(--brand-primary); color: #fff;
+  border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.page-empty-btn:hover { opacity: .9; }
+
 /* Missing files banner */
 .missing-files-banner {
   background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.35);
