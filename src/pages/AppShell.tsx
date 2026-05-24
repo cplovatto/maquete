@@ -278,6 +278,83 @@ const IC = {
   dollar:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
 }
 
+/* ── Import modal data ──────────────────────────────── */
+type FileStatus = 'embedded' | 'loaded' | 'pending'
+interface DataSource { id: string; name: string; format: 'XLSX' | 'CSV'; icon: ReactNode; defaultStatus: FileStatus; section: string }
+
+const MENSAL_SOURCES: DataSource[] = [
+  { id: 'main',         name: 'Indicadores principais',  format: 'XLSX', icon: IC.grid,     defaultStatus: 'embedded', section: 'Gestão Instantânea' },
+  { id: 'meta',         name: 'Meta do dia',             format: 'XLSX', icon: IC.target,   defaultStatus: 'embedded', section: 'Gestão Instantânea' },
+  { id: 'parcial',      name: 'Parcial do dia',          format: 'CSV',  icon: IC.clock,    defaultStatus: 'pending',  section: 'Gestão Instantânea' },
+  { id: 'dia-ant',      name: 'Dia anterior',            format: 'CSV',  icon: IC.calendar, defaultStatus: 'pending',  section: 'Gestão Instantânea' },
+  { id: 'meta-diaant',  name: 'Meta — Dia anterior',     format: 'XLSX', icon: IC.calendar, defaultStatus: 'pending',  section: 'Gestão Instantânea' },
+  { id: 'iaf',          name: 'Relatório IAF',           format: 'XLSX', icon: IC.check,    defaultStatus: 'embedded', section: 'IAF / Operações' },
+  { id: 'fluxo',        name: 'Ação de Fluxo',           format: 'XLSX', icon: IC.arrows,   defaultStatus: 'embedded', section: 'IAF / Operações' },
+  { id: 'skin',         name: 'Skin (Cuidados Faciais)', format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'IAF / Operações' },
+  { id: 'parcial-skin', name: 'Parcial Skin',            format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'IAF / Operações' },
+  { id: 'servicos',     name: 'Serviços',                format: 'XLSX', icon: IC.doc,      defaultStatus: 'pending',  section: 'IAF / Operações' },
+]
+
+const ANUAL_SOURCES: DataSource[] = [
+  { id: 'anual-main',  name: 'Indicadores anuais',  format: 'XLSX', icon: IC.grid,   defaultStatus: 'pending', section: 'Lojas' },
+  { id: 'anual-fluxo', name: 'Ação de Fluxo anual', format: 'XLSX', icon: IC.arrows, defaultStatus: 'pending', section: 'Lojas' },
+  { id: 'anual-pef',   name: 'Parcial PEF',         format: 'XLSX', icon: IC.dollar, defaultStatus: 'pending', section: 'IAF'   },
+]
+
+function ImportModal({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<'mensal' | 'anual'>('mensal')
+  const [statuses, setStatuses] = useState<Record<string, FileStatus>>(() => {
+    const init: Record<string, FileStatus> = {}
+    ;[...MENSAL_SOURCES, ...ANUAL_SOURCES].forEach(s => { init[s.id] = s.defaultStatus })
+    return init
+  })
+
+  const sources = tab === 'mensal' ? MENSAL_SOURCES : ANUAL_SOURCES
+  const sections = Array.from(new Set(sources.map(s => s.section)))
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">Fontes de dados</span>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-tabs">
+          <button className={`modal-tab${tab === 'mensal' ? ' active' : ''}`} onClick={() => setTab('mensal')}>Mensal</button>
+          <button className={`modal-tab${tab === 'anual'  ? ' active' : ''}`} onClick={() => setTab('anual')}>Anual</button>
+        </div>
+
+        <div className="modal-body">
+          {sections.map(section => (
+            <div key={section}>
+              <div className="import-section-title">{section}</div>
+              {sources.filter(s => s.section === section).map(source => (
+                <label key={source.id} className="import-row">
+                  <input
+                    type="file"
+                    accept={source.format === 'CSV' ? '.csv' : '.xlsx,.xls'}
+                    style={{ display: 'none' }}
+                    onChange={() => setStatuses(prev => ({ ...prev, [source.id]: 'loaded' }))}
+                  />
+                  <span className="import-icon">{source.icon}</span>
+                  <span className="import-meta">
+                    <span className="import-name">{source.name}</span>
+                    <span className={`import-status${statuses[source.id] !== 'pending' ? ' ok' : ''}`}>
+                      {statuses[source.id] === 'embedded' ? 'Dados embutidos' : statuses[source.id] === 'loaded' ? 'Carregado' : 'Não carregado'}
+                    </span>
+                  </span>
+                  <span className={`import-format-badge format-${source.format.toLowerCase()}`}>{source.format}</span>
+                </label>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Sidebar nav item ───────────────────────────────── */
 interface SideItemProps { to: string; icon: ReactNode; label: string }
 function SideItem({ to, icon, label }: SideItemProps) {
@@ -380,6 +457,8 @@ export default function AppShell() {
   const { user, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
   function handleLogout() {
     logout()
@@ -411,9 +490,34 @@ export default function AppShell() {
           <button className="theme-toggle" onClick={toggleTheme} title="Alternar tema">
             {theme === 'light' ? '🌙' : '☀️'}
           </button>
-          <div className="app-header-avatar" title={user?.name}>{user?.initials}</div>
+          <div className="profile-menu">
+            <button
+              className="app-header-avatar"
+              title={user?.name}
+              onClick={() => setProfileOpen(o => !o)}
+            >
+              {user?.initials}
+            </button>
+            {profileOpen && (
+              <>
+                <div className="profile-backdrop" onClick={() => setProfileOpen(false)} />
+                <div className="profile-dropdown">
+                  <button className="profile-dropdown-item" onClick={() => { setImportOpen(true); setProfileOpen(false) }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    Importar planilhas
+                  </button>
+                  <button className="profile-dropdown-item profile-dropdown-item--danger" onClick={handleLogout}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" width="15" height="15"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    Sair
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
+
+      {importOpen && <ImportModal onClose={() => setImportOpen(false)} />}
 
       <div className="app-body">
         {/* Sidebar */}
