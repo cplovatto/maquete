@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { LojasProvider } from './context/LojasContext'
+import { LabelsProvider } from './context/LabelsContext'
 import Landing from './pages/Landing'
 import SignIn from './pages/SignIn'
 import AppShell from './pages/AppShell'
@@ -18,6 +19,7 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <LojasProvider>
+        <LabelsProvider>
         <HashRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -33,6 +35,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </HashRouter>
+        </LabelsProvider>
         </LojasProvider>
       </AuthProvider>
     </ThemeProvider>

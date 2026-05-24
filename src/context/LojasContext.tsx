@@ -5,6 +5,7 @@ export interface Loja {
   apelido: string
   cidade: string
   estado: string
+  labels: string[]
 }
 
 interface LojasCtxType {
@@ -21,8 +22,12 @@ export function LojasProvider({ children }: { children: ReactNode }) {
   const [lojas, setLojas] = useState<Loja[]>(() => {
     try {
       const saved = localStorage.getItem('prisma-lojas')
-      return saved ? (JSON.parse(saved) as Loja[]) : []
-    } catch { return [] }
+      if (saved) {
+        const parsed = JSON.parse(saved) as Loja[]
+        return parsed.map(l => ({ ...l, labels: l.labels ?? [] }))
+      }
+    } catch {}
+    return []
   })
 
   useEffect(() => {
@@ -30,7 +35,7 @@ export function LojasProvider({ children }: { children: ReactNode }) {
   }, [lojas])
 
   const addLoja = (loja: Loja) =>
-    setLojas(prev => [...prev, loja])
+    setLojas(prev => [...prev, { ...loja, labels: loja.labels ?? [] }])
 
   const updateLoja = (id: string, data: Partial<Omit<Loja, 'id'>>) =>
     setLojas(prev => prev.map(l => l.id === id ? { ...l, ...data } : l))
@@ -41,7 +46,7 @@ export function LojasProvider({ children }: { children: ReactNode }) {
   const importIds = (ids: string[]): { added: number; skipped: number } => {
     const existing = new Set(lojas.map(l => l.id))
     const toAdd = ids.filter(id => id && !existing.has(id))
-    setLojas(prev => [...prev, ...toAdd.map(id => ({ id, apelido: '', cidade: '', estado: '' }))])
+    setLojas(prev => [...prev, ...toAdd.map(id => ({ id, apelido: '', cidade: '', estado: '', labels: [] }))])
     return { added: toAdd.length, skipped: ids.length - toAdd.length }
   }
 

@@ -4,6 +4,7 @@ import { Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useLojas, type Loja } from '../context/LojasContext'
+import { useLabels, LABEL_COLORS } from '../context/LabelsContext'
 
 /* ── File status context ────────────────────────────── */
 type FileStatus = 'embedded' | 'loaded' | 'pending'
@@ -305,18 +306,23 @@ const UFS = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','P
 
 function LojasModal({ onClose }: { onClose: () => void }) {
   const { lojas, addLoja, updateLoja, deleteLoja, importIds } = useLojas()
-  const [tab, setTab] = useState<'lista' | 'importar'>('lista')
+  const { labels, addLabel, updateLabel, deleteLabel } = useLabels()
+  const [tab, setTab] = useState<'lista' | 'labels' | 'importar'>('lista')
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editForm, setEditForm] = useState({ apelido: '', cidade: '', estado: '' })
+  const [editForm, setEditForm] = useState({ apelido: '', cidade: '', estado: '', labels: [] as string[] })
   const [adding, setAdding] = useState(false)
-  const [newForm, setNewForm] = useState<Loja>({ id: '', apelido: '', cidade: '', estado: '' })
+  const [newForm, setNewForm] = useState<Loja>({ id: '', apelido: '', cidade: '', estado: '', labels: [] })
   const [addError, setAddError] = useState('')
   const [importText, setImportText] = useState('')
   const [importResult, setImportResult] = useState<{ added: number; skipped: number } | null>(null)
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null)
+  const [labelEditForm, setLabelEditForm] = useState({ name: '', color: LABEL_COLORS[0] })
+  const [newLabelForm, setNewLabelForm] = useState({ name: '', color: LABEL_COLORS[0] })
+  const [addingLabel, setAddingLabel] = useState(false)
 
   function startEdit(l: Loja) {
     setEditingId(l.id)
-    setEditForm({ apelido: l.apelido, cidade: l.cidade, estado: l.estado })
+    setEditForm({ apelido: l.apelido, cidade: l.cidade, estado: l.estado, labels: l.labels ?? [] })
     setAdding(false)
   }
 
@@ -326,7 +332,7 @@ function LojasModal({ onClose }: { onClose: () => void }) {
 
   function startAdd() {
     setAdding(true)
-    setNewForm({ id: '', apelido: '', cidade: '', estado: '' })
+    setNewForm({ id: '', apelido: '', cidade: '', estado: '', labels: [] })
     setAddError('')
     setEditingId(null)
   }
@@ -347,6 +353,25 @@ function LojasModal({ onClose }: { onClose: () => void }) {
     setImportText('')
   }
 
+  function toggleLabel(current: string[], id: string): string[] {
+    return current.includes(id) ? current.filter(x => x !== id) : [...current, id]
+  }
+
+  function saveLabelEdit() {
+    if (editingLabelId && labelEditForm.name.trim()) {
+      updateLabel(editingLabelId, labelEditForm.name.trim(), labelEditForm.color)
+      setEditingLabelId(null)
+    }
+  }
+
+  function saveNewLabel() {
+    if (newLabelForm.name.trim()) {
+      addLabel(newLabelForm.name.trim(), newLabelForm.color)
+      setNewLabelForm({ name: '', color: LABEL_COLORS[0] })
+      setAddingLabel(false)
+    }
+  }
+
   const UfSelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
     <select className="lojas-input lojas-uf" value={value} onChange={e => onChange(e.target.value)}>
       <option value="">—</option>
@@ -365,6 +390,9 @@ function LojasModal({ onClose }: { onClose: () => void }) {
           <button className={`modal-tab${tab === 'lista' ? ' active' : ''}`} onClick={() => setTab('lista')}>
             Lojas{lojas.length > 0 && <span className="lojas-count">{lojas.length}</span>}
           </button>
+          <button className={`modal-tab${tab === 'labels' ? ' active' : ''}`} onClick={() => setTab('labels')}>
+            Labels{labels.length > 0 && <span className="lojas-count">{labels.length}</span>}
+          </button>
           <button className={`modal-tab${tab === 'importar' ? ' active' : ''}`} onClick={() => setTab('importar')}>Importar IDs</button>
         </div>
 
@@ -373,7 +401,7 @@ function LojasModal({ onClose }: { onClose: () => void }) {
             {(lojas.length > 0 || adding) && (
               <table className="lojas-table">
                 <thead>
-                  <tr><th>ID</th><th>Apelido</th><th>Cidade</th><th>UF</th><th /></tr>
+                  <tr><th>ID</th><th>Apelido</th><th>Cidade</th><th>UF</th><th>Labels</th><th /></tr>
                 </thead>
                 <tbody>
                   {lojas.map(l => editingId === l.id ? (
@@ -382,6 +410,19 @@ function LojasModal({ onClose }: { onClose: () => void }) {
                       <td><input className="lojas-input" value={editForm.apelido} onChange={e => setEditForm(f => ({ ...f, apelido: e.target.value }))} placeholder="Apelido" /></td>
                       <td><input className="lojas-input" value={editForm.cidade}  onChange={e => setEditForm(f => ({ ...f, cidade:  e.target.value }))} placeholder="Cidade"  /></td>
                       <td><UfSelect value={editForm.estado} onChange={v => setEditForm(f => ({ ...f, estado: v }))} /></td>
+                      <td>
+                        {labels.length > 0 ? (
+                          <div className="label-chips-group">
+                            {labels.map(lb => (
+                              <button key={lb.id} type="button"
+                                className={`label-chip label-chip--toggle${editForm.labels.includes(lb.id) ? ' selected' : ''}`}
+                                style={{ '--chip-color': lb.color } as React.CSSProperties}
+                                onClick={() => setEditForm(f => ({ ...f, labels: toggleLabel(f.labels, lb.id) }))}
+                              >{lb.name}</button>
+                            ))}
+                          </div>
+                        ) : <span className="lojas-empty-cell">—</span>}
+                      </td>
                       <td className="lojas-actions">
                         <button className="lojas-btn-save"   onClick={saveEdit}>✓</button>
                         <button className="lojas-btn-cancel" onClick={() => setEditingId(null)}>✕</button>
@@ -393,6 +434,16 @@ function LojasModal({ onClose }: { onClose: () => void }) {
                       <td>{l.apelido || <span className="lojas-empty-cell">—</span>}</td>
                       <td>{l.cidade  || <span className="lojas-empty-cell">—</span>}</td>
                       <td>{l.estado  || <span className="lojas-empty-cell">—</span>}</td>
+                      <td>
+                        <div className="label-chips-group">
+                          {(l.labels ?? []).map(lid => {
+                            const lb = labels.find(x => x.id === lid)
+                            return lb ? (
+                              <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span>
+                            ) : null
+                          })}
+                        </div>
+                      </td>
                       <td className="lojas-actions">
                         <button className="lojas-btn-icon" onClick={() => startEdit(l)} title="Editar">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -409,6 +460,19 @@ function LojasModal({ onClose }: { onClose: () => void }) {
                       <td><input className="lojas-input" value={newForm.apelido} onChange={e => setNewForm(f => ({ ...f, apelido: e.target.value }))} placeholder="Apelido" /></td>
                       <td><input className="lojas-input" value={newForm.cidade}  onChange={e => setNewForm(f => ({ ...f, cidade:  e.target.value }))} placeholder="Cidade"  /></td>
                       <td><UfSelect value={newForm.estado} onChange={v => setNewForm(f => ({ ...f, estado: v }))} /></td>
+                      <td>
+                        {labels.length > 0 ? (
+                          <div className="label-chips-group">
+                            {labels.map(lb => (
+                              <button key={lb.id} type="button"
+                                className={`label-chip label-chip--toggle${newForm.labels.includes(lb.id) ? ' selected' : ''}`}
+                                style={{ '--chip-color': lb.color } as React.CSSProperties}
+                                onClick={() => setNewForm(f => ({ ...f, labels: toggleLabel(f.labels, lb.id) }))}
+                              >{lb.name}</button>
+                            ))}
+                          </div>
+                        ) : <span className="lojas-empty-cell">—</span>}
+                      </td>
                       <td className="lojas-actions">
                         <button className="lojas-btn-save"   onClick={saveAdd}>✓</button>
                         <button className="lojas-btn-cancel" onClick={() => { setAdding(false); setAddError('') }}>✕</button>
@@ -423,6 +487,75 @@ function LojasModal({ onClose }: { onClose: () => void }) {
             )}
             {addError && <p className="lojas-error">{addError}</p>}
             {!adding && <button className="lojas-add-btn" onClick={startAdd}>+ Adicionar loja</button>}
+          </div>
+        )}
+
+        {tab === 'labels' && (
+          <div className="modal-body">
+            <div className="labels-list">
+              {labels.map(lb => editingLabelId === lb.id ? (
+                <div key={lb.id} className="label-list-row label-list-row--editing">
+                  <input
+                    className="lojas-input"
+                    value={labelEditForm.name}
+                    onChange={e => setLabelEditForm(f => ({ ...f, name: e.target.value }))}
+                    placeholder="Nome da label"
+                    autoFocus
+                  />
+                  <div className="label-color-palette">
+                    {LABEL_COLORS.map(c => (
+                      <button key={c} type="button"
+                        className={`label-color-swatch${labelEditForm.color === c ? ' selected' : ''}`}
+                        style={{ background: c }}
+                        onClick={() => setLabelEditForm(f => ({ ...f, color: c }))}
+                      />
+                    ))}
+                  </div>
+                  <button className="lojas-btn-save" onClick={saveLabelEdit}>✓</button>
+                  <button className="lojas-btn-cancel" onClick={() => setEditingLabelId(null)}>✕</button>
+                </div>
+              ) : (
+                <div key={lb.id} className="label-list-row">
+                  <span className="label-color-dot" style={{ background: lb.color }} />
+                  <span className="label-list-name">{lb.name}</span>
+                  <div className="lojas-actions" style={{ marginLeft: 'auto' }}>
+                    <button className="lojas-btn-icon" onClick={() => { setEditingLabelId(lb.id); setLabelEditForm({ name: lb.name, color: lb.color }); setAddingLabel(false) }} title="Editar">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button className="lojas-btn-icon lojas-btn-delete" onClick={() => deleteLabel(lb.id)} title="Excluir">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {labels.length === 0 && !addingLabel && (
+                <div className="lojas-empty">Nenhuma label criada ainda.</div>
+              )}
+            </div>
+            {addingLabel ? (
+              <div className="label-list-row label-list-row--editing" style={{ marginTop: 12 }}>
+                <input
+                  className="lojas-input"
+                  value={newLabelForm.name}
+                  onChange={e => setNewLabelForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Nome da label"
+                  autoFocus
+                />
+                <div className="label-color-palette">
+                  {LABEL_COLORS.map(c => (
+                    <button key={c} type="button"
+                      className={`label-color-swatch${newLabelForm.color === c ? ' selected' : ''}`}
+                      style={{ background: c }}
+                      onClick={() => setNewLabelForm(f => ({ ...f, color: c }))}
+                    />
+                  ))}
+                </div>
+                <button className="lojas-btn-save" onClick={saveNewLabel}>✓</button>
+                <button className="lojas-btn-cancel" onClick={() => setAddingLabel(false)}>✕</button>
+              </div>
+            ) : (
+              <button className="lojas-add-btn" style={{ marginTop: 12 }} onClick={() => { setAddingLabel(true); setEditingLabelId(null) }}>+ Nova label</button>
+            )}
           </div>
         )}
 
