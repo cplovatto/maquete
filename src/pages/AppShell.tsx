@@ -612,8 +612,18 @@ export default function AppShell() {
   const [lastLoaded, setLastLoaded] = useState<Record<string, Date>>({})
   const [fileDates, setFileDates] = useState<Record<string, Date | null>>({})
   const [lastParcialUpload, setLastParcialUpload] = useState<Date | null>(null)
-  const [alertEnabled, setAlertEnabled] = useState(true)
-  const [alertIntervalMinutes, setAlertIntervalMinutes] = useState(60)
+  const [alertEnabled, setAlertEnabled] = useState(() => {
+    try {
+      const v = localStorage.getItem('prisma-prefs-alertEnabled')
+      return v !== null ? v === 'true' : true
+    } catch { return true }
+  })
+  const [alertIntervalMinutes, setAlertIntervalMinutes] = useState(() => {
+    try {
+      const n = parseInt(localStorage.getItem('prisma-prefs-alertInterval') ?? '', 10)
+      return [15, 30, 60, 120, 240].includes(n) ? n : 60
+    } catch { return 60 }
+  })
   const [alertActive, setAlertActive] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
   const loginTime = useRef(new Date())
@@ -644,6 +654,14 @@ export default function AppShell() {
     const id = setInterval(check, 60000)
     return () => clearInterval(id)
   }, [alertEnabled, alertIntervalMinutes, lastParcialUpload])
+
+  useEffect(() => {
+    try { localStorage.setItem('prisma-prefs-alertEnabled', String(alertEnabled)) } catch {}
+  }, [alertEnabled])
+
+  useEffect(() => {
+    try { localStorage.setItem('prisma-prefs-alertInterval', String(alertIntervalMinutes)) } catch {}
+  }, [alertIntervalMinutes])
 
   function handleLogout() {
     logout()

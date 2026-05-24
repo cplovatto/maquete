@@ -15,8 +15,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
+const ANON_USER: User = { name: 'Anônimo', email: '', initials: 'AN', provider: 'email' }
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<User | null>(ANON_USER)
 
   const login = (provider: 'google' | 'apple' | 'email', email?: string) => {
     setUser({

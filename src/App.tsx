@@ -1,14 +1,13 @@
 import type { ReactNode } from 'react'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext'
-import { AuthProvider, useAuth } from './context/AuthContext'
+import { AuthProvider } from './context/AuthContext'
 import Landing from './pages/Landing'
 import SignIn from './pages/SignIn'
 import AppShell from './pages/AppShell'
 
+// login não implementado ainda — bypassa a verificação
 function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { user } = useAuth()
-  if (!user) return <Navigate to="/entrar" replace />
   return <>{children}</>
 }
 
