@@ -314,14 +314,6 @@ function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">
-        <div className="brand-mark">L</div>
-        <div className="brand-text">
-          <span className="brand-name">Prisma</span>
-          <span className="brand-sub">Operations Console</span>
-        </div>
-      </div>
-
       <div className="sidebar-period-toggle">
         <button
           className={`period-btn${periodo === 'mensal' ? ' active' : ''}`}
