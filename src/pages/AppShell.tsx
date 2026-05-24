@@ -309,7 +309,7 @@ function WipPage({ title }: { title: string }) {
 }
 
 /* ── Sidebar ────────────────────────────────────────── */
-function Sidebar({ onLogout, user }: { onLogout: () => void; user: { name?: string; initials?: string } | null }) {
+function Sidebar() {
   const [periodo, setPeriodo] = useState<'mensal' | 'anual'>('mensal')
 
   return (
@@ -379,13 +379,6 @@ function Sidebar({ onLogout, user }: { onLogout: () => void; user: { name?: stri
         </nav>
       )}
 
-      <div className="sidebar-footer">
-        <div className="user-chip">{user?.initials ?? 'U'}</div>
-        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
-          <span style={{ color: 'var(--text-1)', fontWeight: 500, fontSize: '12.5px' }}>{user?.name ?? ''}</span>
-          <button className="nav-item" style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-4)' }} onClick={onLogout}>Sair</button>
-        </div>
-      </div>
     </aside>
   )
 }
@@ -432,7 +425,7 @@ export default function AppShell() {
 
       <div className="app-body">
         {/* Sidebar */}
-        <Sidebar onLogout={handleLogout} user={user} />
+        <Sidebar />
 
         {/* Main */}
         <main className="app-main">
