@@ -22,10 +22,11 @@ export default function SignIn() {
     setError('')
     setSocialNotice('')
     setLoading(true)
+    const creds = { username, password }
     setTimeout(() => {
-      const ok = login('email', username, password)
+      const ok = login('email', creds.username, creds.password)
       if (ok) {
-        navigate('/app')
+        navigate(creds.username === 'admin' ? '/admin' : '/app')
       } else {
         setError('Usuário ou senha incorretos.')
         setLoading(false)
