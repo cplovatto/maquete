@@ -1189,6 +1189,105 @@ input, textarea { font-family: inherit; }
   color: #6ee7b7;
 }
 
+/* ── Detalhe da Loja ─────────────────────────────── */
+.detalhe-selector-label {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .06em; flex-shrink: 0;
+}
+.store-picker {
+  position: relative; display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+}
+.store-picker-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px 7px 12px; border-radius: 8px;
+  border: 1px solid var(--bg-border); background: var(--bg-surface);
+  color: var(--text-primary); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: border-color .15s;
+  min-width: 220px; text-align: left;
+}
+.store-picker-btn:hover { border-color: var(--brand-primary); }
+.store-picker-dropdown {
+  position: absolute; top: calc(100% + 4px); right: 0; z-index: 200;
+  background: var(--bg-surface); border: 1px solid var(--bg-border);
+  border-radius: 10px; box-shadow: var(--shadow-lg);
+  min-width: 280px; max-height: 320px; overflow-y: auto;
+  padding: 4px;
+}
+.store-picker-option {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 7px 10px; border-radius: 7px;
+  border: none; background: none; cursor: pointer;
+  color: var(--text-primary); text-align: left;
+  transition: background .1s;
+}
+.store-picker-option:hover { background: var(--bg-surface-hover); }
+.store-picker-option.selected { background: rgba(124,58,237,.07); }
+.store-option-content {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1;
+}
+.store-option-content--inline { flex-wrap: nowrap; overflow: hidden; }
+.store-option-pdv {
+  font-size: 13px; font-weight: 700; color: var(--text-primary); flex-shrink: 0;
+}
+.store-option-apelido {
+  font-size: 12px; color: var(--text-secondary); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.label-chip--xs {
+  font-size: 10px; padding: 1px 6px; flex-shrink: 0;
+}
+.detalhe-cons-header {
+  display: flex; align-items: center; gap: 10px; margin: 24px 0 8px;
+}
+.detalhe-cons-title {
+  font-size: 15px; font-weight: 700; color: var(--text-primary);
+}
+.detalhe-cons-count {
+  font-size: 12px; color: var(--text-muted);
+  background: var(--bg-surface-2); padding: 2px 8px; border-radius: 12px;
+}
+.col-consultor {
+  font-weight: 500; color: var(--text-primary); font-size: 13px;
+}
+.consideracoes-section { margin-top: 28px; }
+.consideracoes-title {
+  font-size: 15px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px;
+}
+.consideracoes-list { display: flex; flex-direction: column; gap: 8px; }
+.consideracao-card {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 16px; border-radius: 10px; border-left: 4px solid;
+}
+.consideracao-card--warn {
+  background: rgba(245,158,11,.07); border-color: #f59e0b; color: #92400e;
+}
+.consideracao-card--warn .consideracao-icon { color: #f59e0b; }
+.consideracao-card--danger {
+  background: rgba(220,38,38,.07); border-color: #dc2626; color: #7f1d1d;
+}
+.consideracao-card--danger .consideracao-icon { color: #dc2626; }
+.consideracao-card--positive {
+  background: rgba(5,150,105,.07); border-color: #059669; color: #064e3b;
+}
+.consideracao-card--positive .consideracao-icon { color: #059669; }
+[data-theme="dark"] .consideracao-card--warn    { color: #fcd34d; }
+[data-theme="dark"] .consideracao-card--danger  { color: #fca5a5; }
+[data-theme="dark"] .consideracao-card--positive { color: #6ee7b7; }
+.consideracao-icon { flex-shrink: 0; margin-top: 1px; }
+.consideracao-card-title {
+  font-size: 13px; font-weight: 700; margin-bottom: 2px;
+}
+.consideracao-card-body {
+  font-size: 12.5px; line-height: 1.5; opacity: .85;
+}
+.consideracao-points {
+  margin: 4px 0 0 14px; padding: 0;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.consideracao-points li {
+  font-size: 12.5px; line-height: 1.5; opacity: .85;
+}
+
 /* ── Ranking chart ───────────────────────────────── */
 .ranking-chart-card {
   background: var(--bg-surface);
@@ -1272,6 +1371,160 @@ input, textarea { font-family: inherit; }
   display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--text-secondary);
 }
 .wip-banner strong { color: #f59e0b; font-weight: 600; }
+
+/* ── Consultores — Alto Volume / Baixo Ticket ─────── */
+.cons-alert-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--bg-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.cons-alert-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--bg-border);
+}
+.cons-alert-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 20px;
+  margin-bottom: 6px;
+}
+[data-theme="dark"] .cons-alert-badge { background: #78350f44; color: #fbbf24; }
+.cons-alert-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.cons-alert-desc {
+  font-size: 13px;
+  color: var(--text-secondary);
+  max-width: 520px;
+  line-height: 1.5;
+}
+.cons-alert-total {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  padding: 12px 18px;
+  min-width: 180px;
+}
+[data-theme="dark"] .cons-alert-total { background: #78350f22; border-color: #92400e; }
+.cons-alert-total-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #92400e;
+}
+[data-theme="dark"] .cons-alert-total-label { color: #fbbf24; }
+.cons-alert-total-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: #92400e;
+  line-height: 1.2;
+}
+[data-theme="dark"] .cons-alert-total-value { color: #fcd34d; }
+.cons-alert-total-sub {
+  font-size: 12px;
+  color: #b45309;
+}
+[data-theme="dark"] .cons-alert-total-sub { color: #fbbf24; }
+
+/* ── Consultores com Oportunidade ───────────────────── */
+.cons-opp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--bg-border);
+}
+.cons-opp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 20px;
+  margin-bottom: 6px;
+}
+[data-theme="dark"] .cons-opp-badge { background: #1e3a5f44; color: #60a5fa; }
+.cons-opp-total {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  border-radius: 10px;
+  padding: 12px 18px;
+  min-width: 180px;
+}
+[data-theme="dark"] .cons-opp-total { background: #1e3a5f22; border-color: #1e40af; }
+.cons-opp-total-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #1e40af;
+}
+[data-theme="dark"] .cons-opp-total-label { color: #60a5fa; }
+.cons-opp-total-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: #1e40af;
+  line-height: 1.1;
+}
+[data-theme="dark"] .cons-opp-total-value { color: #93c5fd; }
+.cons-opp-total-sub {
+  font-size: 12px;
+  color: #3b82f6;
+}
+[data-theme="dark"] .cons-opp-total-sub { color: #60a5fa; }
+
+/* Score badge */
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.score-badge--4 { background: #fee2e2; color: #991b1b; }
+.score-badge--3 { background: #ffedd5; color: #9a3412; }
+.score-badge--2 { background: #fef9c3; color: #854d0e; }
+.score-badge--1 { background: #dcfce7; color: #166534; }
+[data-theme="dark"] .score-badge--4 { background: #7f1d1d44; color: #fca5a5; }
+[data-theme="dark"] .score-badge--3 { background: #7c2d1244; color: #fdba74; }
+[data-theme="dark"] .score-badge--2 { background: #71371544; color: #fde047; }
+[data-theme="dark"] .score-badge--1 { background: #14532d44; color: #86efac; }
 
 /* ── Responsive ─────────────────────────────────────── */
 @media (max-width: 900px) {

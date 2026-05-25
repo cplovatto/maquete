@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { useLojas, type Loja } from '../context/LojasContext'
 import { useLabels, LABEL_COLORS } from '../context/LabelsContext'
-import { useData, type MainRow, type FluxoRow, type MainTotal, type FluxoTotal } from '../context/DataContext'
+import { useData, type MainRow, type FluxoRow, type MainTotal, type FluxoTotal, type ConsultorRow, type FluxoConsultorRow } from '../context/DataContext'
 
 /* ── File status context ────────────────────────────── */
 type FileStatus = 'embedded' | 'loaded' | 'pending'
@@ -1336,6 +1336,7 @@ function RankingPage() {
   const [sortKey, setSortKey] = useState<SortKey>('vf_atual')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [chartMetric, setChartMetric] = useState<ChartMetric>('vf_var')
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const { rows, labels } = useStoreTableData(sortKey, sortDir)
 
   function toggleSort(k: SortKey) {
@@ -1456,12 +1457,48 @@ function RankingPage() {
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table filters */}
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button
+            className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`}
+            onClick={() => setSelectedLabels([])}
+          >Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+      <div className="region-filter-bar">
+        <span className="region-filter-label">Ordenar</span>
+        {([
+          { label: 'Maior Receita',     key: 'vf_atual'  as SortKey },
+          { label: 'Maior Crescimento', key: 'vf_var'    as SortKey },
+          { label: 'Maior BM',          key: 'bm_atual'  as SortKey },
+          { label: 'Maior IV',          key: 'iv_atual'  as SortKey },
+          { label: 'Maior PM',          key: 'pm_atual'  as SortKey },
+          { label: 'Maior AF',          key: 'conv_pct'  as SortKey },
+        ] as { label: string; key: SortKey }[]).map(({ label, key }) => (
+          <button
+            key={key}
+            className={`region-filter-btn${sortKey === key && sortDir === 'desc' ? ' active' : ''}`}
+            onClick={() => { setSortKey(key); setSortDir('desc') }}
+          >{label}</button>
+        ))}
+      </div>
       <div className="dash-table-wrap">
         <table className="dash-table">
           <StoreTableHead sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
           <tbody>
-            {rows.map((r, i) => <StoreRow key={r.main.pdv} rank={i + 1} {...r} labels={labels} />)}
+            {rows
+              .filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+              .map((r, i) => <StoreRow key={r.main.pdv} rank={i + 1} {...r} labels={labels} />)}
           </tbody>
         </table>
       </div>
@@ -1903,6 +1940,566 @@ function RegioesPage() {
   )
 }
 
+/* ── Lojas — Detalhe da Loja ─────────────────────────── */
+function DetalhePage() {
+  const { mainRows, fluxoRows, consultorRows, fluxoConsultorRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const [selectedPdv, setSelectedPdv] = useState<string>('')
+
+  if (mainRows.length === 0) return <LojasEmptyState />
+
+  const lojaMap  = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  const fluxoMap = useMemo(() => new Map(fluxoRows.map(r => [r.pdv, r])), [fluxoRows])
+
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const activePdv = selectedPdv || mainRows[0]?.pdv || ''
+  const storeMain = mainRows.find(r => r.pdv === activePdv)
+  const storeFluxo = fluxoMap.get(activePdv)
+  const storeLoja  = lojaMap.get(activePdv)
+
+  const storeCons: (ConsultorRow & { fluxo?: { resgates: number; conversoes: number; conv_pct: number } })[] = useMemo(() => {
+    const fcMap = new Map(fluxoConsultorRows.filter(r => r.pdv === activePdv).map(r => [r.consultor, r]))
+    return consultorRows
+      .filter(r => r.pdv === activePdv)
+      .map(r => ({ ...r, fluxo: fcMap.get(r.consultor) }))
+      .sort((a, b) => b.vf_atual - a.vf_atual)
+  }, [consultorRows, fluxoConsultorRows, activePdv])
+
+  const regionLabels = (storeLoja?.labels ?? []).map(lid => labels.find(l => l.id === lid)).filter(Boolean) as typeof labels
+
+  function StoreOptionContent({ pdv, inline }: { pdv: string; inline?: boolean }) {
+    const loja = lojaMap.get(pdv)
+    const lbs  = (loja?.labels ?? []).map(lid => labels.find(l => l.id === lid)).filter(Boolean) as typeof labels
+    return (
+      <span className={`store-option-content${inline ? ' store-option-content--inline' : ''}`}>
+        <span className="store-option-pdv">{pdv}</span>
+        {loja?.apelido && <span className="store-option-apelido">{loja.apelido}</span>}
+        {lbs.map(lb => (
+          <span key={lb.id} className="label-chip label-chip--xs" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span>
+        ))}
+      </span>
+    )
+  }
+
+  return (
+    <div className="page-content">
+      {/* Header + store picker */}
+      <div className="page-title-row" style={{ alignItems: 'flex-start' }}>
+        <div>
+          <h2 className="page-title">Detalhe da Loja</h2>
+          {regionLabels.length > 0 && (
+            <div className="label-chips-group" style={{ marginTop: 4 }}>
+              {regionLabels.map(lb => (
+                <span key={lb.id} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="store-picker" ref={pickerRef}>
+          <span className="detalhe-selector-label">Loja</span>
+          <button className="store-picker-btn" onClick={() => setPickerOpen(o => !o)}>
+            <StoreOptionContent pdv={activePdv} inline />
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          {pickerOpen && (
+            <div className="store-picker-dropdown">
+              {mainRows.map(r => (
+                <button
+                  key={r.pdv}
+                  className={`store-picker-option${r.pdv === activePdv ? ' selected' : ''}`}
+                  onClick={() => { setSelectedPdv(r.pdv); setPickerOpen(false) }}
+                >
+                  <StoreOptionContent pdv={r.pdv} />
+                  {r.pdv === activePdv && (
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* KPI cards da loja */}
+      {storeMain && (
+        <div className="kpi-row">
+          <KpiCard label="Receita"      value={fBRLR(storeMain.vf_atual)} var={storeMain.vf_var} varNote="vs LY" />
+          <KpiCard label="Qtd. Boletos" value={fInt(storeMain.qb_atual)}  var={storeMain.qb_var} varNote="vs LY" />
+          <KpiCard label="Boleto Médio" value={fBRLR(storeMain.bm_atual)} var={storeMain.bm_var} varNote="vs LY" />
+          <KpiCard label="Itens/Boleto" value={fDec(storeMain.iv_atual)}  var={storeMain.iv_var} varNote="vs LY" />
+          <KpiCard label="Preço Médio"  value={fBRLR(storeMain.pm_atual)} var={storeMain.pm_var} varNote="vs LY" />
+          <KpiCard label="Conv. Fluxo"  value={storeFluxo ? fPct(storeFluxo.conv_pct) : '—'} />
+        </div>
+      )}
+
+      {/* Tabela de consultores */}
+      <div className="detalhe-cons-header">
+        <h3 className="detalhe-cons-title">Consultores</h3>
+        <span className="detalhe-cons-count">{storeCons.length} consultor{storeCons.length !== 1 ? 'es' : ''}</span>
+      </div>
+
+      {storeCons.length === 0 ? (
+        <div className="page-empty-state" style={{ padding: '32px 0' }}>
+          <div className="page-empty-title" style={{ fontSize: 14 }}>Sem dados de consultores</div>
+          <div className="page-empty-desc">Importe a planilha com a aba CONSULTOR para ver os resultados individuais.</div>
+        </div>
+      ) : (
+        <>
+          <div className="dash-table-wrap">
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Consultor</th>
+                  <th className="col-num">Receita</th>
+                  <th className="col-num">QB</th>
+                  <th className="col-num">BM</th>
+                  <th className="col-num">IV</th>
+                  <th className="col-num">PM</th>
+                  <th className="col-num">Conv.%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {storeCons.map((c, i) => (
+                  <tr key={c.consultor}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td className="col-consultor">{c.consultor}</td>
+                    <td className="col-num">{fBRLR(c.vf_atual)}</td>
+                    <td className="col-num">{fInt(c.qb_atual)}</td>
+                    <td className="col-num">{fBRLR(c.bm_atual)}</td>
+                    <td className="col-num">{fDec(c.iv_atual)}</td>
+                    <td className="col-num">{fBRLR(c.pm_atual)}</td>
+                    <td className="col-num">
+                      {c.fluxo ? fPct(c.fluxo.conv_pct) : <span className="dash-muted">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Considerações automáticas */}
+          {(() => {
+            const META_CONV = 0.28
+            const BM_FLUXO  = 91.58
+
+            // BM médio da loja calculado a partir dos consultores (ponderado por QB)
+            const totalVFCons = storeCons.reduce((s, c) => s + c.vf_atual, 0)
+            const totalQBCons = storeCons.reduce((s, c) => s + c.qb_atual, 0)
+            const storeBM = totalQBCons > 0 ? totalVFCons / totalQBCons : (storeMain?.bm_atual ?? 0)
+
+            type InsightType = 'warn' | 'danger' | 'positive'
+            type Insight = { type: InsightType; consultor: string; points: string[] }
+            const byConsultor = new Map<string, Insight>()
+
+            function getOrCreate(consultor: string, type: InsightType): Insight {
+              if (!byConsultor.has(consultor)) byConsultor.set(consultor, { type, consultor, points: [] })
+              const ins = byConsultor.get(consultor)!
+              // Eleva para danger se necessário
+              if (type === 'danger' && ins.type !== 'danger') ins.type = 'danger'
+              return ins
+            }
+
+            // GAP BM
+            storeCons
+              .filter(c => c.bm_atual < storeBM && c.qb_atual > 0)
+              .map(c => ({ ...c, gap: (storeBM - c.bm_atual) * c.qb_atual }))
+              .sort((a, b) => b.gap - a.gap)
+              .forEach(c => {
+                getOrCreate(c.consultor, 'warn').points.push(
+                  `BM de ${fBRLR(c.bm_atual)} vs ${fBRLR(storeBM)} da loja — receita deixada na mesa: ${fBRLR(c.gap)}`
+                )
+              })
+
+            // GAP Fluxo
+            storeCons
+              .filter(c => c.fluxo && c.fluxo.conv_pct < META_CONV && c.fluxo.resgates > 0)
+              .map(c => {
+                const faltou = c.fluxo!.resgates * META_CONV - c.fluxo!.conversoes
+                return { ...c, faltou, gap: faltou * BM_FLUXO }
+              })
+              .sort((a, b) => b.gap - a.gap)
+              .forEach(c => {
+                getOrCreate(c.consultor, 'warn').points.push(
+                  `Conversão de ${fPct(c.fluxo!.conv_pct)} (meta: ${(META_CONV*100).toFixed(0)}%) — faltaram ${Math.round(c.faltou)} clientes convertidos, potencial: ${fBRLR(c.gap)}`
+                )
+              })
+
+            // IV abaixo da média da loja
+            const avgIV = totalQBCons > 0 ? storeCons.reduce((s, c) => s + c.iv_atual * c.qb_atual, 0) / totalQBCons : 0
+            storeCons
+              .filter(c => avgIV > 0 && c.iv_atual < avgIV * 0.85)
+              .forEach(c => {
+                getOrCreate(c.consultor, 'warn').points.push(
+                  `IV de ${fDec(c.iv_atual)} itens/boleto vs ${fDec(avgIV)} da loja — abaixo 15% da média`
+                )
+              })
+
+            // PM abaixo da média da loja
+            const avgPM = totalVFCons > 0 ? totalVFCons / storeCons.reduce((s, c) => s + c.iv_atual * c.qb_atual, 0) : 0
+            storeCons
+              .filter(c => avgPM > 0 && c.pm_atual < avgPM * 0.85)
+              .forEach(c => {
+                getOrCreate(c.consultor, 'warn').points.push(
+                  `PM de ${fBRLR(c.pm_atual)} vs ${fBRLR(avgPM)} da loja — abaixo 15% da média`
+                )
+              })
+
+            // Destaque positivo — melhor consultor
+            if (storeCons.length > 0 && !byConsultor.has(storeCons[0].consultor)) {
+              const top = storeCons[0]
+              const share = storeMain && storeMain.vf_atual > 0 ? top.vf_atual / storeMain.vf_atual * 100 : 0
+              getOrCreate(top.consultor, 'positive').points.push(
+                `Maior receita da loja: ${fBRLR(top.vf_atual)} (${share.toFixed(1).replace('.', ',')}% do total)`
+              )
+              getOrCreate(top.consultor, 'positive').points.push(
+                `BM: ${fBRLR(top.bm_atual)} · IV: ${fDec(top.iv_atual)} · PM: ${fBRLR(top.pm_atual)}`
+              )
+              if (top.fluxo) getOrCreate(top.consultor, 'positive').points.push(
+                `Conversão: ${fPct(top.fluxo.conv_pct)}`
+              )
+            }
+
+            const insights = Array.from(byConsultor.values())
+
+            if (insights.length === 0) return null
+
+            const iconMap = {
+              warn:     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+              danger:   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
+              positive: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>,
+            }
+
+            return (
+              <div className="consideracoes-section">
+                <h3 className="consideracoes-title">Considerações</h3>
+                <div className="consideracoes-list">
+                  {insights.map((ins, i) => (
+                    <div key={i} className={`consideracao-card consideracao-card--${ins.type}`}>
+                      <span className="consideracao-icon">{iconMap[ins.type]}</span>
+                      <div style={{ flex: 1 }}>
+                        <div className="consideracao-card-title">{ins.consultor}</div>
+                        <ul className="consideracao-points">
+                          {ins.points.map((p, j) => <li key={j}>{p}</li>)}
+                        </ul>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })()}
+        </>
+      )}
+    </div>
+  )
+}
+
+/* ── Lojas — Consultores ─────────────────────────────── */
+function ConsultoresPage() {
+  const { consultorRows, fluxoConsultorRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [selectedOppLabels, setSelectedOppLabels] = useState<string[]>([])
+
+  if (consultorRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <div className="page-empty-title">Dados de consultores não carregados</div>
+      <div className="page-empty-desc">Importe a planilha Indicadores Principais com a aba CONSULTOR preenchida.</div>
+    </div>
+  )
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  // BM médio do grupo (todos os consultores)
+  const groupVF = consultorRows.reduce((s, c) => s + c.vf_atual, 0)
+  const groupQB = consultorRows.reduce((s, c) => s + c.qb_atual, 0)
+  const groupBM = groupQB > 0 ? groupVF / groupQB : 0
+
+  // QB médio por loja (média entre consultores daquela loja)
+  const storeConsMap = useMemo(() => {
+    const map = new Map<string, typeof consultorRows>()
+    consultorRows.forEach(c => {
+      if (!map.has(c.pdv)) map.set(c.pdv, [])
+      map.get(c.pdv)!.push(c)
+    })
+    return map
+  }, [consultorRows])
+
+  const storeAvgQB = useMemo(() => {
+    const map = new Map<string, number>()
+    storeConsMap.forEach((cons, pdv) => {
+      const avg = cons.reduce((s, c) => s + c.qb_atual, 0) / cons.length
+      map.set(pdv, avg)
+    })
+    return map
+  }, [storeConsMap])
+
+  // Consultores Alto Volume / Baixo Ticket
+  const alertRows = useMemo(() => {
+    return consultorRows
+      .filter(c => {
+        const avgQB = storeAvgQB.get(c.pdv) ?? 0
+        return c.qb_atual > avgQB && c.bm_atual < groupBM
+      })
+      .map(c => ({
+        ...c,
+        loja: lojaMap.get(c.pdv),
+        avgQB: storeAvgQB.get(c.pdv) ?? 0,
+        excessoQB: c.qb_atual - (storeAvgQB.get(c.pdv) ?? 0),
+        gapBM: groupBM - c.bm_atual,
+        gapReceita: (groupBM - c.bm_atual) * c.qb_atual,
+      }))
+      .filter(c => selectedLabels.length === 0 || selectedLabels.some(lid => (c.loja?.labels ?? []).includes(lid)))
+      .sort((a, b) => b.gapReceita - a.gapReceita)
+  }, [consultorRows, storeAvgQB, groupBM, lojaMap, selectedLabels])
+
+  const totalGap = alertRows.reduce((s, r) => s + r.gapReceita, 0)
+
+  // ── Consultores com oportunidade ──
+  const fluxoConsMap = useMemo(() => {
+    const map = new Map<string, FluxoConsultorRow>()
+    fluxoConsultorRows.forEach(r => map.set(`${r.pdv}|${r.consultor}`, r))
+    return map
+  }, [fluxoConsultorRows])
+
+  const totalQB = consultorRows.reduce((s, c) => s + c.qb_atual, 0)
+  const groupIV = totalQB > 0 ? consultorRows.reduce((s, c) => s + c.iv_atual * c.qb_atual, 0) / totalQB : 0
+  const groupPM = totalQB > 0 ? consultorRows.reduce((s, c) => s + c.pm_atual * c.qb_atual, 0) / totalQB : 0
+  const totalResgates = fluxoConsultorRows.reduce((s, r) => s + r.resgates, 0)
+  const groupConv = totalResgates > 0 ? fluxoConsultorRows.reduce((s, r) => s + r.conversoes, 0) / totalResgates * 100 : 0
+
+  // TODO: sistema de pontuação ponderada
+
+  const oppRows = useMemo(() => {
+    return consultorRows
+      .map(c => {
+        const fluxo = fluxoConsMap.get(`${c.pdv}|${c.consultor}`)
+        const rawConv = fluxo?.conv_pct ?? null
+        // normaliza para escala 0-100 (arquivo pode entregar 0.28 ou 28)
+        const conv = rawConv !== null ? (rawConv < 1 ? rawConv * 100 : rawConv) : null
+        const hasConv = conv !== null && groupConv > 0
+
+        const badCount = [
+          c.bm_atual < groupBM,
+          c.iv_atual < groupIV,
+          c.pm_atual < groupPM,
+          hasConv && conv! < groupConv,
+        ].filter(Boolean).length
+
+        return { ...c, loja: lojaMap.get(c.pdv), fluxo, conv, badCount, hasConv }
+      })
+      .filter(c => c.badCount > 0)
+      .filter(c => selectedOppLabels.length === 0 || selectedOppLabels.some(lid => (c.loja?.labels ?? []).includes(lid)))
+      .sort((a, b) => b.badCount - a.badCount)
+  }, [consultorRows, fluxoConsMap, groupBM, groupIV, groupPM, groupConv, lojaMap, selectedOppLabels])
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Consultores</h2>
+          <p className="page-subtitle">{consultorRows.length} consultores · {storeConsMap.size} lojas</p>
+        </div>
+      </div>
+
+      {/* Filtro de região */}
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button
+            className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`}
+            onClick={() => setSelectedLabels([])}
+          >Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Card da análise */}
+      <div className="cons-alert-card">
+        <div className="cons-alert-header">
+          <div>
+            <div className="cons-alert-badge">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Atenção
+            </div>
+            <h3 className="cons-alert-title">Alto Volume / Baixo Ticket</h3>
+            <p className="cons-alert-desc">
+              Consultores com QB acima da média da loja e BM abaixo de {fBRLR(groupBM)} (média do grupo).
+              Atendem mais clientes que os colegas mas com ticket menor, puxando o indicador da loja para baixo.
+            </p>
+          </div>
+          <div className="cons-alert-total">
+            <span className="cons-alert-total-label">Receita deixada na mesa</span>
+            <span className="cons-alert-total-value">{fBRLR(totalGap)}</span>
+            <span className="cons-alert-total-sub">{alertRows.length} consultor{alertRows.length !== 1 ? 'es' : ''}{selectedLabels.length > 0 ? ' · filtrado' : ''}</span>
+          </div>
+        </div>
+
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table dash-table--potential">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th>Consultor</th>
+                <th className="col-pdv">PDV</th>
+                <th>Região</th>
+                <th className="col-num">QB</th>
+                <th className="col-num">Média QB Loja</th>
+                <th className="col-num">BM</th>
+                <th className="col-num">BM Grupo</th>
+                <th className="col-num">IV</th>
+                <th className="col-num">PM</th>
+                <th className="col-num col-gap-head">Receita na Mesa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {alertRows.map((c, i) => (
+                <tr key={`${c.pdv}-${c.consultor}`}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td className="col-consultor">{c.consultor}</td>
+                  <td className="col-pdv">{c.pdv}</td>
+                  <td>
+                    <div className="label-chips-group">
+                      {(c.loja?.labels ?? []).map(lid => {
+                        const lb = labels.find(x => x.id === lid)
+                        return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                      })}
+                    </div>
+                  </td>
+                  <td className="col-num" style={{ color: '#059669', fontWeight: 700 }}>{fInt(c.qb_atual)}</td>
+                  <td className="col-num col-muted-val">{fInt(Math.round(c.avgQB))}</td>
+                  <td className="col-num" style={{ color: '#dc2626', fontWeight: 700 }}>{fBRLR(c.bm_atual)}</td>
+                  <td className="col-num col-muted-val">{fBRLR(groupBM)}</td>
+                  <td className="col-num">{fDec(c.iv_atual)}</td>
+                  <td className="col-num">{fBRLR(c.pm_atual)}</td>
+                  <td className="col-num col-gap-val">{fBRLR(c.gapReceita)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="gap-table-total">
+                <td colSpan={10} className="gap-total-label">Total deixado na mesa</td>
+                <td className="col-num col-gap-val">{fBRLR(totalGap)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Consultores com oportunidade ── */}
+      <div className="cons-alert-card">
+        <div className="cons-opp-header">
+          <div>
+            <div className="cons-opp-badge">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Oportunidade
+            </div>
+            <h3 className="cons-alert-title">Consultores com Oportunidade</h3>
+            <p className="cons-alert-desc">
+              Consultores com mais indicadores abaixo da média do grupo.
+              Referência: BM {fBRLR(groupBM)} · IV {fDec(groupIV)} · PM {fBRLR(groupPM)}{groupConv > 0 ? ` · Conv. ${Math.round(groupConv)}%` : ''}.
+            </p>
+          </div>
+          <div className="cons-opp-total">
+            <span className="cons-opp-total-label">Consultores em atenção</span>
+            <span className="cons-opp-total-value">{oppRows.length}</span>
+            <span className="cons-opp-total-sub">de {consultorRows.length} total{selectedOppLabels.length > 0 ? ' · filtrado' : ''}</span>
+          </div>
+        </div>
+
+        {labels.length > 0 && (
+          <div className="region-filter-bar" style={{ borderBottom: '1px solid var(--bg-border)', borderRadius: 0, padding: '10px 20px' }}>
+            <span className="region-filter-label">Região</span>
+            <button
+              className={`region-filter-btn${selectedOppLabels.length === 0 ? ' active' : ''}`}
+              onClick={() => setSelectedOppLabels([])}
+            >Todas</button>
+            {labels.map(lb => (
+              <button
+                key={lb.id}
+                className={`region-filter-btn${selectedOppLabels.includes(lb.id) ? ' active' : ''}`}
+                style={selectedOppLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+                onClick={() => setSelectedOppLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+              >{lb.name}</button>
+            ))}
+          </div>
+        )}
+
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th>Consultor</th>
+                <th className="col-pdv">PDV</th>
+                <th>Região</th>
+                <th className="col-num">Indicadores</th>
+                <th className="col-num">BM</th>
+                <th className="col-num">IV</th>
+                <th className="col-num">PM</th>
+                {groupConv > 0 && <th className="col-num">Conv. %</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {oppRows.map((c, i) => {
+                const maxBad = c.hasConv ? 4 : 3
+                const badClass = c.badCount >= maxBad ? 'score-badge--4' : c.badCount === maxBad - 1 ? 'score-badge--3' : c.badCount === maxBad - 2 ? 'score-badge--2' : 'score-badge--1'
+                return (
+                  <tr key={`${c.pdv}-${c.consultor}`}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td className="col-consultor">{c.consultor}</td>
+                    <td className="col-pdv">{c.pdv}</td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(c.loja?.labels ?? []).map(lid => {
+                          const lb = labels.find(x => x.id === lid)
+                          return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                        })}
+                      </div>
+                    </td>
+                    <td className="col-num">
+                      <span className={`score-badge ${badClass}`}>{c.badCount}/{maxBad}</span>
+                    </td>
+                    <td className="col-num" style={c.bm_atual < groupBM ? { color: '#dc2626', fontWeight: 600 } : { color: '#059669' }}>{fBRLR(c.bm_atual)}</td>
+                    <td className="col-num" style={c.iv_atual < groupIV ? { color: '#dc2626', fontWeight: 600 } : { color: '#059669' }}>{fDec(c.iv_atual)}</td>
+                    <td className="col-num" style={c.pm_atual < groupPM ? { color: '#dc2626', fontWeight: 600 } : { color: '#059669' }}>{fBRLR(c.pm_atual)}</td>
+                    {groupConv > 0 && (
+                      <td className="col-num" style={c.hasConv && c.conv! < groupConv ? { color: '#dc2626', fontWeight: 600 } : c.hasConv ? { color: '#059669' } : { color: 'var(--text-muted)' }}>
+                        {c.conv !== null ? `${Math.round(c.conv)}%` : '—'}
+                      </td>
+                    )}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Placeholder page ───────────────────────────────── */
 function WipPage({ title, requires }: { title: string; requires?: string[] }) {
   const { statuses, openImport } = useFileStatus()
@@ -2238,8 +2835,8 @@ export default function AppShell() {
             <Route path="lojas"               element={<VisaoGeralPage />} />
             <Route path="lojas/regioes"       element={<RegioesPage />} />
             <Route path="lojas/ranking"       element={<RankingPage />} />
-            <Route path="lojas/detalhe"       element={<WipPage title="Detalhe da Loja"        requires={['main','fluxo']} />} />
-            <Route path="lojas/consultores"   element={<WipPage title="Consultores"            requires={['main','fluxo']} />} />
+            <Route path="lojas/detalhe"       element={<DetalhePage />} />
+            <Route path="lojas/consultores"   element={<ConsultoresPage />} />
             <Route path="lojas/dispersao"     element={<WipPage title="Dispersão"              requires={['main','fluxo']} />} />
             {/* Mensal – IAF */}
             <Route path="iaf"          element={<WipPage title="IAF — Indicadores" />} />
