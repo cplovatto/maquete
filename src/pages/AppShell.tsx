@@ -3376,8 +3376,9 @@ function IafSkinPage() {
     const loja = lojaMap.get(r.pdv)
     const main = mainMap.get(r.pdv)
     const sharePct = r.share * 100
-    const gapReceita = main && main.vf_atual > 0 ? Math.max(0, main.vf_atual * (TARGET_MIN / 100) - r.receita_atual) : 0
-    return { ...r, loja, sharePct, gapReceita }
+    const vf_total = main?.vf_atual ?? 0
+    const gapReceita = vf_total > 0 ? Math.max(0, vf_total * (TARGET_MIN / 100) - r.receita_atual) : 0
+    return { ...r, loja, sharePct, gapReceita, vf_total }
   }), [skinRows, lojaMap, mainMap])
 
   const filteredRows = useMemo(() =>
@@ -3399,7 +3400,13 @@ function IafSkinPage() {
       .map(c => ({ ...c, sharePct: c.share * 100 }))
   , [skinConsultorRows, activePdv])
 
-  const groupSharePct = skinCP ? skinCP.share * 100 : null
+  // Share calculado sobre as lojas filtradas (usa vf_total quando disponível, senão usa skinCP)
+  const filteredReceita = filteredRows.reduce((s, r) => s + r.receita_atual, 0)
+  const filteredVF = filteredRows.reduce((s, r) => s + r.vf_total, 0)
+  const filteredSharePct = filteredVF > 0
+    ? filteredReceita / filteredVF * 100
+    : (skinCP ? skinCP.share * 100 : null)
+
   const totalGap = belowTarget.reduce((s, r) => s + r.gapReceita, 0)
 
   function StoreOptionContent({ pdv, inline }: { pdv: string; inline?: boolean }) {
@@ -3423,12 +3430,14 @@ function IafSkinPage() {
         </div>
       </div>
 
-      {/* Cartão de resumo do grupo */}
-      {groupSharePct !== null && (
-        <div className={`skin-summary-card${groupSharePct >= TARGET_MIN ? ' skin-summary-card--ok' : ' skin-summary-card--alert'}`}>
+      {/* Cartão de resumo — atualiza conforme filtro de região */}
+      {filteredSharePct !== null && (
+        <div className={`skin-summary-card${filteredSharePct >= TARGET_MIN ? ' skin-summary-card--ok' : ' skin-summary-card--alert'}`}>
           <div className="skin-summary-block">
-            <span className="skin-summary-pct">{fDec(groupSharePct, 2)}%</span>
-            <span className="skin-summary-label">share do grupo</span>
+            <span className="skin-summary-pct">{fDec(filteredSharePct, 2)}%</span>
+            <span className="skin-summary-label">
+              {selectedLabels.length > 0 ? `share — ${selectedLabels.map(lid => labels.find(l => l.id === lid)?.name ?? '').join(', ')}` : 'share do grupo'}
+            </span>
           </div>
           <div className="skin-summary-divider" />
           <div className="skin-summary-block">
@@ -3437,14 +3446,12 @@ function IafSkinPage() {
           </div>
           <div className="skin-summary-divider" />
           <div className="skin-summary-block">
-            {groupSharePct >= TARGET_MIN ? (
+            {filteredSharePct >= TARGET_MIN ? (
               <span className="skin-summary-status skin-summary-status--ok">✓ Meta atingida</span>
             ) : (
-              <span className="skin-summary-status skin-summary-status--nok">✗ {fDec(TARGET_MIN - groupSharePct, 2)}pp abaixo da meta</span>
+              <span className="skin-summary-status skin-summary-status--nok">✗ {fDec(TARGET_MIN - filteredSharePct, 2)}pp abaixo da meta</span>
             )}
-            {skinCP && (
-              <span className="skin-summary-label">receita atual: {fBRLR(skinCP.receita_atual)}</span>
-            )}
+            <span className="skin-summary-label">receita skin: {fBRLR(filteredReceita)}</span>
           </div>
         </div>
       )}
