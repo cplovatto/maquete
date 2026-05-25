@@ -138,6 +138,27 @@ export interface IDClienteCP {
   pct_boletos_validos: number
 }
 
+export interface LojaDigitalPdvRow {
+  pdv: string
+  clientes_enc: number
+  clientes_ate: number
+  tme: string
+  convertidos: number
+  conv_pct: number
+  receita: number
+  boleto_medio: number
+}
+
+export interface LojaDigitalTotal {
+  clientes_enc: number
+  clientes_ate: number
+  tme: string
+  convertidos: number
+  conv_pct: number
+  receita: number
+  boleto_medio: number
+}
+
 interface DataCtxType {
   mainRows: MainRow[]
   mainTotal: MainTotal | null
@@ -152,6 +173,8 @@ interface DataCtxType {
   idClienteRows: IDClienteRow[]
   idClienteConsultorRows: IDClienteConsultorRow[]
   idClienteCP: IDClienteCP | null
+  lojaDigitalRows: LojaDigitalPdvRow[]
+  lojaDigitalTotal: LojaDigitalTotal | null
   loadFile: (id: string, file: File) => Promise<void>
 }
 
@@ -464,6 +487,41 @@ async function parseIDClienteFile(file: File): Promise<{ rows: IDClienteRow[]; c
   return { rows: parseIDClientePdvSheet(wb, utils), consultorRows: parseIDClienteConsultorSheet(wb, utils), cp: parseIDClienteCPSheet(wb, utils) }
 }
 
+function parseLojaDigitalPdvSheet(wb: WorkBook, utils: XLSX_Utils): { rows: LojaDigitalPdvRow[]; total: LojaDigitalTotal | null } {
+  const ws = wb.Sheets['PDV']
+  if (!ws) return { rows: [], total: null }
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const toRow = (a: unknown[]): LojaDigitalPdvRow => ({
+    pdv: String(a[0]),
+    clientes_enc: toNum(a[1]),
+    clientes_ate: toNum(a[2]),
+    tme: String(a[3] ?? ''),
+    convertidos: toNum(a[4]),
+    conv_pct: toNum(a[5]),
+    receita: toNum(a[6]),
+    boleto_medio: toNum(a[7]),
+  })
+  const tr = raw[1] as unknown[]
+  const total: LojaDigitalTotal | null = tr ? {
+    clientes_enc: toNum(tr[1]),
+    clientes_ate: toNum(tr[2]),
+    tme: String(tr[3] ?? ''),
+    convertidos: toNum(tr[4]),
+    conv_pct: toNum(tr[5]),
+    receita: toNum(tr[6]),
+    boleto_medio: toNum(tr[7]),
+  } : null
+  const rows = raw.slice(2).filter(r => (r as unknown[])[0]).map(r => toRow(r as unknown[]))
+  return { rows, total }
+}
+
+async function parseLojaDigitalFile(file: File): Promise<{ rows: LojaDigitalPdvRow[]; total: LojaDigitalTotal | null }> {
+  const buf = await file.arrayBuffer()
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
+  return parseLojaDigitalPdvSheet(wb, utils)
+}
+
 function tryParse<T>(key: string, fallback: T): T {
   try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : fallback } catch { return fallback }
 }
@@ -482,6 +540,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [idClienteRows, setIdClienteRows]                           = useState<IDClienteRow[]>(() => tryParse('prisma-data-idcliente', []))
   const [idClienteConsultorRows, setIdClienteConsultorRows]         = useState<IDClienteConsultorRow[]>(() => tryParse('prisma-data-idcliente-consultor', []))
   const [idClienteCP, setIdClienteCP]                               = useState<IDClienteCP | null>(() => tryParse('prisma-data-idcliente-cp', null))
+  const [lojaDigitalRows, setLojaDigitalRows]                       = useState<LojaDigitalPdvRow[]>(() => tryParse('prisma-data-lojadigital', []))
+  const [lojaDigitalTotal, setLojaDigitalTotal]                     = useState<LojaDigitalTotal | null>(() => tryParse('prisma-data-lojadigital-total', null))
 
   useEffect(() => { try { localStorage.setItem('prisma-data-main', JSON.stringify(mainRows)) } catch {} }, [mainRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-main-total', JSON.stringify(mainTotal)) } catch {} }, [mainTotal])
@@ -496,6 +556,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem('prisma-data-idcliente', JSON.stringify(idClienteRows)) } catch {} }, [idClienteRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-idcliente-consultor', JSON.stringify(idClienteConsultorRows)) } catch {} }, [idClienteConsultorRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-idcliente-cp', JSON.stringify(idClienteCP)) } catch {} }, [idClienteCP])
+  useEffect(() => { try { localStorage.setItem('prisma-data-lojadigital', JSON.stringify(lojaDigitalRows)) } catch {} }, [lojaDigitalRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-lojadigital-total', JSON.stringify(lojaDigitalTotal)) } catch {} }, [lojaDigitalTotal])
 
   async function loadFile(id: string, file: File) {
     if (id === 'main') {
@@ -510,11 +572,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } else if (id === 'id-cliente') {
       const { rows, consultorRows: cr, cp } = await parseIDClienteFile(file)
       setIdClienteRows(rows); setIdClienteConsultorRows(cr); setIdClienteCP(cp)
+    } else if (id === 'loja-digital') {
+      const { rows, total } = await parseLojaDigitalFile(file)
+      setLojaDigitalRows(rows); setLojaDigitalTotal(total)
     }
   }
 
   return (
-    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, loadFile }}>
+    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, loadFile }}>
       {children}
     </DataCtx.Provider>
   )

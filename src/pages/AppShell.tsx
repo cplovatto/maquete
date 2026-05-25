@@ -3669,6 +3669,205 @@ function IDClientePage() {
   )
 }
 
+/* ── IAF — Loja Digital ─────────────────────────────── */
+function LojaDigitalPage() {
+  const { lojaDigitalRows, lojaDigitalTotal } = useData()
+  const { lojas } = useLojas()
+  const { openImport } = useFileStatus()
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const storeRows = useMemo(() => {
+    const totalRec = lojaDigitalRows.reduce((s, r) => s + r.receita, 0)
+    return lojaDigitalRows
+      .map(r => ({
+        ...r,
+        loja: lojaMap.get(r.pdv),
+        conv_pct_pct: r.conv_pct * 100,
+        share_receita: totalRec > 0 ? r.receita / totalRec : 0,
+      }))
+      .sort((a, b) => b.receita - a.receita)
+  }, [lojaDigitalRows, lojaMap])
+
+  const semConversao = useMemo(() =>
+    storeRows.filter(r => r.convertidos === 0 && r.clientes_ate > 0),
+  [storeRows])
+
+  if (lojaDigitalRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <div className="page-empty-title">Dados da Loja Digital não carregados</div>
+      <div className="page-empty-desc">Importe a planilha para visualizar este relatório</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Loja Digital <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  const totalReceita    = lojaDigitalTotal?.receita       ?? storeRows.reduce((s, r) => s + r.receita, 0)
+  const totalAtendidos  = lojaDigitalTotal?.clientes_ate  ?? storeRows.reduce((s, r) => s + r.clientes_ate, 0)
+  const totalConvertidos = lojaDigitalTotal?.convertidos  ?? storeRows.reduce((s, r) => s + r.convertidos, 0)
+  const convPct         = lojaDigitalTotal?.conv_pct      ?? (totalAtendidos > 0 ? totalConvertidos / totalAtendidos : 0)
+  const boletoMedio     = lojaDigitalTotal?.boleto_medio  ?? (totalConvertidos > 0 ? totalReceita / totalConvertidos : 0)
+  const perdidos        = totalAtendidos - totalConvertidos
+
+  const scenarios = [10, 15, 20].map(targetPct => {
+    const convertidosPot = Math.round(totalAtendidos * targetPct / 100)
+    const incremento = Math.max(0, convertidosPot - totalConvertidos)
+    const ganho = incremento * boletoMedio
+    return { pct: targetPct, convertidosPot, incremento, receita: totalReceita + ganho, ganho }
+  })
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Loja Digital</h2>
+          <p className="page-subtitle">WhatsApp · {storeRows.length} lojas participantes</p>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="kpi-row">
+        <KpiCard label="Receita Digital"      value={fBRLR(totalReceita)} />
+        <KpiCard label="% Conversão"          value={fDec(convPct * 100, 2) + '%'} />
+        <KpiCard label="Clientes Atendidos"   value={fInt(totalAtendidos)} />
+        <KpiCard label="Clientes Convertidos" value={fInt(totalConvertidos)} />
+        <KpiCard label="Boleto Médio"         value={fBRLR(boletoMedio)} />
+      </div>
+
+      {/* Potencial de conversão */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <div>
+            <h3 className="fluxo-card-title">Potencial de Conversão</h3>
+            <p className="dispersao-cons-sub">
+              {fInt(perdidos)} cliente{perdidos !== 1 ? 's' : ''} atendido{perdidos !== 1 ? 's' : ''} não converteram · boleto médio atual {fBRLR(boletoMedio)}
+            </p>
+          </div>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th>Cenário</th>
+                <th className="col-num">Conversão</th>
+                <th className="col-num">Convertidos</th>
+                <th className="col-num">Incremento</th>
+                <th className="col-num">Receita Potencial</th>
+                <th className="col-num">Ganho vs Atual</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ background: 'var(--bg-surface-2)', fontStyle: 'italic' }}>
+                <td>Atual</td>
+                <td className="col-num">{fDec(convPct * 100, 2)}%</td>
+                <td className="col-num">{fInt(totalConvertidos)}</td>
+                <td className="col-num"><span className="dash-muted">—</span></td>
+                <td className="col-num">{fBRLR(totalReceita)}</td>
+                <td className="col-num"><span className="dash-muted">—</span></td>
+              </tr>
+              {scenarios.map(s => (
+                <tr key={s.pct}>
+                  <td>Meta</td>
+                  <td className="col-num" style={{ fontWeight: 700 }}>{s.pct}%</td>
+                  <td className="col-num">{fInt(s.convertidosPot)}</td>
+                  <td className="col-num" style={{ color: '#059669', fontWeight: 600 }}>+{fInt(s.incremento)}</td>
+                  <td className="col-num" style={{ fontWeight: 600 }}>{fBRLR(s.receita)}</td>
+                  <td className="col-num" style={{ color: '#059669', fontWeight: 700 }}>+{fBRLR(s.ganho)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Lojas sem conversão */}
+      {semConversao.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="skin-alert-header">
+            <div>
+              <h3 className="skin-alert-title">Lojas Sem Conversão</h3>
+              <p className="dispersao-cons-sub">
+                {semConversao.length} loja{semConversao.length !== 1 ? 's' : ''} com clientes atendidos mas zero vendas
+              </p>
+            </div>
+            <span className="skin-alert-badge">{semConversao.length}</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-pdv">PDV</th>
+                  <th>Loja</th>
+                  <th className="col-num">Clientes Atendidos</th>
+                  <th className="col-num">Receita Estimada Perdida</th>
+                </tr>
+              </thead>
+              <tbody>
+                {semConversao.map(r => (
+                  <tr key={r.pdv}>
+                    <td className="col-pdv">{r.pdv}</td>
+                    <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                    <td className="col-num">{fInt(r.clientes_ate)}</td>
+                    <td className="col-num" style={{ color: '#dc2626', fontWeight: 600 }}>
+                      -{fBRLR(Math.round(r.clientes_ate * convPct) * boletoMedio)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Participação por loja */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Participação por Loja</h3>
+          <span className="dispersao-cons-sub">{storeRows.length} lojas · ordenado por receita</span>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th className="col-num">Atendidos</th>
+                <th className="col-num">Convertidos</th>
+                <th className="col-num">% Conv.</th>
+                <th className="col-num">Receita</th>
+                <th className="col-num">% Digital</th>
+                <th className="col-num">Boleto Médio</th>
+              </tr>
+            </thead>
+            <tbody>
+              {storeRows.map((r, i) => {
+                const convColor = r.convertidos === 0 ? '#dc2626' : r.conv_pct >= convPct ? '#059669' : '#d97706'
+                return (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td className="col-pdv">{r.pdv}</td>
+                    <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                    <td className="col-num">{fInt(r.clientes_ate)}</td>
+                    <td className="col-num">{fInt(r.convertidos)}</td>
+                    <td className="col-num" style={{ color: convColor, fontWeight: 600 }}>{fDec(r.conv_pct_pct, 1)}%</td>
+                    <td className="col-num">{r.receita > 0 ? fBRLR(r.receita) : <span className="dash-muted">—</span>}</td>
+                    <td className="col-num">{r.share_receita > 0 ? fDec(r.share_receita * 100, 1) + '%' : <span className="dash-muted">—</span>}</td>
+                    <td className="col-num">{r.boleto_medio > 0 ? fBRLR(r.boleto_medio) : <span className="dash-muted">—</span>}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── IAF — Skin (Cuidados Faciais) ─────────────────── */
 function IafSkinPage() {
   const { skinRows, skinConsultorRows, skinCP, mainRows } = useData()
@@ -4556,7 +4755,7 @@ export default function AppShell() {
             <Route path="iaf/fluxo"    element={<IafFluxoPage />} />
             <Route path="iaf/skin"       element={<IafSkinPage />} />
             <Route path="iaf/id-cliente"    element={<IDClientePage />} />
-            <Route path="iaf/loja-digital"  element={<WipPage title="IAF — Loja Digital" requires={['loja-digital']} />} />
+            <Route path="iaf/loja-digital"  element={<LojaDigitalPage />} />
             <Route path="iaf/servicos"      element={<WipPage title="Serviços" requires={['servicos']} />} />
             {/* Anual – Lojas */}
             <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas"              requires={['anual-main']} />} />
