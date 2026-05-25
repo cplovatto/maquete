@@ -300,6 +300,7 @@ const IC = {
   skin:     <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a9 9 0 0 1 9 9c0 4.17-2.84 7.67-6.69 8.69A9 9 0 1 1 12 2z"/><path d="M12 8c-1.5 1.5-2 3-2 4s.5 2.5 2 4"/><path d="M12 8c1.5 1.5 2 3 2 4s-.5 2.5-2 4"/></svg>,
   doc:      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>,
   dollar:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+  idCard:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="7.5" cy="12" r="2.5"/><path d="M13 10h5M13 14h5"/></svg>,
 }
 
 /* ── Lojas ──────────────────────────────────────────── */
@@ -674,6 +675,7 @@ const MENSAL_SOURCES: DataSource[] = [
   // IAF
   { id: 'iaf',          name: 'Relatório IAF',           format: 'XLSX', icon: IC.check,    defaultStatus: 'embedded', section: 'IAF' },
   { id: 'skin',         name: 'Skin (Cuidados Faciais)', format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'id-cliente',   name: 'ID do Cliente',           format: 'XLSX', icon: IC.idCard,   defaultStatus: 'pending',  section: 'IAF' },
   { id: 'servicos',     name: 'Serviços',                format: 'XLSX', icon: IC.doc,      defaultStatus: 'pending',  section: 'IAF' },
 ]
 
@@ -3336,6 +3338,335 @@ function IafFluxoPage() {
   )
 }
 
+/* ── IAF — ID do Cliente ───────────────────────────── */
+function IDClientePage() {
+  const { idClienteRows, idClienteConsultorRows, idClienteCP } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [selectedPdv, setSelectedPdv] = useState<string>('')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+  const { openImport } = useFileStatus()
+
+  const TARGET_CPF = 115
+
+  // Todos os hooks antes do return condicional (Rules of Hooks)
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const activePdv = selectedPdv || idClienteRows[0]?.pdv || ''
+
+  const storeRows = useMemo(() => idClienteRows.map(r => {
+    const loja = lojaMap.get(r.pdv)
+    return { ...r, loja, pctCpfPct: r.pct_cpf_atual * 100, pctBolPct: r.pct_boletos_validos_atual * 100 }
+  }), [idClienteRows, lojaMap])
+
+  const filteredRows = useMemo(() =>
+    storeRows.filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+  , [storeRows, selectedLabels])
+
+  const belowTarget = useMemo(() =>
+    filteredRows.filter(r => r.pctCpfPct < TARGET_CPF).sort((a, b) => a.pctCpfPct - b.pctCpfPct)
+  , [filteredRows])
+
+  const allRanked = useMemo(() =>
+    [...filteredRows].sort((a, b) => b.pctCpfPct - a.pctCpfPct)
+  , [filteredRows])
+
+  const consRows = useMemo(() =>
+    idClienteConsultorRows
+      .filter(c => c.pdv === activePdv)
+      .sort((a, b) => b.atend_id - a.atend_id)
+      .map(c => ({ ...c, pctCpfPct: c.pct_cpf * 100, pctBolPct: c.pct_boletos_validos * 100 }))
+  , [idClienteConsultorRows, activePdv])
+
+  const regionGroups = useMemo(() => {
+    if (labels.length === 0) return []
+    return labels
+      .filter(lb => selectedLabels.length === 0 || selectedLabels.includes(lb.id))
+      .map(lb => {
+        const rows = storeRows.filter(r => (r.loja?.labels ?? []).includes(lb.id))
+        if (rows.length === 0) return null
+        const totId  = rows.reduce((s, r) => s + r.atend_id_atual, 0)
+        const pctCpf = totId > 0 ? rows.reduce((s, r) => s + r.pctCpfPct * r.atend_id_atual, 0) / totId : 0
+        const totUso = rows.reduce((s, r) => s + r.uso_indevido_atual, 0)
+        const belowCount = rows.filter(r => r.pctCpfPct < TARGET_CPF).length
+        return { label: lb, count: rows.length, pctCpf, totUso, belowCount }
+      })
+      .filter(Boolean) as { label: typeof labels[0]; count: number; pctCpf: number; totUso: number; belowCount: number }[]
+  }, [labels, storeRows, selectedLabels])
+
+  // Early return após todos os hooks
+  if (idClienteRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="7.5" cy="12" r="2.5"/><path d="M13 10h5M13 14h5"/>
+      </svg>
+      <div className="page-empty-title">ID do Cliente</div>
+      <div className="page-empty-desc">Importe a planilha de ID do Cliente para visualizar os dados.</div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  // Valores derivados (não são hooks)
+  const totalAtendId     = filteredRows.reduce((s, r) => s + r.atend_id_atual, 0)
+  const totalUsoIndevido = filteredRows.reduce((s, r) => s + r.uso_indevido_atual, 0)
+  // Sem filtro de região: usa o RESULTADO da aba CP (valor consolidado)
+  // Com filtro: média ponderada das lojas filtradas
+  const groupPctCpf = selectedLabels.length === 0 && idClienteCP
+    ? idClienteCP.pct_cpf
+    : totalAtendId > 0
+      ? filteredRows.reduce((s, r) => s + r.pctCpfPct * r.atend_id_atual, 0) / totalAtendId
+      : null
+
+  const cpfColor = (pct: number) => pct >= 115 ? '#059669' : pct >= 100 ? '#d97706' : '#dc2626'
+  const bolColor = (pct: number) => pct >= 90 ? '#059669' : pct >= 80 ? '#d97706' : '#dc2626'
+
+  function StoreOptionContent({ pdv, inline }: { pdv: string; inline?: boolean }) {
+    const loja = lojaMap.get(pdv)
+    const lbs  = (loja?.labels ?? []).map(lid => labels.find(l => l.id === lid)).filter(Boolean) as typeof labels
+    return (
+      <span className={`store-option-content${inline ? ' store-option-content--inline' : ''}`}>
+        <span className="store-option-pdv">{pdv}</span>
+        {loja?.apelido && <span className="store-option-apelido">{loja.apelido}</span>}
+        {lbs.map(lb => <span key={lb.id} className="label-chip label-chip--xs" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span>)}
+      </span>
+    )
+  }
+
+  const StoreLabels = ({ loja }: { loja?: { labels?: string[] } }) => (
+    <div className="label-chips-group">
+      {(loja?.labels ?? []).map(lid => {
+        const lb = labels.find(x => x.id === lid)
+        return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+      })}
+    </div>
+  )
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">ID do Cliente</h2>
+          <p className="page-subtitle">Meta IAF: 115% de alcance · {filteredRows.length} lojas</p>
+        </div>
+      </div>
+
+      {groupPctCpf !== null && (
+        <div className={`skin-summary-card${groupPctCpf >= TARGET_CPF ? ' skin-summary-card--ok' : ' skin-summary-card--alert'}`}>
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct">{fDec(groupPctCpf, 1)}%</span>
+            <span className="skin-summary-label">
+              {selectedLabels.length > 0 ? `% ID IAF — ${selectedLabels.map(lid => labels.find(l => l.id === lid)?.name ?? '').join(', ')}` : '% ID IAF do grupo'}
+            </span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct skin-summary-pct--target">115%</span>
+            <span className="skin-summary-label">meta IAF</span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            {groupPctCpf >= TARGET_CPF
+              ? <span className="skin-summary-status skin-summary-status--ok">✓ Meta IAF atingida</span>
+              : <span className="skin-summary-status skin-summary-status--nok">✗ {fDec(TARGET_CPF - groupPctCpf, 1)}pp abaixo da meta</span>
+            }
+            <span className="skin-summary-label">
+              {totalUsoIndevido > 0 ? `${fInt(totalUsoIndevido)} uso${totalUsoIndevido !== 1 ? 's' : ''} indevido${totalUsoIndevido !== 1 ? 's' : ''}` : 'sem usos indevidos'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {regionGroups.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Resumo por Região</h3>
+            <span className="dispersao-cons-sub">% ID IAF — meta 115%</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th>Região</th>
+                  <th className="col-num">Lojas</th>
+                  <th className="col-num">% ID</th>
+                  <th className="col-num">Uso Indevido</th>
+                  <th className="col-num">Lojas abaixo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regionGroups.map(g => (
+                  <tr key={g.label.id}>
+                    <td><span className="label-chip" style={{ '--chip-color': g.label.color } as React.CSSProperties}>{g.label.name}</span></td>
+                    <td className="col-num">{g.count}</td>
+                    <td className="col-num" style={{ color: cpfColor(g.pctCpf), fontWeight: 700 }}>{fDec(g.pctCpf, 1)}%</td>
+                    <td className="col-num" style={{ color: g.totUso > 0 ? '#dc2626' : undefined }}>{fInt(g.totUso)}</td>
+                    <td className="col-num" style={{ color: g.belowCount > 0 ? '#dc2626' : '#059669', fontWeight: 600 }}>{g.belowCount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {belowTarget.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="skin-alert-header">
+            <div>
+              <h3 className="skin-alert-title">Lojas Abaixo de 115% (Meta IAF)</h3>
+              <p className="dispersao-cons-sub">{belowTarget.length} loja{belowTarget.length !== 1 ? 's' : ''} abaixo da meta mínima</p>
+            </div>
+            <span className="skin-alert-badge">{belowTarget.length}</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Loja</th>
+                  <th>Região</th>
+                  <th className="col-num">Atend. ID</th>
+                  <th className="col-num">% ID Ant.</th>
+                  <th className="col-num">% ID Atual</th>
+                  <th className="col-num">Uso Indevido</th>
+                </tr>
+              </thead>
+              <tbody>
+                {belowTarget.map((r, i) => (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td><div className="col-pdv-name"><span className="col-pdv">{r.pdv}</span>{r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}</div></td>
+                    <td><StoreLabels loja={r.loja} /></td>
+                    <td className="col-num">{fInt(r.atend_id_atual)}</td>
+                    <td className="col-num" style={{ color: cpfColor(r.pct_cpf_ant * 100) }}>{fDec(r.pct_cpf_ant * 100, 1)}%</td>
+                    <td className="col-num" style={{ color: '#dc2626', fontWeight: 700 }}>{fDec(r.pctCpfPct, 1)}%</td>
+                    <td className="col-num" style={{ color: r.uso_indevido_atual > 0 ? '#dc2626' : undefined }}>{r.uso_indevido_atual > 0 ? fInt(r.uso_indevido_atual) : <span className="dash-muted">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Ranking de Lojas por % ID IAF</h3>
+          <span className="dispersao-cons-sub">{allRanked.length} lojas · meta IAF 115%</span>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Atend. ID</th>
+                <th className="col-num">% ID Ant.</th>
+                <th className="col-num">% ID Atual</th>
+                <th className="col-num">Uso Indevido</th>
+                <th className="col-num">Boletos ID</th>
+                <th className="col-num">% Bol. Válidos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allRanked.map((r, i) => (
+                <tr key={r.pdv}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td><div className="col-pdv-name"><span className="col-pdv">{r.pdv}</span>{r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}</div></td>
+                  <td><StoreLabels loja={r.loja} /></td>
+                  <td className="col-num">{fInt(r.atend_id_atual)}</td>
+                  <td className="col-num" style={{ color: cpfColor(r.pct_cpf_ant * 100) }}>{fDec(r.pct_cpf_ant * 100, 1)}%</td>
+                  <td className="col-num" style={{ color: cpfColor(r.pctCpfPct), fontWeight: r.pctCpfPct < TARGET_CPF ? 700 : undefined }}>{fDec(r.pctCpfPct, 1)}%</td>
+                  <td className="col-num" style={{ color: r.uso_indevido_atual > 0 ? '#dc2626' : undefined }}>{r.uso_indevido_atual > 0 ? fInt(r.uso_indevido_atual) : <span className="dash-muted">—</span>}</td>
+                  <td className="col-num">{fInt(r.boletos_id_atual)}</td>
+                  <td className="col-num" style={{ color: bolColor(r.pctBolPct) }}>{fDec(r.pctBolPct, 1)}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header" style={{ alignItems: 'flex-start', gap: 8 }}>
+          <h3 className="fluxo-card-title">Consultores por Loja</h3>
+          <div className="store-picker" ref={pickerRef}>
+            <button className="store-picker-btn" onClick={() => setPickerOpen(p => !p)}>
+              <StoreOptionContent pdv={activePdv} inline />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            {pickerOpen && (
+              <div className="store-picker-dropdown">
+                {idClienteRows.map(r => (
+                  <button key={r.pdv} className={`store-picker-opt${r.pdv === activePdv ? ' active' : ''}`}
+                    onClick={() => { setSelectedPdv(r.pdv); setPickerOpen(false) }}>
+                    <StoreOptionContent pdv={r.pdv} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        {consRows.length === 0 ? (
+          <div style={{ padding: '24px', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum consultor encontrado para esta loja.</div>
+        ) : (
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Consultor</th>
+                  <th className="col-num">Atend. ID</th>
+                  <th className="col-num">% ID</th>
+                  <th className="col-num">Uso Indevido</th>
+                  <th className="col-num">% Bol. Válidos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {consRows.map((c, i) => (
+                  <tr key={c.consultor}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td className="col-consultor">{c.consultor}</td>
+                    <td className="col-num">{fInt(c.atend_id)}</td>
+                    <td className="col-num" style={{ color: cpfColor(c.pctCpfPct), fontWeight: c.pctCpfPct < TARGET_CPF ? 700 : undefined }}>{fDec(c.pctCpfPct, 1)}%</td>
+                    <td className="col-num" style={{ color: c.uso_indevido > 0 ? '#dc2626' : undefined }}>{c.uso_indevido > 0 ? fInt(c.uso_indevido) : <span className="dash-muted">—</span>}</td>
+                    <td className="col-num" style={{ color: bolColor(c.pctBolPct) }}>{fDec(c.pctBolPct, 1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /* ── IAF — Skin (Cuidados Faciais) ─────────────────── */
 function IafSkinPage() {
   const { skinRows, skinConsultorRows, skinCP, mainRows } = useData()
@@ -3958,8 +4289,9 @@ function Sidebar() {
             <SideItem to="/app/iaf"            icon={IC.check}   label="Indicadores" />
             <SideItem to="/app/iaf/detalhe"    icon={IC.search}  label="Detalhe" />
             <SideItem to="/app/iaf/fluxo"      icon={IC.arrows}  label="Ação de Fluxo" />
-            <SideItem to="/app/iaf/skin"       icon={IC.skin}    label="Skin"     requires={['skin','parcial-skin']} />
-            <SideItem to="/app/iaf/servicos"   icon={IC.doc}     label="Serviços" requires={['servicos']} />
+            <SideItem to="/app/iaf/skin"       icon={IC.skin}    label="Skin"          requires={['skin','parcial-skin']} />
+            <SideItem to="/app/iaf/id-cliente" icon={IC.idCard}  label="ID do Cliente" requires={['id-cliente']} />
+            <SideItem to="/app/iaf/servicos"   icon={IC.doc}     label="Serviços"      requires={['servicos']} />
           </div>
         </nav>
       )}
@@ -4219,8 +4551,9 @@ export default function AppShell() {
             <Route path="iaf"          element={<WipPage title="IAF — Indicadores" />} />
             <Route path="iaf/detalhe"  element={<WipPage title="IAF — Detalhe" />} />
             <Route path="iaf/fluxo"    element={<IafFluxoPage />} />
-            <Route path="iaf/skin"     element={<IafSkinPage />} />
-            <Route path="iaf/servicos" element={<WipPage title="Serviços" requires={['servicos']} />} />
+            <Route path="iaf/skin"       element={<IafSkinPage />} />
+            <Route path="iaf/id-cliente" element={<IDClientePage />} />
+            <Route path="iaf/servicos"   element={<WipPage title="Serviços" requires={['servicos']} />} />
             {/* Anual – Lojas */}
             <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas"              requires={['anual-main']} />} />
             <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional"   requires={['anual-main']} />} />

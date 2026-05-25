@@ -107,6 +107,37 @@ export interface SkinCP {
   demais_atual: number
 }
 
+export interface IDClienteRow {
+  pdv: string
+  atend_id_ant: number
+  atend_id_atual: number
+  atend_cpf_atual: number
+  pct_cpf_ant: number
+  pct_cpf_atual: number
+  uso_indevido_atual: number
+  pct_uso_atual: number
+  boletos_total_atual: number
+  boletos_id_atual: number
+  pct_boletos_validos_ant: number
+  pct_boletos_validos_atual: number
+}
+
+export interface IDClienteConsultorRow {
+  pdv: string
+  consultor: string
+  atend_id: number
+  pct_cpf: number
+  uso_indevido: number
+  pct_boletos_validos: number
+}
+
+export interface IDClienteCP {
+  atend_id: number
+  pct_cpf: number
+  uso_indevido: number
+  pct_boletos_validos: number
+}
+
 interface DataCtxType {
   mainRows: MainRow[]
   mainTotal: MainTotal | null
@@ -118,6 +149,9 @@ interface DataCtxType {
   skinRows: SkinRow[]
   skinConsultorRows: SkinConsultorRow[]
   skinCP: SkinCP | null
+  idClienteRows: IDClienteRow[]
+  idClienteConsultorRows: IDClienteConsultorRow[]
+  idClienteCP: IDClienteCP | null
   loadFile: (id: string, file: File) => Promise<void>
 }
 
@@ -357,6 +391,77 @@ async function parseSkinFile(file: File): Promise<{ rows: SkinRow[]; consultorRo
   return { rows: parseSkinPdvSheet(wb), consultorRows: parseSkinConsultorSheet(wb), cp: parseSkinCPSheet(wb) }
 }
 
+function parseIDClientePdvSheet(wb: XLSX.WorkBook): IDClienteRow[] {
+  const ws = wb.Sheets['PDV']
+  if (!ws) return []
+  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  return raw.slice(2).filter(r => {
+    const a = r as unknown[]
+    const pdv = String(a[0] ?? '').trim()
+    return pdv && pdv.toUpperCase() !== 'PDV' && pdv.toUpperCase() !== 'TOTAL'
+  }).map(r => {
+    const a = r as unknown[]
+    return {
+      pdv: String(a[0]),
+      atend_id_ant:              toNum(a[1]),  atend_id_atual:              toNum(a[2]),
+      atend_cpf_atual:           toNum(a[5]),
+      pct_cpf_ant:               toNum(a[10]), pct_cpf_atual:               toNum(a[11]),
+      uso_indevido_atual:        toNum(a[8]),
+      pct_uso_atual:             toNum(a[14]),
+      boletos_total_atual:       toNum(a[20]),
+      boletos_id_atual:          toNum(a[23]),
+      pct_boletos_validos_ant:   toNum(a[31]), pct_boletos_validos_atual:   toNum(a[32]),
+    }
+  })
+}
+
+function parseIDClienteConsultorSheet(wb: XLSX.WorkBook): IDClienteConsultorRow[] {
+  const ws = wb.Sheets['CONSULTOR']
+  if (!ws) return []
+  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  return raw.slice(1).filter(r => {
+    const a = r as unknown[]
+    const pdv = String(a[0] ?? '').trim()
+    const con = String(a[1] ?? '').trim()
+    return pdv && con && pdv.toUpperCase() !== 'PDV' && con.toUpperCase() !== 'CONSULTOR' && pdv.toUpperCase() !== 'TOTAL'
+  }).map(r => {
+    const a = r as unknown[]
+    return {
+      pdv:       String(a[0]),
+      consultor: String(a[1]),
+      atend_id:           toNum(a[2]),
+      uso_indevido:       toNum(a[3]),
+      pct_cpf:            toNum(a[4]),
+      pct_boletos_validos: toNum(a[11]),
+    }
+  })
+}
+
+function parseIDClienteCPSheet(wb: XLSX.WorkBook): IDClienteCP | null {
+  const ws = wb.Sheets['CP']
+  if (!ws) return null
+  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const find = (test: (s: string) => boolean) =>
+    raw.find(r => test(String((r as unknown[])[0] ?? '').toLowerCase())) as unknown[] | undefined
+  const rowAtend    = find(s => s.includes('atend') && !s.includes('%') && !s.includes('cpf'))
+  const rowCpf      = find(s => s.startsWith('%') && s.includes('cpf'))
+  const rowIndevido = find(s => s.includes('indevido') && !s.includes('%'))
+  const rowBolVal   = find(s => s.includes('válid') || s.includes('valid'))
+  if (!rowAtend && !rowCpf) return null
+  return {
+    atend_id:           parseBRL(rowAtend?.[1] ?? 0),
+    pct_cpf:            parseBRL(rowCpf?.[1]   ?? 0),
+    uso_indevido:       parseBRL(rowIndevido?.[1] ?? 0),
+    pct_boletos_validos: parseBRL(rowBolVal?.[1] ?? 0),
+  }
+}
+
+async function parseIDClienteFile(file: File): Promise<{ rows: IDClienteRow[]; consultorRows: IDClienteConsultorRow[]; cp: IDClienteCP | null }> {
+  const buf = await file.arrayBuffer()
+  const wb = XLSX.read(buf)
+  return { rows: parseIDClientePdvSheet(wb), consultorRows: parseIDClienteConsultorSheet(wb), cp: parseIDClienteCPSheet(wb) }
+}
+
 function tryParse<T>(key: string, fallback: T): T {
   try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : fallback } catch { return fallback }
 }
@@ -372,6 +477,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [skinRows, setSkinRows]                       = useState<SkinRow[]>(() => tryParse('prisma-data-skin', []))
   const [skinConsultorRows, setSkinConsultorRows]     = useState<SkinConsultorRow[]>(() => tryParse('prisma-data-skin-consultor', []))
   const [skinCP, setSkinCP]                           = useState<SkinCP | null>(() => tryParse('prisma-data-skin-cp', null))
+  const [idClienteRows, setIdClienteRows]                           = useState<IDClienteRow[]>(() => tryParse('prisma-data-idcliente', []))
+  const [idClienteConsultorRows, setIdClienteConsultorRows]         = useState<IDClienteConsultorRow[]>(() => tryParse('prisma-data-idcliente-consultor', []))
+  const [idClienteCP, setIdClienteCP]                               = useState<IDClienteCP | null>(() => tryParse('prisma-data-idcliente-cp', null))
 
   useEffect(() => { try { localStorage.setItem('prisma-data-main', JSON.stringify(mainRows)) } catch {} }, [mainRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-main-total', JSON.stringify(mainTotal)) } catch {} }, [mainTotal])
@@ -383,6 +491,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem('prisma-data-skin', JSON.stringify(skinRows)) } catch {} }, [skinRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-skin-consultor', JSON.stringify(skinConsultorRows)) } catch {} }, [skinConsultorRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-skin-cp', JSON.stringify(skinCP)) } catch {} }, [skinCP])
+  useEffect(() => { try { localStorage.setItem('prisma-data-idcliente', JSON.stringify(idClienteRows)) } catch {} }, [idClienteRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-idcliente-consultor', JSON.stringify(idClienteConsultorRows)) } catch {} }, [idClienteConsultorRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-idcliente-cp', JSON.stringify(idClienteCP)) } catch {} }, [idClienteCP])
 
   async function loadFile(id: string, file: File) {
     if (id === 'main') {
@@ -394,11 +505,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } else if (id === 'skin') {
       const { rows, consultorRows: cr, cp } = await parseSkinFile(file)
       setSkinRows(rows); setSkinConsultorRows(cr); setSkinCP(cp)
+    } else if (id === 'id-cliente') {
+      const { rows, consultorRows: cr, cp } = await parseIDClienteFile(file)
+      setIdClienteRows(rows); setIdClienteConsultorRows(cr); setIdClienteCP(cp)
     }
   }
 
   return (
-    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, loadFile }}>
+    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, loadFile }}>
       {children}
     </DataCtx.Provider>
   )
