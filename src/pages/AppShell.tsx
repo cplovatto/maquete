@@ -3340,7 +3340,7 @@ function IafFluxoPage() {
 
 /* ── IAF — ID do Cliente ───────────────────────────── */
 function IDClientePage() {
-  const { idClienteRows, idClienteConsultorRows } = useData()
+  const { idClienteRows, idClienteConsultorRows, idClienteCP } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
@@ -3417,11 +3417,15 @@ function IDClientePage() {
   )
 
   // Valores derivados (não são hooks)
-  const totalAtendId    = filteredRows.reduce((s, r) => s + r.atend_id_atual, 0)
+  const totalAtendId     = filteredRows.reduce((s, r) => s + r.atend_id_atual, 0)
   const totalUsoIndevido = filteredRows.reduce((s, r) => s + r.uso_indevido_atual, 0)
-  const groupPctCpf = totalAtendId > 0
-    ? filteredRows.reduce((s, r) => s + r.pctCpfPct * r.atend_id_atual, 0) / totalAtendId
-    : null
+  // Sem filtro de região: usa o RESULTADO da aba CP (valor consolidado)
+  // Com filtro: média ponderada das lojas filtradas
+  const groupPctCpf = selectedLabels.length === 0 && idClienteCP
+    ? idClienteCP.pct_cpf
+    : totalAtendId > 0
+      ? filteredRows.reduce((s, r) => s + r.pctCpfPct * r.atend_id_atual, 0) / totalAtendId
+      : null
 
   const cpfColor = (pct: number) => pct >= 115 ? '#059669' : pct >= 100 ? '#d97706' : '#dc2626'
   const bolColor = (pct: number) => pct >= 90 ? '#059669' : pct >= 80 ? '#d97706' : '#dc2626'

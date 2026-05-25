@@ -429,8 +429,8 @@ function parseIDClienteCPSheet(wb: XLSX.WorkBook): IDClienteCP | null {
   const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   const find = (test: (s: string) => boolean) =>
     raw.find(r => test(String((r as unknown[])[0] ?? '').toLowerCase())) as unknown[] | undefined
-  const rowAtend    = find(s => s.includes('atend') && !s.includes('%'))
-  const rowCpf      = find(s => s.includes('cpf') || (s.includes('%') && s.includes('captura')))
+  const rowAtend    = find(s => s.includes('atend') && !s.includes('%') && !s.includes('cpf'))
+  const rowCpf      = find(s => s.startsWith('%') && s.includes('cpf'))
   const rowIndevido = find(s => s.includes('indevido') && !s.includes('%'))
   const rowBolVal   = find(s => s.includes('válid') || s.includes('valid'))
   if (!rowAtend && !rowCpf) return null
