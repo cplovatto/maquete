@@ -329,10 +329,10 @@ async function parseFluxoFile(file: File): Promise<{ rows: FluxoRow[]; total: Fl
   return { rows, total, fluxoConsultorRows }
 }
 
-function parseSkinPdvSheet(wb: XLSX.WorkBook): SkinRow[] {
+function parseSkinPdvSheet(wb: WorkBook, utils: XLSX_Utils): SkinRow[] {
   const ws = wb.Sheets['PDV']
   if (!ws) return []
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   return raw.slice(4).filter(r => {
     const a = r as unknown[]
     const pdv = String(a[0] ?? '').trim()
@@ -349,10 +349,10 @@ function parseSkinPdvSheet(wb: XLSX.WorkBook): SkinRow[] {
   })
 }
 
-function parseSkinConsultorSheet(wb: XLSX.WorkBook): SkinConsultorRow[] {
+function parseSkinConsultorSheet(wb: WorkBook, utils: XLSX_Utils): SkinConsultorRow[] {
   const ws = wb.Sheets['CONSULTOR']
   if (!ws) return []
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   return raw.slice(4).filter(r => {
     const a = r as unknown[]
     const con = String(a[0] ?? '').trim()
@@ -364,10 +364,10 @@ function parseSkinConsultorSheet(wb: XLSX.WorkBook): SkinConsultorRow[] {
   })
 }
 
-function parseSkinCPSheet(wb: XLSX.WorkBook): SkinCP | null {
+function parseSkinCPSheet(wb: WorkBook, utils: XLSX_Utils): SkinCP | null {
   const ws = wb.Sheets['CP']
   if (!ws) return null
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   // Skin total: "RECEITA CUIDADOS FACIAIS + BOTIK"
   const rowSkin = raw.find(r => { const c = String((r as unknown[])[0] ?? '').toLowerCase(); return c.includes('cuidados') || c.includes('facial') })
   // BOTIK total: row where col A = 'BOTIK' and col B = '' (not a subcategory)
@@ -387,14 +387,15 @@ function parseSkinCPSheet(wb: XLSX.WorkBook): SkinCP | null {
 
 async function parseSkinFile(file: File): Promise<{ rows: SkinRow[]; consultorRows: SkinConsultorRow[]; cp: SkinCP | null }> {
   const buf = await file.arrayBuffer()
-  const wb = XLSX.read(buf)
-  return { rows: parseSkinPdvSheet(wb), consultorRows: parseSkinConsultorSheet(wb), cp: parseSkinCPSheet(wb) }
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
+  return { rows: parseSkinPdvSheet(wb, utils), consultorRows: parseSkinConsultorSheet(wb, utils), cp: parseSkinCPSheet(wb, utils) }
 }
 
-function parseIDClientePdvSheet(wb: XLSX.WorkBook): IDClienteRow[] {
+function parseIDClientePdvSheet(wb: WorkBook, utils: XLSX_Utils): IDClienteRow[] {
   const ws = wb.Sheets['PDV']
   if (!ws) return []
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   return raw.slice(2).filter(r => {
     const a = r as unknown[]
     const pdv = String(a[0] ?? '').trim()
@@ -415,10 +416,10 @@ function parseIDClientePdvSheet(wb: XLSX.WorkBook): IDClienteRow[] {
   })
 }
 
-function parseIDClienteConsultorSheet(wb: XLSX.WorkBook): IDClienteConsultorRow[] {
+function parseIDClienteConsultorSheet(wb: WorkBook, utils: XLSX_Utils): IDClienteConsultorRow[] {
   const ws = wb.Sheets['CONSULTOR']
   if (!ws) return []
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   return raw.slice(1).filter(r => {
     const a = r as unknown[]
     const pdv = String(a[0] ?? '').trim()
@@ -437,10 +438,10 @@ function parseIDClienteConsultorSheet(wb: XLSX.WorkBook): IDClienteConsultorRow[
   })
 }
 
-function parseIDClienteCPSheet(wb: XLSX.WorkBook): IDClienteCP | null {
+function parseIDClienteCPSheet(wb: WorkBook, utils: XLSX_Utils): IDClienteCP | null {
   const ws = wb.Sheets['CP']
   if (!ws) return null
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   const find = (test: (s: string) => boolean) =>
     raw.find(r => test(String((r as unknown[])[0] ?? '').toLowerCase())) as unknown[] | undefined
   const rowAtend    = find(s => s.includes('atend') && !s.includes('%') && !s.includes('cpf'))
@@ -458,8 +459,9 @@ function parseIDClienteCPSheet(wb: XLSX.WorkBook): IDClienteCP | null {
 
 async function parseIDClienteFile(file: File): Promise<{ rows: IDClienteRow[]; consultorRows: IDClienteConsultorRow[]; cp: IDClienteCP | null }> {
   const buf = await file.arrayBuffer()
-  const wb = XLSX.read(buf)
-  return { rows: parseIDClientePdvSheet(wb), consultorRows: parseIDClienteConsultorSheet(wb), cp: parseIDClienteCPSheet(wb) }
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
+  return { rows: parseIDClientePdvSheet(wb, utils), consultorRows: parseIDClienteConsultorSheet(wb, utils), cp: parseIDClienteCPSheet(wb, utils) }
 }
 
 function tryParse<T>(key: string, fallback: T): T {

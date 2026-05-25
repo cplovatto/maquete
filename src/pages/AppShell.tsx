@@ -300,7 +300,8 @@ const IC = {
   skin:     <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a9 9 0 0 1 9 9c0 4.17-2.84 7.67-6.69 8.69A9 9 0 1 1 12 2z"/><path d="M12 8c-1.5 1.5-2 3-2 4s.5 2.5 2 4"/><path d="M12 8c1.5 1.5 2 3 2 4s-.5 2.5-2 4"/></svg>,
   doc:      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>,
   dollar:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
-  idCard:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="7.5" cy="12" r="2.5"/><path d="M13 10h5M13 14h5"/></svg>,
+  idCard:      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="7.5" cy="12" r="2.5"/><path d="M13 10h5M13 14h5"/></svg>,
+  lojaDigital: <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>,
 }
 
 /* ── Lojas ──────────────────────────────────────────── */
@@ -675,8 +676,9 @@ const MENSAL_SOURCES: DataSource[] = [
   // IAF
   { id: 'iaf',          name: 'Relatório IAF',           format: 'XLSX', icon: IC.check,    defaultStatus: 'embedded', section: 'IAF' },
   { id: 'skin',         name: 'Skin (Cuidados Faciais)', format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'IAF' },
-  { id: 'id-cliente',   name: 'ID do Cliente',           format: 'XLSX', icon: IC.idCard,   defaultStatus: 'pending',  section: 'IAF' },
-  { id: 'servicos',     name: 'Serviços',                format: 'XLSX', icon: IC.doc,      defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'id-cliente',   name: 'ID do Cliente',           format: 'XLSX', icon: IC.idCard,      defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'loja-digital', name: 'Loja Digital',           format: 'XLSX', icon: IC.lojaDigital, defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'servicos',     name: 'Serviços',                format: 'XLSX', icon: IC.doc,         defaultStatus: 'pending',  section: 'IAF' },
 ]
 
 const ANUAL_SOURCES: DataSource[] = [
@@ -4290,8 +4292,9 @@ function Sidebar() {
             <SideItem to="/app/iaf/detalhe"    icon={IC.search}  label="Detalhe" />
             <SideItem to="/app/iaf/fluxo"      icon={IC.arrows}  label="Ação de Fluxo" />
             <SideItem to="/app/iaf/skin"       icon={IC.skin}    label="Skin"          requires={['skin','parcial-skin']} />
-            <SideItem to="/app/iaf/id-cliente" icon={IC.idCard}  label="ID do Cliente" requires={['id-cliente']} />
-            <SideItem to="/app/iaf/servicos"   icon={IC.doc}     label="Serviços"      requires={['servicos']} />
+            <SideItem to="/app/iaf/id-cliente"    icon={IC.idCard}      label="ID do Cliente" requires={['id-cliente']} />
+            <SideItem to="/app/iaf/loja-digital" icon={IC.lojaDigital} label="Loja Digital"  requires={['loja-digital']} />
+            <SideItem to="/app/iaf/servicos"     icon={IC.doc}         label="Serviços"      requires={['servicos']} />
           </div>
         </nav>
       )}
@@ -4552,8 +4555,9 @@ export default function AppShell() {
             <Route path="iaf/detalhe"  element={<WipPage title="IAF — Detalhe" />} />
             <Route path="iaf/fluxo"    element={<IafFluxoPage />} />
             <Route path="iaf/skin"       element={<IafSkinPage />} />
-            <Route path="iaf/id-cliente" element={<IDClientePage />} />
-            <Route path="iaf/servicos"   element={<WipPage title="Serviços" requires={['servicos']} />} />
+            <Route path="iaf/id-cliente"    element={<IDClientePage />} />
+            <Route path="iaf/loja-digital"  element={<WipPage title="IAF — Loja Digital" requires={['loja-digital']} />} />
+            <Route path="iaf/servicos"      element={<WipPage title="Serviços" requires={['servicos']} />} />
             {/* Anual – Lojas */}
             <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas"              requires={['anual-main']} />} />
             <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional"   requires={['anual-main']} />} />
