@@ -1841,6 +1841,24 @@ input, textarea { font-family: inherit; }
 }
 [data-theme="dark"] .skin-alert-badge { background: #7f1d1d33; }
 
+.skin-col-botik  { background: #eff6ff; }
+.skin-col-demais { background: #f0fdf4; }
+[data-theme="dark"] .skin-col-botik  { background: #1e3a5f18; }
+[data-theme="dark"] .skin-col-demais { background: #14532d18; }
+
+.skin-brand-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-right: 4px;
+}
+.skin-brand-tag--botik  { background: #dbeafe; color: #1d4ed8; }
+.skin-brand-tag--demais { background: #d1fae5; color: #065f46; }
+[data-theme="dark"] .skin-brand-tag--botik  { background: #1e3a5f40; color: #93c5fd; }
+[data-theme="dark"] .skin-brand-tag--demais { background: #14532d40; color: #6ee7b7; }
+
 /* ── Responsive ─────────────────────────────────────── */
 @media (max-width: 900px) {
   .nav-links { display: none; }

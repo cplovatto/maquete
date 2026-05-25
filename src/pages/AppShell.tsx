@@ -3409,6 +3409,33 @@ function IafSkinPage() {
 
   const totalGap = belowTarget.reduce((s, r) => s + r.gapReceita, 0)
 
+  // 1. Resumo por região
+  const regionGroups = useMemo(() => {
+    if (labels.length === 0) return []
+    return labels
+      .filter(lb => selectedLabels.length === 0 || selectedLabels.includes(lb.id))
+      .map(lb => {
+        const rows = storeRows.filter(r => (r.loja?.labels ?? []).includes(lb.id))
+        if (rows.length === 0) return null
+        const totSkin = rows.reduce((s, r) => s + r.receita_atual, 0)
+        const totVF   = rows.reduce((s, r) => s + r.vf_total,    0)
+        const sharePct = totVF > 0 ? totSkin / totVF * 100 : 0
+        const totGap   = rows.reduce((s, r) => s + r.gapReceita, 0)
+        const belowCount = rows.filter(r => r.sharePct < TARGET_MIN).length
+        return { label: lb, count: rows.length, sharePct, totSkin, totGap, belowCount }
+      })
+      .filter(Boolean) as { label: typeof labels[0]; count: number; sharePct: number; totSkin: number; totGap: number; belowCount: number }[]
+  }, [labels, storeRows, selectedLabels])
+
+  // 2. Ranking global de consultores por share skin
+  const consRanking = useMemo(() =>
+    skinConsultorRows
+      .map(c => { const loja = lojaMap.get(c.pdv); return { ...c, loja, sharePct: c.share * 100 } })
+      .filter(c => selectedLabels.length === 0 || selectedLabels.some(lid => (c.loja?.labels ?? []).includes(lid)))
+      .filter(c => c.receita_atual > 0)
+      .sort((a, b) => b.sharePct - a.sharePct)
+  , [skinConsultorRows, lojaMap, selectedLabels])
+
   function StoreOptionContent({ pdv, inline }: { pdv: string; inline?: boolean }) {
     const loja = lojaMap.get(pdv)
     const lbs  = (loja?.labels ?? []).map(lid => labels.find(l => l.id === lid)).filter(Boolean) as typeof labels
@@ -3468,6 +3495,42 @@ function IafSkinPage() {
               onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
             >{lb.name}</button>
           ))}
+        </div>
+      )}
+
+      {/* 1. Resumo por região */}
+      {regionGroups.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Resumo por Região</h3>
+            <span className="dispersao-cons-sub">share vs meta {TARGET_MIN}%</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th>Região</th>
+                  <th className="col-num">Lojas</th>
+                  <th className="col-num">Share</th>
+                  <th className="col-num">Receita Skin</th>
+                  <th className="col-num">Lojas abaixo</th>
+                  <th className="col-num col-gap-head">GAP total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regionGroups.map(g => (
+                  <tr key={g.label.id}>
+                    <td><span className="label-chip" style={{ '--chip-color': g.label.color } as React.CSSProperties}>{g.label.name}</span></td>
+                    <td className="col-num">{g.count}</td>
+                    <td className="col-num" style={{ color: g.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 700 }}>{fDec(g.sharePct, 2)}%</td>
+                    <td className="col-num">{fBRLR(g.totSkin)}</td>
+                    <td className="col-num" style={{ color: g.belowCount > 0 ? '#dc2626' : '#059669', fontWeight: 600 }}>{g.belowCount}</td>
+                    <td className="col-num col-gap-val">{g.totGap > 0 ? fBRLR(g.totGap) : <span className="dash-muted">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -3565,6 +3628,113 @@ function IafSkinPage() {
           </table>
         </div>
       </div>
+
+      {/* 3. Breakdown BOTIK vs Demais Marcas */}
+      {allRanked.some(r => r.botik_atual > 0 || r.demais_atual > 0) && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <div>
+              <h3 className="fluxo-card-title">BOTIK vs Demais Marcas</h3>
+              <p className="dispersao-cons-sub">Composição do share de skincare por loja</p>
+            </div>
+            {skinCP && (
+              <div style={{ textAlign: 'right', fontSize: 13 }}>
+                <div><span className="skin-brand-tag skin-brand-tag--botik">BOTIK</span> {fDec(skinCP.botik_share * 100, 2)}% do total</div>
+                <div><span className="skin-brand-tag skin-brand-tag--demais">Demais</span> {fDec(skinCP.demais_share * 100, 2)}% do total</div>
+              </div>
+            )}
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Loja</th>
+                  <th>Região</th>
+                  <th className="col-num">Share Total</th>
+                  <th className="col-num skin-col-botik">BOTIK R$</th>
+                  <th className="col-num skin-col-botik">BOTIK %</th>
+                  <th className="col-num skin-col-demais">Demais R$</th>
+                  <th className="col-num skin-col-demais">Demais %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allRanked.map((r, i) => {
+                  const botikPct = r.vf_total > 0 ? r.botik_atual / r.vf_total * 100 : 0
+                  const demaisPct = r.vf_total > 0 ? r.demais_atual / r.vf_total * 100 : 0
+                  return (
+                    <tr key={r.pdv}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td>
+                        <div className="col-pdv-name">
+                          <span className="col-pdv">{r.pdv}</span>
+                          {r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="label-chips-group">
+                          {(r.loja?.labels ?? []).map(lid => { const lb = labels.find(x => x.id === lid); return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null })}
+                        </div>
+                      </td>
+                      <td className="col-num" style={{ color: r.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 600 }}>{fDec(r.sharePct, 2)}%</td>
+                      <td className="col-num skin-col-botik">{r.botik_atual > 0 ? fBRLR(r.botik_atual) : <span className="dash-muted">—</span>}</td>
+                      <td className="col-num skin-col-botik">{fDec(botikPct, 2)}%</td>
+                      <td className="col-num skin-col-demais">{r.demais_atual > 0 ? fBRLR(r.demais_atual) : <span className="dash-muted">—</span>}</td>
+                      <td className="col-num skin-col-demais">{fDec(demaisPct, 2)}%</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Ranking global de consultores */}
+      {consRanking.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Ranking de Consultores por Share Skin</h3>
+            <span className="dispersao-cons-sub">{consRanking.length} consultores · meta {TARGET_MIN}%</span>
+          </div>
+          <div className="fluxo-ranking-cons-wrap">
+            <div>
+              <div className="fluxo-ranking-cons-title fluxo-ranking-cons-title--top">Top embaixadores</div>
+              <table className="dash-table">
+                <thead><tr><th className="col-rank">#</th><th>Consultor</th><th className="col-pdv">PDV</th><th className="col-num">Share</th><th className="col-num">Receita Skin</th></tr></thead>
+                <tbody>
+                  {consRanking.slice(0, 10).map((c, i) => (
+                    <tr key={`${c.pdv}-${c.consultor}`}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-pdv">{c.pdv}</td>
+                      <td className="col-num" style={{ color: c.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 700 }}>{fDec(c.sharePct, 2)}%</td>
+                      <td className="col-num">{fBRLR(c.receita_atual)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <div className="fluxo-ranking-cons-title fluxo-ranking-cons-title--bottom">Precisam de atenção</div>
+              <table className="dash-table">
+                <thead><tr><th className="col-rank">#</th><th>Consultor</th><th className="col-pdv">PDV</th><th className="col-num">Share</th><th className="col-num">Receita Skin</th></tr></thead>
+                <tbody>
+                  {consRanking.slice(-10).reverse().map((c, i) => (
+                    <tr key={`${c.pdv}-${c.consultor}`}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-pdv">{c.pdv}</td>
+                      <td className="col-num" style={{ color: c.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 700 }}>{fDec(c.sharePct, 2)}%</td>
+                      <td className="col-num">{fBRLR(c.receita_atual)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Consultores por loja */}
       {skinConsultorRows.length > 0 && (
