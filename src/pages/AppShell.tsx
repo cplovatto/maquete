@@ -3751,65 +3751,6 @@ function IafSkinPage() {
         </div>
       )}
 
-      {/* Consultores por loja */}
-      {skinConsultorRows.length > 0 && (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div className="dispersao-cons-header">
-            <div>
-              <h3 className="dispersao-cons-title">Consultores por Loja</h3>
-              <p className="dispersao-cons-sub">Share de skincare por consultor · meta {TARGET_MIN}%</p>
-            </div>
-            <div className="store-picker" ref={pickerRef}>
-              <span className="detalhe-selector-label">Loja</span>
-              <button className="store-picker-btn" onClick={() => setPickerOpen(o => !o)}>
-                <StoreOptionContent pdv={activePdv} inline />
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-              </button>
-              {pickerOpen && (
-                <div className="store-picker-dropdown">
-                  {skinRows.map(r => (
-                    <button key={r.pdv}
-                      className={`store-picker-option${r.pdv === activePdv ? ' selected' : ''}`}
-                      onClick={() => { setSelectedPdv(r.pdv); setPickerOpen(false) }}
-                    >
-                      <StoreOptionContent pdv={r.pdv} />
-                      {r.pdv === activePdv && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {consRows.length === 0 ? (
-            <div style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>Nenhum dado de consultores para esta loja.</div>
-          ) : (
-            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
-              <table className="dash-table">
-                <thead>
-                  <tr>
-                    <th className="col-rank">#</th>
-                    <th>Consultor</th>
-                    <th className="col-num">Share Skin</th>
-                    <th className="col-num">Receita Skin Atual</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {consRows.map((c, i) => (
-                    <tr key={c.consultor}>
-                      <td className="col-rank">{i + 1}</td>
-                      <td className="col-consultor">{c.consultor}</td>
-                      <td className="col-num" style={{ color: c.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 600 }}>{fDec(c.sharePct, 2)}%</td>
-                      <td className="col-num">{fBRLR(c.receita_atual)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Potencial por faixa de share */}
       {potencialRows.length > 0 && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -3871,6 +3812,65 @@ function IafSkinPage() {
               </tfoot>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Consultores por loja */}
+      {skinConsultorRows.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="dispersao-cons-header">
+            <div>
+              <h3 className="dispersao-cons-title">Consultores por Loja</h3>
+              <p className="dispersao-cons-sub">Share de skincare por consultor · meta {TARGET_MIN}%</p>
+            </div>
+            <div className="store-picker" ref={pickerRef}>
+              <span className="detalhe-selector-label">Loja</span>
+              <button className="store-picker-btn" onClick={() => setPickerOpen(o => !o)}>
+                <StoreOptionContent pdv={activePdv} inline />
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              {pickerOpen && (
+                <div className="store-picker-dropdown">
+                  {skinRows.map(r => (
+                    <button key={r.pdv}
+                      className={`store-picker-option${r.pdv === activePdv ? ' selected' : ''}`}
+                      onClick={() => { setSelectedPdv(r.pdv); setPickerOpen(false) }}
+                    >
+                      <StoreOptionContent pdv={r.pdv} />
+                      {r.pdv === activePdv && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {consRows.length === 0 ? (
+            <div style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>Nenhum dado de consultores para esta loja.</div>
+          ) : (
+            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th className="col-rank">#</th>
+                    <th>Consultor</th>
+                    <th className="col-num">Share Skin</th>
+                    <th className="col-num">Receita Skin Atual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consRows.map((c, i) => (
+                    <tr key={c.consultor}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-num" style={{ color: c.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 600 }}>{fDec(c.sharePct, 2)}%</td>
+                      <td className="col-num">{fBRLR(c.receita_atual)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>
