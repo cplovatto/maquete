@@ -302,6 +302,7 @@ const IC = {
   dollar:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
   idCard:      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="7.5" cy="12" r="2.5"/><path d="M13 10h5M13 14h5"/></svg>,
   lojaDigital: <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>,
+  pieChart:    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>,
 }
 
 /* ── Lojas ──────────────────────────────────────────── */
@@ -671,8 +672,9 @@ const MENSAL_SOURCES: DataSource[] = [
   { id: 'meta-diaant',  name: 'Meta — Dia anterior',     format: 'XLSX', icon: IC.calendar, defaultStatus: 'pending',  section: 'Gestão Instantânea' },
   { id: 'parcial-skin', name: 'Parcial Skin',            format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'Gestão Instantânea' },
   // Lojas
-  { id: 'main',         name: 'Indicadores principais',  format: 'XLSX', icon: IC.grid,     defaultStatus: 'pending',  section: 'Lojas' },
-  { id: 'fluxo',        name: 'Ação de Fluxo',           format: 'XLSX', icon: IC.arrows,   defaultStatus: 'pending',  section: 'Lojas' },
+  { id: 'main',             name: 'Indicadores principais',  format: 'XLSX', icon: IC.grid,     defaultStatus: 'pending', section: 'Lojas' },
+  { id: 'fluxo',            name: 'Ação de Fluxo',           format: 'XLSX', icon: IC.arrows,   defaultStatus: 'pending', section: 'Lojas' },
+  { id: 'share-categorias', name: 'Share das Categorias',    format: 'XLSX', icon: IC.pieChart, defaultStatus: 'pending', section: 'Lojas' },
   // IAF
   { id: 'iaf',          name: 'Relatório IAF',           format: 'XLSX', icon: IC.check,    defaultStatus: 'embedded', section: 'IAF' },
   { id: 'skin',         name: 'Skin (Cuidados Faciais)', format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'IAF' },
@@ -3669,6 +3671,180 @@ function IDClientePage() {
   )
 }
 
+/* ── Lojas — Share das Categorias ───────────────────── */
+type ShareSortKey = 'total_receita' | 'cabelos' | 'pele' | 'gifts' | 'make' | 'perf' | 'outros'
+const CATS: { key: Exclude<ShareSortKey, 'total_receita'>; label: string; color: string }[] = [
+  { key: 'cabelos', label: 'Cabelos',  color: '#a16207' },
+  { key: 'pele',    label: 'Pele',     color: '#0891b2' },
+  { key: 'gifts',   label: 'Gifts',    color: '#7c3aed' },
+  { key: 'make',    label: 'Make',     color: '#db2777' },
+  { key: 'perf',    label: 'Perf.',    color: '#d97706' },
+  { key: 'outros',  label: 'Outros',   color: '#64748b' },
+]
+
+function getPctByCat(r: { cabelos_pct: number; pele_pct: number; gifts_pct: number; make_pct: number; perf_pct: number; outros_pct: number }, key: Exclude<ShareSortKey, 'total_receita'>): number {
+  return { cabelos: r.cabelos_pct, pele: r.pele_pct, gifts: r.gifts_pct, make: r.make_pct, perf: r.perf_pct, outros: r.outros_pct }[key]
+}
+
+function ShareCategoriasPage() {
+  const { shareCatRows, shareCatCP } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const [sortKey, setSortKey] = useState<ShareSortKey>('total_receita')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const storeRows = useMemo(() => {
+    const rows = shareCatRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+    const filtered = selectedLabels.length === 0
+      ? rows
+      : rows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+    return [...filtered].sort((a, b) => {
+      const va = sortKey === 'total_receita' ? a.total_receita : getPctByCat(a, sortKey)
+      const vb = sortKey === 'total_receita' ? b.total_receita : getPctByCat(b, sortKey)
+      return sortDir === 'desc' ? vb - va : va - vb
+    })
+  }, [shareCatRows, lojaMap, selectedLabels, sortKey, sortDir])
+
+  if (shareCatRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+      <div className="page-empty-title">Share das Categorias não carregado</div>
+      <div className="page-empty-desc">Importe a planilha para visualizar este relatório</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Share das Categorias <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  function onSort(key: ShareSortKey) {
+    if (key === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
+
+  function SortTh({ k, children, right }: { k: ShareSortKey; children: React.ReactNode; right?: boolean }) {
+    const active = sortKey === k
+    return (
+      <th className={`${right ? 'col-num' : ''} sort-th${active ? ' sort-active' : ''}`} onClick={() => onSort(k)}>
+        {children} <span className="sort-arrow">{active ? (sortDir === 'desc' ? '▼' : '▲') : '⇅'}</span>
+      </th>
+    )
+  }
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Share das Categorias</h2>
+          <p className="page-subtitle">{storeRows.length} lojas</p>
+        </div>
+      </div>
+
+      {/* Referência de rede (CP) */}
+      {shareCatCP && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-head" style={{ marginBottom: 10 }}>
+            <div className="card-title">Média da Rede — CP {shareCatCP.total_receita > 0 ? `· ${fBRLR(shareCatCP.total_receita)}` : ''}</div>
+          </div>
+          {/* Barra empilhada */}
+          <div style={{ display: 'flex', height: 20, borderRadius: 6, overflow: 'hidden', marginBottom: 12 }}>
+            {CATS.map(c => {
+              const pct = getPctByCat(shareCatCP, c.key)
+              return pct > 0 ? (
+                <div key={c.key} style={{ width: `${pct}%`, background: c.color }} title={`${c.label}: ${fDec(pct, 2)}%`} />
+              ) : null
+            })}
+          </div>
+          {/* Legenda */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px' }}>
+            {CATS.map(c => (
+              <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: c.color, flexShrink: 0 }} />
+                <span style={{ color: 'var(--text-secondary)' }}>{c.label}</span>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{fDec(getPctByCat(shareCatCP, c.key), 2)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Filtro de região */}
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Tabela */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <SortTh k="total_receita" right>Receita</SortTh>
+                {CATS.map(c => <SortTh key={c.key} k={c.key} right>{c.label}</SortTh>)}
+              </tr>
+              {/* Linha de referência CP */}
+              {shareCatCP && (
+                <tr style={{ background: 'var(--bg-surface-2)', fontStyle: 'italic', fontSize: 12 }}>
+                  <td colSpan={3} style={{ color: 'var(--text-muted)', paddingLeft: 12 }}>Média da rede</td>
+                  <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fBRLR(shareCatCP.total_receita)}</td>
+                  {CATS.map(c => (
+                    <td key={c.key} className="col-num" style={{ color: c.color, fontWeight: 600 }}>
+                      {fDec(getPctByCat(shareCatCP, c.key), 2)}%
+                    </td>
+                  ))}
+                </tr>
+              )}
+            </thead>
+            <tbody>
+              {storeRows.map((r, i) => (
+                <tr key={r.pdv}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td className="col-pdv">{r.pdv}</td>
+                  <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                  <td className="col-num">{fBRLR(r.total_receita)}</td>
+                  {CATS.map(c => {
+                    const pct = getPctByCat(r, c.key)
+                    const avg = shareCatCP ? getPctByCat(shareCatCP, c.key) : null
+                    const diff = avg !== null ? pct - avg : 0
+                    const bg = avg !== null
+                      ? diff > 3  ? 'rgba(5,150,105,0.1)'
+                      : diff < -3 ? 'rgba(220,38,38,0.08)'
+                      : undefined
+                      : undefined
+                    return (
+                      <td key={c.key} className="col-num" style={{ background: bg, fontWeight: Math.abs(diff) > 3 ? 600 : 400 }}>
+                        {fDec(pct, 2)}%
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── IAF — Loja Digital ─────────────────────────────── */
 function LojaDigitalPage() {
   const { lojaDigitalRows, lojaDigitalTotal } = useData()
@@ -4483,7 +4659,8 @@ function Sidebar() {
             <SideItem to="/app/lojas/ranking"      icon={IC.chart}   label="Ranking de Lojas" requires={['main','fluxo']} />
             <SideItem to="/app/lojas/detalhe"      icon={IC.store}   label="Detalhe da Loja"  requires={['main','fluxo']} />
             <SideItem to="/app/lojas/consultores"  icon={IC.users}   label="Consultores"      requires={['main','fluxo']} />
-            <SideItem to="/app/lojas/dispersao"    icon={IC.scatter} label="Dispersão"        requires={['main','fluxo']} />
+            <SideItem to="/app/lojas/dispersao"        icon={IC.scatter}  label="Dispersão"          requires={['main','fluxo']} />
+            <SideItem to="/app/lojas/share-categorias" icon={IC.pieChart} label="Share Categorias"  requires={['share-categorias']} />
           </div>
           <div className="nav-group">
             <div className="nav-group-title">IAF</div>
@@ -4748,7 +4925,8 @@ export default function AppShell() {
             <Route path="lojas/ranking"       element={<RankingPage />} />
             <Route path="lojas/detalhe"       element={<DetalhePage />} />
             <Route path="lojas/consultores"   element={<ConsultoresPage />} />
-            <Route path="lojas/dispersao"     element={<DispersaoPage />} />
+            <Route path="lojas/dispersao"         element={<DispersaoPage />} />
+            <Route path="lojas/share-categorias"  element={<ShareCategoriasPage />} />
             {/* Mensal – IAF */}
             <Route path="iaf"          element={<WipPage title="IAF — Indicadores" />} />
             <Route path="iaf/detalhe"  element={<WipPage title="IAF — Detalhe" />} />
