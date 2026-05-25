@@ -3777,7 +3777,6 @@ function IafSkinPage() {
                     <th>Consultor</th>
                     <th className="col-num">Share Skin</th>
                     <th className="col-num">Receita Skin Atual</th>
-                    <th className="col-num">Receita Skin Ant.</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3787,7 +3786,6 @@ function IafSkinPage() {
                       <td className="col-consultor">{c.consultor}</td>
                       <td className="col-num" style={{ color: c.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 600 }}>{fDec(c.sharePct, 2)}%</td>
                       <td className="col-num">{fBRLR(c.receita_atual)}</td>
-                      <td className="col-num">{fBRLR(c.receita_ant)}</td>
                     </tr>
                   ))}
                 </tbody>
