@@ -777,6 +777,7 @@ function SideItem({ to, icon, label, requires }: SideItemProps) {
   return (
     <NavLink
       to={to}
+      end
       className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
     >
       {icon}
