@@ -3349,7 +3349,7 @@ function IDClientePage() {
   const pickerRef = useRef<HTMLDivElement>(null)
   const { openImport } = useFileStatus()
 
-  const TARGET_CPF = 80
+  const TARGET_CPF = 100
 
   if (idClienteRows.length === 0) return (
     <div className="page-empty-state">
@@ -3384,9 +3384,11 @@ function IDClientePage() {
   , [storeRows, selectedLabels])
 
   const totalAtendId    = filteredRows.reduce((s, r) => s + r.atend_id_atual, 0)
-  const totalAtendCpf   = filteredRows.reduce((s, r) => s + r.atend_cpf_atual, 0)
   const totalUsoIndevido = filteredRows.reduce((s, r) => s + r.uso_indevido_atual, 0)
-  const groupPctCpf     = totalAtendId > 0 ? totalAtendCpf / totalAtendId * 100 : null
+  // Média ponderada do indicador IAF (% CPF), peso = atendimentos ID
+  const groupPctCpf = totalAtendId > 0
+    ? filteredRows.reduce((s, r) => s + r.pctCpfPct * r.atend_id_atual, 0) / totalAtendId
+    : null
 
   const belowTarget = useMemo(() =>
     filteredRows.filter(r => r.pctCpfPct < TARGET_CPF).sort((a, b) => a.pctCpfPct - b.pctCpfPct)
@@ -3410,9 +3412,8 @@ function IDClientePage() {
       .map(lb => {
         const rows = storeRows.filter(r => (r.loja?.labels ?? []).includes(lb.id))
         if (rows.length === 0) return null
-        const totId  = rows.reduce((s, r) => s + r.atend_id_atual,  0)
-        const totCpf = rows.reduce((s, r) => s + r.atend_cpf_atual, 0)
-        const pctCpf = totId > 0 ? totCpf / totId * 100 : 0
+        const totId  = rows.reduce((s, r) => s + r.atend_id_atual, 0)
+        const pctCpf = totId > 0 ? rows.reduce((s, r) => s + r.pctCpfPct * r.atend_id_atual, 0) / totId : 0
         const totUso = rows.reduce((s, r) => s + r.uso_indevido_atual, 0)
         const belowCount = rows.filter(r => r.pctCpfPct < TARGET_CPF).length
         return { label: lb, count: rows.length, pctCpf, totUso, belowCount }
@@ -3432,8 +3433,8 @@ function IDClientePage() {
     )
   }
 
-  const cpfColor = (pct: number) => pct >= TARGET_CPF ? '#059669' : pct >= TARGET_CPF * 0.9 ? '#d97706' : '#dc2626'
-  const bolColor = (pct: number) => pct >= 80 ? '#059669' : pct >= 65 ? '#d97706' : '#dc2626'
+  const cpfColor = (pct: number) => pct >= 100 ? '#059669' : pct >= 90 ? '#d97706' : '#dc2626'
+  const bolColor = (pct: number) => pct >= 90 ? '#059669' : pct >= 80 ? '#d97706' : '#dc2626'
 
   const StoreLabels = ({ loja }: { loja?: { labels?: string[] } }) => (
     <div className="label-chips-group">
@@ -3449,7 +3450,7 @@ function IDClientePage() {
       <div className="page-title-row">
         <div>
           <h2 className="page-title">ID do Cliente</h2>
-          <p className="page-subtitle">Meta mínima: {TARGET_CPF}% CPF capturado · {filteredRows.length} lojas</p>
+          <p className="page-subtitle">Meta IAF: 100% de alcance · {filteredRows.length} lojas</p>
         </div>
       </div>
 
@@ -3458,19 +3459,19 @@ function IDClientePage() {
           <div className="skin-summary-block">
             <span className="skin-summary-pct">{fDec(groupPctCpf, 1)}%</span>
             <span className="skin-summary-label">
-              {selectedLabels.length > 0 ? `% CPF — ${selectedLabels.map(lid => labels.find(l => l.id === lid)?.name ?? '').join(', ')}` : '% CPF do grupo'}
+              {selectedLabels.length > 0 ? `% CPF IAF — ${selectedLabels.map(lid => labels.find(l => l.id === lid)?.name ?? '').join(', ')}` : '% CPF IAF do grupo'}
             </span>
           </div>
           <div className="skin-summary-divider" />
           <div className="skin-summary-block">
-            <span className="skin-summary-pct skin-summary-pct--target">{TARGET_CPF}%</span>
-            <span className="skin-summary-label">meta mínima</span>
+            <span className="skin-summary-pct skin-summary-pct--target">100%</span>
+            <span className="skin-summary-label">meta IAF</span>
           </div>
           <div className="skin-summary-divider" />
           <div className="skin-summary-block">
-            {groupPctCpf >= TARGET_CPF
-              ? <span className="skin-summary-status skin-summary-status--ok">✓ Meta atingida</span>
-              : <span className="skin-summary-status skin-summary-status--nok">✗ {fDec(TARGET_CPF - groupPctCpf, 1)}pp abaixo da meta</span>
+            {groupPctCpf >= 100
+              ? <span className="skin-summary-status skin-summary-status--ok">✓ Meta IAF atingida</span>
+              : <span className="skin-summary-status skin-summary-status--nok">✗ {fDec(100 - groupPctCpf, 1)}pp abaixo da meta</span>
             }
             <span className="skin-summary-label">
               {totalUsoIndevido > 0 ? `${fInt(totalUsoIndevido)} uso${totalUsoIndevido !== 1 ? 's' : ''} indevido${totalUsoIndevido !== 1 ? 's' : ''}` : 'sem usos indevidos'}
@@ -3497,7 +3498,7 @@ function IDClientePage() {
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="fluxo-card-header">
             <h3 className="fluxo-card-title">Resumo por Região</h3>
-            <span className="dispersao-cons-sub">% CPF vs meta {TARGET_CPF}%</span>
+            <span className="dispersao-cons-sub">% CPF IAF — meta 100%</span>
           </div>
           <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
             <table className="dash-table">
@@ -3530,7 +3531,7 @@ function IDClientePage() {
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="skin-alert-header">
             <div>
-              <h3 className="skin-alert-title">Lojas Abaixo de {TARGET_CPF}% CPF</h3>
+              <h3 className="skin-alert-title">Lojas Abaixo da Meta IAF (100% CPF)</h3>
               <p className="dispersao-cons-sub">{belowTarget.length} loja{belowTarget.length !== 1 ? 's' : ''} abaixo da meta mínima</p>
             </div>
             <span className="skin-alert-badge">{belowTarget.length}</span>
@@ -3568,8 +3569,8 @@ function IDClientePage() {
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="fluxo-card-header">
-          <h3 className="fluxo-card-title">Ranking de Lojas por % CPF</h3>
-          <span className="dispersao-cons-sub">{allRanked.length} lojas · meta {TARGET_CPF}%</span>
+          <h3 className="fluxo-card-title">Ranking de Lojas por % CPF IAF</h3>
+          <span className="dispersao-cons-sub">{allRanked.length} lojas · meta IAF 100%</span>
         </div>
         <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
           <table className="dash-table">
