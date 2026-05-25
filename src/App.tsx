@@ -16,6 +16,7 @@ import AdminShell from './pages/AdminShell'
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   if (!user) return <Navigate to="/entrar" replace />
+  if (user.perfil === 'admin') return <Navigate to="/admin" replace />
   return <>{children}</>
 }
 

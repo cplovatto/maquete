@@ -1,46 +1,16 @@
 import { useState } from 'react'
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
+import { Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import CompaniesPage from './admin/CompaniesPage'
 import UsersPage from './admin/UsersPage'
 import BillingPage from './admin/BillingPage'
 
-/* ── Admin nav items ─────────────────────────────────── */
-
 const NAV_ITEMS = [
   { to: '/admin/empresas', icon: '🏢', label: 'Empresas' },
   { to: '/admin/usuarios', icon: '👥', label: 'Usuários' },
   { to: '/admin/cobranca', icon: '💳', label: 'Cobrança' },
 ]
-
-/* ── AdminNav ─────────────────────────────────────────── */
-
-function AdminNav() {
-  const navigate = useNavigate()
-  const [active, setActive] = useState(() => {
-    const hash = window.location.hash
-    const match = NAV_ITEMS.find(n => hash.includes(n.to))
-    return match?.to ?? '/admin/empresas'
-  })
-
-  return (
-    <nav className="admin-nav">
-      {NAV_ITEMS.map(item => (
-        <button
-          key={item.to}
-          className={`admin-nav-item${active === item.to ? ' active' : ''}`}
-          onClick={() => { setActive(item.to); navigate(item.to) }}
-        >
-          <span className="admin-nav-icon">{item.icon}</span>
-          <span>{item.label}</span>
-        </button>
-      ))}
-    </nav>
-  )
-}
-
-/* ── AdminShell ───────────────────────────────────────── */
 
 export default function AdminShell() {
   const { user, logout } = useAuth()
@@ -54,19 +24,20 @@ export default function AdminShell() {
   }
 
   return (
-    <div className="admin-shell">
-      {/* Header */}
-      <header className="admin-header">
-        <div className="admin-header-brand">
-          <span className="admin-header-logo">⚙️</span>
-          <span className="admin-header-title">Painel Administrativo</span>
-        </div>
+    <div className="app-shell">
+      {/* Header — mesma identidade visual do app */}
+      <header className="app-header">
+        <NavLink to="/admin" className="app-header-logo">
+          <div className="app-header-logo-icon">💎</div>
+          <span className="app-header-logo-text">Prisma Retail</span>
+        </NavLink>
 
-        <div className="admin-header-spacer" />
+        <div className="app-header-spacer" />
 
-        <div className="admin-header-actions">
-          <button className="app-header-icon-btn" title="Ir para o app" onClick={() => navigate('/app')}>
-            📊
+        <div className="app-header-actions">
+          <button className="app-header-icon-btn" title="Notificações">
+            🔔
+            <span className="notif-dot">3</span>
           </button>
           <button className="theme-toggle" onClick={toggleTheme} title="Alternar tema">
             {theme === 'light' ? '🌙' : '☀️'}
@@ -99,10 +70,29 @@ export default function AdminShell() {
         </div>
       </header>
 
-      <div className="admin-body">
-        <AdminNav />
+      <div className="app-body">
+        {/* Sidebar admin — estilo nav-sections igual ao app, sem dados de loja */}
+        <aside className="sidebar">
+          <nav className="nav-sections">
+            <div className="nav-group">
+              <div className="nav-group-title">Administração</div>
+              {NAV_ITEMS.map(item => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end
+                  className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                >
+                  <span className="nav-icon" style={{ fontSize: 16 }}>{item.icon}</span>
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          </nav>
+        </aside>
 
-        <main className="admin-main">
+        {/* Main */}
+        <main className="app-main">
           <Routes>
             <Route index element={<Navigate to="empresas" replace />} />
             <Route path="empresas" element={<CompaniesPage />} />

@@ -1,5 +1,17 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
-import * as XLSX from 'xlsx'
+import type { WorkBook, utils } from 'xlsx'
+
+/* xlsx é importado dinamicamente para não inflar o bundle inicial (640 KB) */
+let _xlsxMod: { read: typeof import('xlsx').read; utils: typeof import('xlsx').utils } | null = null
+async function getXLSX() {
+  if (!_xlsxMod) {
+    const mod = await import('xlsx')
+    _xlsxMod = { read: mod.read, utils: mod.utils }
+  }
+  return _xlsxMod
+}
+
+type XLSX_Utils = typeof utils
 
 export interface MainRow {
   pdv: string
@@ -136,10 +148,10 @@ function findCPRow(raw: unknown[][], name: string): unknown[] | null {
   return (row as unknown[] | undefined) ?? null
 }
 
-function parseCPSheet(wb: XLSX.WorkBook): CPData | null {
+function parseCPSheet(wb: WorkBook, utils: XLSX_Utils): CPData | null {
   const ws = wb.Sheets['CP']
   if (!ws) return null
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
 
   const rowReceita    = findCPRow(raw, 'Receita GMV (R$)')
   const rowReceitaPct = findCPRow(raw, 'Receita (%)')
@@ -163,10 +175,10 @@ function parseCPSheet(wb: XLSX.WorkBook): CPData | null {
   }
 }
 
-function parseConsultorSheet(wb: XLSX.WorkBook): ConsultorRow[] {
+function parseConsultorSheet(wb: WorkBook, utils: XLSX_Utils): ConsultorRow[] {
   const ws = wb.Sheets['CONSULTOR']
   if (!ws) return []
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   return raw
     .filter(r => {
       const a = r as unknown[]
@@ -177,10 +189,10 @@ function parseConsultorSheet(wb: XLSX.WorkBook): ConsultorRow[] {
     .map(r => toConsultorRow(r as unknown[]))
 }
 
-function parseFluxoConsultorSheet(wb: XLSX.WorkBook): FluxoConsultorRow[] {
+function parseFluxoConsultorSheet(wb: WorkBook, utils: XLSX_Utils): FluxoConsultorRow[] {
   const ws = wb.Sheets['CONSULTOR']
   if (!ws) return []
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   return raw
     .filter(r => {
       const a = r as unknown[]
@@ -202,14 +214,15 @@ function parseFluxoConsultorSheet(wb: XLSX.WorkBook): FluxoConsultorRow[] {
 
 async function parseMainFile(file: File): Promise<{ rows: MainRow[]; total: MainTotal | null; cp: CPData | null; consultorRows: ConsultorRow[] }> {
   const buf = await file.arrayBuffer()
-  const wb = XLSX.read(buf)
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
 
-  const cp = parseCPSheet(wb)
-  const consultorRows = parseConsultorSheet(wb)
+  const cp = parseCPSheet(wb, utils)
+  const consultorRows = parseConsultorSheet(wb, utils)
 
   const ws = wb.Sheets['PDV']
   if (!ws) return { rows: [], total: null, cp, consultorRows }
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   let total: MainTotal | null = null
   const tr = raw[2] as unknown[]
   if (tr && String(tr[0]).toUpperCase() === 'TOTAL') {
@@ -228,13 +241,14 @@ async function parseMainFile(file: File): Promise<{ rows: MainRow[]; total: Main
 
 async function parseFluxoFile(file: File): Promise<{ rows: FluxoRow[]; total: FluxoTotal | null; fluxoConsultorRows: FluxoConsultorRow[] }> {
   const buf = await file.arrayBuffer()
-  const wb = XLSX.read(buf)
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
 
-  const fluxoConsultorRows = parseFluxoConsultorSheet(wb)
+  const fluxoConsultorRows = parseFluxoConsultorSheet(wb, utils)
 
   const ws = wb.Sheets['PDV']
   if (!ws) return { rows: [], total: null, fluxoConsultorRows }
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   const toRow = (a: unknown[]): FluxoRow => ({
     pdv: String(a[0]), resgates: toNum(a[1]), conversoes: toNum(a[2]), conv_pct: toNum(a[3]),
   })
