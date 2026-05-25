@@ -3409,15 +3409,20 @@ function IafSkinPage() {
 
   const totalGap = belowTarget.reduce((s, r) => s + r.gapReceita, 0)
 
-  const TARGET_6 = 6.0
-  const potencial6 = useMemo(() =>
+  const potencialRows = useMemo(() =>
     filteredRows
       .filter(r => r.vf_total > 0)
-      .map(r => ({ ...r, meta6Receita: r.vf_total * (TARGET_6 / 100), incremento: Math.max(0, r.vf_total * (TARGET_6 / 100) - r.receita_atual) }))
-      .sort((a, b) => b.incremento - a.incremento)
+      .map(r => ({
+        ...r,
+        inc4: Math.max(0, r.vf_total * 0.04 - r.receita_atual),
+        inc5: Math.max(0, r.vf_total * 0.05 - r.receita_atual),
+        inc6: Math.max(0, r.vf_total * 0.06 - r.receita_atual),
+      }))
+      .sort((a, b) => b.inc6 - a.inc6)
   , [filteredRows])
-  const totalPotencial6 = potencial6.reduce((s, r) => s + r.incremento, 0)
-  const jaAtiram6 = potencial6.filter(r => r.incremento === 0).length
+  const totInc4 = potencialRows.reduce((s, r) => s + r.inc4, 0)
+  const totInc5 = potencialRows.reduce((s, r) => s + r.inc5, 0)
+  const totInc6 = potencialRows.reduce((s, r) => s + r.inc6, 0)
 
   // 1. Resumo por região
   const regionGroups = useMemo(() => {
@@ -3805,20 +3810,19 @@ function IafSkinPage() {
         </div>
       )}
 
-      {/* Potencial a 6% */}
-      {potencial6.length > 0 && (
+      {/* Potencial por faixa de share */}
+      {potencialRows.length > 0 && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="fluxo-card-header">
             <div>
-              <h3 className="fluxo-card-title">Potencial a {TARGET_6}% de Share</h3>
-              <p className="dispersao-cons-sub">
-                Incremento estimado se cada loja atingisse {TARGET_6}%
-                {jaAtiram6 > 0 ? ` · ${jaAtiram6} loja${jaAtiram6 !== 1 ? 's' : ''} já atingem` : ''}
-              </p>
+              <h3 className="fluxo-card-title">Potencial de Incremento por Faixa</h3>
+              <p className="dispersao-cons-sub">Receita adicional estimada se o share de cada loja atingisse 4%, 5% ou 6%</p>
             </div>
-            <span className="fluxo-gap-total" style={{ color: 'var(--brand-primary)', background: 'var(--bg-surface-2)' }}>
-              +{fBRLR(totalPotencial6)} de potencial
-            </span>
+            <div style={{ textAlign: 'right', fontSize: 13, lineHeight: 1.8 }}>
+              <div><span className="skin-brand-tag" style={{ background: '#ede9fe', color: '#6d28d9' }}>6%</span> +{fBRLR(totInc6)}</div>
+              <div><span className="skin-brand-tag" style={{ background: '#e0e7ff', color: '#4338ca' }}>5%</span> +{fBRLR(totInc5)}</div>
+              <div><span className="skin-brand-tag" style={{ background: '#dbeafe', color: '#1d4ed8' }}>4%</span> +{fBRLR(totInc4)}</div>
+            </div>
           </div>
           <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
             <table className="dash-table">
@@ -3828,13 +3832,14 @@ function IafSkinPage() {
                   <th>Loja</th>
                   <th>Região</th>
                   <th className="col-num">Share Atual</th>
-                  <th className="col-num">Receita Skin Atual</th>
-                  <th className="col-num">Receita a {TARGET_6}%</th>
-                  <th className="col-num col-gap-head">Incremento</th>
+                  <th className="col-num">Receita Skin</th>
+                  <th className="col-num skin-col-inc4">+ se 4%</th>
+                  <th className="col-num skin-col-inc5">+ se 5%</th>
+                  <th className="col-num skin-col-inc6">+ se 6%</th>
                 </tr>
               </thead>
               <tbody>
-                {potencial6.map((r, i) => (
+                {potencialRows.map((r, i) => (
                   <tr key={r.pdv}>
                     <td className="col-rank">{i + 1}</td>
                     <td>
@@ -3848,19 +3853,20 @@ function IafSkinPage() {
                         {(r.loja?.labels ?? []).map(lid => { const lb = labels.find(x => x.id === lid); return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null })}
                       </div>
                     </td>
-                    <td className="col-num" style={{ color: r.sharePct >= TARGET_6 ? '#059669' : r.sharePct >= TARGET_MIN ? '#d97706' : '#dc2626', fontWeight: 600 }}>{fDec(r.sharePct, 2)}%</td>
+                    <td className="col-num" style={{ color: r.sharePct >= 6 ? '#059669' : r.sharePct >= TARGET_MIN ? '#d97706' : '#dc2626', fontWeight: 600 }}>{fDec(r.sharePct, 2)}%</td>
                     <td className="col-num">{fBRLR(r.receita_atual)}</td>
-                    <td className="col-num">{fBRLR(r.meta6Receita)}</td>
-                    <td className="col-num" style={{ color: r.incremento > 0 ? 'var(--brand-primary)' : '#059669', fontWeight: 700 }}>
-                      {r.incremento > 0 ? `+${fBRLR(r.incremento)}` : '✓'}
-                    </td>
+                    <td className="col-num skin-col-inc4" style={{ fontWeight: r.inc4 > 0 ? 600 : 400, color: r.inc4 > 0 ? '#1d4ed8' : '#059669' }}>{r.inc4 > 0 ? `+${fBRLR(r.inc4)}` : '✓'}</td>
+                    <td className="col-num skin-col-inc5" style={{ fontWeight: r.inc5 > 0 ? 600 : 400, color: r.inc5 > 0 ? '#4338ca' : '#059669' }}>{r.inc5 > 0 ? `+${fBRLR(r.inc5)}` : '✓'}</td>
+                    <td className="col-num skin-col-inc6" style={{ fontWeight: r.inc6 > 0 ? 600 : 400, color: r.inc6 > 0 ? '#6d28d9' : '#059669' }}>{r.inc6 > 0 ? `+${fBRLR(r.inc6)}` : '✓'}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="gap-table-total">
-                  <td colSpan={6} className="gap-total-label">Total</td>
-                  <td className="col-num" style={{ color: 'var(--brand-primary)', fontWeight: 700 }}>+{fBRLR(totalPotencial6)}</td>
+                  <td colSpan={5} className="gap-total-label">Total</td>
+                  <td className="col-num skin-col-inc4" style={{ color: '#1d4ed8', fontWeight: 700 }}>+{fBRLR(totInc4)}</td>
+                  <td className="col-num skin-col-inc5" style={{ color: '#4338ca', fontWeight: 700 }}>+{fBRLR(totInc5)}</td>
+                  <td className="col-num skin-col-inc6" style={{ color: '#6d28d9', fontWeight: 700 }}>+{fBRLR(totInc6)}</td>
                 </tr>
               </tfoot>
             </table>

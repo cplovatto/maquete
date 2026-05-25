@@ -1845,6 +1845,12 @@ input, textarea { font-family: inherit; }
 .skin-col-demais { background: #f0fdf4; }
 [data-theme="dark"] .skin-col-botik  { background: #1e3a5f18; }
 [data-theme="dark"] .skin-col-demais { background: #14532d18; }
+.skin-col-inc4 { background: #eff6ff; }
+.skin-col-inc5 { background: #eef2ff; }
+.skin-col-inc6 { background: #ede9fe; }
+[data-theme="dark"] .skin-col-inc4 { background: #1e3a5f18; }
+[data-theme="dark"] .skin-col-inc5 { background: #1e1b4b18; }
+[data-theme="dark"] .skin-col-inc6 { background: #2e106518; }
 
 .skin-brand-tag {
   display: inline-block;
