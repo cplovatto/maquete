@@ -3351,17 +3351,7 @@ function IDClientePage() {
 
   const TARGET_CPF = 115
 
-  if (idClienteRows.length === 0) return (
-    <div className="page-empty-state">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="7.5" cy="12" r="2.5"/><path d="M13 10h5M13 14h5"/>
-      </svg>
-      <div className="page-empty-title">ID do Cliente</div>
-      <div className="page-empty-desc">Importe a planilha de ID do Cliente para visualizar os dados.</div>
-      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
-    </div>
-  )
-
+  // Todos os hooks antes do return condicional (Rules of Hooks)
   const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
 
   useEffect(() => {
@@ -3382,13 +3372,6 @@ function IDClientePage() {
   const filteredRows = useMemo(() =>
     storeRows.filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
   , [storeRows, selectedLabels])
-
-  const totalAtendId    = filteredRows.reduce((s, r) => s + r.atend_id_atual, 0)
-  const totalUsoIndevido = filteredRows.reduce((s, r) => s + r.uso_indevido_atual, 0)
-  // Média ponderada do indicador IAF (% CPF), peso = atendimentos ID
-  const groupPctCpf = totalAtendId > 0
-    ? filteredRows.reduce((s, r) => s + r.pctCpfPct * r.atend_id_atual, 0) / totalAtendId
-    : null
 
   const belowTarget = useMemo(() =>
     filteredRows.filter(r => r.pctCpfPct < TARGET_CPF).sort((a, b) => a.pctCpfPct - b.pctCpfPct)
@@ -3421,6 +3404,28 @@ function IDClientePage() {
       .filter(Boolean) as { label: typeof labels[0]; count: number; pctCpf: number; totUso: number; belowCount: number }[]
   }, [labels, storeRows, selectedLabels])
 
+  // Early return após todos os hooks
+  if (idClienteRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="7.5" cy="12" r="2.5"/><path d="M13 10h5M13 14h5"/>
+      </svg>
+      <div className="page-empty-title">ID do Cliente</div>
+      <div className="page-empty-desc">Importe a planilha de ID do Cliente para visualizar os dados.</div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  // Valores derivados (não são hooks)
+  const totalAtendId    = filteredRows.reduce((s, r) => s + r.atend_id_atual, 0)
+  const totalUsoIndevido = filteredRows.reduce((s, r) => s + r.uso_indevido_atual, 0)
+  const groupPctCpf = totalAtendId > 0
+    ? filteredRows.reduce((s, r) => s + r.pctCpfPct * r.atend_id_atual, 0) / totalAtendId
+    : null
+
+  const cpfColor = (pct: number) => pct >= 115 ? '#059669' : pct >= 100 ? '#d97706' : '#dc2626'
+  const bolColor = (pct: number) => pct >= 90 ? '#059669' : pct >= 80 ? '#d97706' : '#dc2626'
+
   function StoreOptionContent({ pdv, inline }: { pdv: string; inline?: boolean }) {
     const loja = lojaMap.get(pdv)
     const lbs  = (loja?.labels ?? []).map(lid => labels.find(l => l.id === lid)).filter(Boolean) as typeof labels
@@ -3432,9 +3437,6 @@ function IDClientePage() {
       </span>
     )
   }
-
-  const cpfColor = (pct: number) => pct >= 115 ? '#059669' : pct >= 100 ? '#d97706' : '#dc2626'
-  const bolColor = (pct: number) => pct >= 90 ? '#059669' : pct >= 80 ? '#d97706' : '#dc2626'
 
   const StoreLabels = ({ loja }: { loja?: { labels?: string[] } }) => (
     <div className="label-chips-group">
