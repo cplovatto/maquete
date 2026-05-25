@@ -13,8 +13,8 @@ export default function SignIn() {
   const [error, setError] = useState('')
   const [socialNotice, setSocialNotice] = useState('')
 
-  function handleSocial(provider: 'google' | 'apple') {
-    setSocialNotice(`Login com ${provider === 'google' ? 'Google' : 'Apple'} ainda não está disponível. Use o login demo.`)
+  function handleSocial(provider: 'google') {
+    setSocialNotice('Login com Google ainda não está disponível. Use o login demo.')
   }
 
   function handleEmail(e: React.FormEvent) {
@@ -75,16 +75,6 @@ export default function SignIn() {
             Continuar com Google
           </button>
 
-          <button
-            className="btn-apple"
-            onClick={() => handleSocial('apple')}
-            disabled={busy}
-          >
-            <svg width="15" height="18" viewBox="0 0 814 1000" fill="currentColor">
-              <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-37.3-167.2-108.1C117.1 777.5 39 650.5 39 532c0-168.8 113.6-258.5 225.8-258.5 57.1 0 104.5 38.6 140.4 38.6 33 0 85.8-40.8 153.3-40.8 24.6 0 127.7 2.4 198.1 73.1zm-174.3-214c31.3-35.3 54.3-85.2 54.3-135.1 0-6.5-.6-13.1-1.9-18.5-51.6 2-112 34.7-148.8 73.2-28.5 31.9-57.1 82.5-57.1 133.1 0 7.1 1.3 14.2 1.9 16.6 3.2.5 8.4 1.2 13.6 1.2 46.5 0 105.3-31.5 138-70.5z"/>
-            </svg>
-            Continuar com Apple
-          </button>
 
           {socialNotice && (
             <p className="signin-social-notice">{socialNotice}</p>

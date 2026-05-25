@@ -4,7 +4,7 @@ interface User {
   name: string
   email: string
   initials: string
-  provider: 'google' | 'apple' | 'email'
+  provider: 'google' | 'email'
 }
 
 interface AuthContextType {
