@@ -1332,6 +1332,36 @@ const CHART_METRICS: { key: ChartMetric; label: string }[] = [
   { key: 'conv_pct', label: 'Ação de Fluxo' },
 ]
 
+/* ── Referência de indicadores (reutilizável) ────────── */
+function IndicadoresRef() {
+  const { cpData } = useData()
+  if (!cpData) return null
+  const items = [
+    { label: 'Boleto Médio', grupo: fBRLR(cpData.bm_valor), efc: fBRLR(cpData.bm_efc) },
+    { label: 'Itens/Boleto', grupo: fDec(cpData.iv_valor),  efc: fDec(cpData.iv_efc)  },
+    { label: 'Preço Médio',  grupo: fBRLR(cpData.pm_valor), efc: fBRLR(cpData.pm_efc) },
+  ]
+  return (
+    <div className="indicadores-ref">
+      <span className="indicadores-ref-title">Referência</span>
+      {items.map(item => (
+        <div key={item.label} className="indicadores-ref-item">
+          <span className="indicadores-ref-name">{item.label}</span>
+          <span className="indicadores-ref-val">
+            <span className="indicadores-ref-tag indicadores-ref-tag--grupo">Grupo</span>
+            {item.grupo}
+          </span>
+          <span className="indicadores-ref-sep">·</span>
+          <span className="indicadores-ref-val">
+            <span className="indicadores-ref-tag indicadores-ref-tag--efc">EFC</span>
+            {item.efc}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function RankingPage() {
   const { mainRows, fluxoRows } = useData()
   const [sortKey, setSortKey] = useState<SortKey>('vf_atual')
@@ -1390,6 +1420,7 @@ function RankingPage() {
           <p className="page-subtitle">{mainRows.length} lojas</p>
         </div>
       </div>
+      <IndicadoresRef />
 
       {/* Chart */}
       <div className="ranking-chart-card">
@@ -1580,6 +1611,7 @@ function RegioesPage() {
           <p className="page-subtitle">{labels.length > 0 ? `${groups.length} regiões · ` : ''}{mainRows.length} lojas</p>
         </div>
       </div>
+      <IndicadoresRef />
 
       <div className="region-cards-row" style={{ marginBottom: 32 }}>
         {groups.map(({ label: lb, rows: groupRows }) => {
@@ -2031,6 +2063,7 @@ function DetalhePage() {
           )}
         </div>
       </div>
+      <IndicadoresRef />
 
       {/* KPI cards da loja */}
       {storeMain && (
@@ -2316,6 +2349,7 @@ function ConsultoresPage() {
           <p className="page-subtitle">{consultorRows.length} consultores · {storeConsMap.size} lojas</p>
         </div>
       </div>
+      <IndicadoresRef />
 
       {/* Filtro de região */}
       {labels.length > 0 && (
@@ -2419,7 +2453,7 @@ function ConsultoresPage() {
             <h3 className="cons-alert-title">Consultores com Oportunidade</h3>
             <p className="cons-alert-desc">
               Consultores com mais indicadores abaixo da média do grupo.
-              Referência: BM {fBRLR(groupBM)} · IV {fDec(groupIV)} · PM {fBRLR(groupPM)}{groupConv > 0 ? ` · Conv. ${Math.round(groupConv)}%` : ''}.
+              Referência: BM {fBRLR(groupBM)} · IV {fDec(groupIV)} · PM {fBRLR(groupPM)}{groupConv > 0 ? ` · AF ${Math.round(groupConv)}%` : ''}.
             </p>
           </div>
           <div className="cons-opp-total">
@@ -2497,6 +2531,1348 @@ function ConsultoresPage() {
           </table>
         </div>
       </div>
+    </div>
+  )
+}
+
+/* ── Dispersão ──────────────────────────────────────── */
+function fDisp(dev: number | null): string {
+  if (dev === null) return '—'
+  return (dev >= 0 ? '+' : '') + fDec(dev, 1) + '%'
+}
+
+function DispersaoPage() {
+  const { mainRows, mainTotal, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [sortBy, setSortBy] = useState<'total' | 'bm' | 'iv' | 'pm' | 'conv'>('total')
+  const [selectedPdv, setSelectedPdv] = useState<string>('')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  if (mainRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      <div className="page-empty-title">Dados não carregados</div>
+      <div className="page-empty-desc">Importe a planilha Indicadores Principais para visualizar a dispersão.</div>
+    </div>
+  )
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  const fluxoMap = useMemo(() => new Map(fluxoRows.map(r => [r.pdv, r])), [fluxoRows])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const activePdv = selectedPdv || mainRows[0]?.pdv || ''
+
+  // Dispersão por consultores da loja selecionada
+  const fluxoConsMap = useMemo(() => {
+    const map = new Map<string, FluxoConsultorRow>()
+    fluxoConsultorRows.forEach(r => map.set(`${r.pdv}|${r.consultor}`, r))
+    return map
+  }, [fluxoConsultorRows])
+
+  const storeCons = useMemo(() => consultorRows.filter(c => c.pdv === activePdv), [consultorRows, activePdv])
+
+  const storeConsAvg = useMemo(() => {
+    const totalQB = storeCons.reduce((s, c) => s + c.qb_atual, 0)
+    const bm   = totalQB > 0 ? storeCons.reduce((s, c) => s + c.vf_atual, 0) / totalQB : 0
+    const iv   = totalQB > 0 ? storeCons.reduce((s, c) => s + c.iv_atual * c.qb_atual, 0) / totalQB : 0
+    const pm   = totalQB > 0 ? storeCons.reduce((s, c) => s + c.pm_atual * c.qb_atual, 0) / totalQB : 0
+    const fluxoCons = storeCons.map(c => fluxoConsMap.get(`${c.pdv}|${c.consultor}`)).filter(Boolean) as FluxoConsultorRow[]
+    const totalResg = fluxoCons.reduce((s, r) => s + r.resgates, 0)
+    const af   = totalResg > 0 ? fluxoCons.reduce((s, r) => s + r.conversoes, 0) / totalResg * 100 : 0
+    return { bm, iv, pm, af }
+  }, [storeCons, fluxoConsMap])
+
+  const consRows = useMemo(() => storeCons.map(c => {
+    const fluxo = fluxoConsMap.get(`${c.pdv}|${c.consultor}`)
+    const af = fluxo ? (fluxo.conv_pct < 1 ? fluxo.conv_pct * 100 : fluxo.conv_pct) : null
+    const devBM = storeConsAvg.bm > 0 && c.bm_atual > 0 ? (c.bm_atual - storeConsAvg.bm) / storeConsAvg.bm * 100 : null
+    const devIV = storeConsAvg.iv > 0 && c.iv_atual > 0 ? (c.iv_atual - storeConsAvg.iv) / storeConsAvg.iv * 100 : null
+    const devPM = storeConsAvg.pm > 0 && c.pm_atual > 0 ? (c.pm_atual - storeConsAvg.pm) / storeConsAvg.pm * 100 : null
+    const devAF = storeConsAvg.af > 0 && af !== null     ? (af - storeConsAvg.af) / storeConsAvg.af * 100 : null
+    return { ...c, af, devBM, devIV, devPM, devAF }
+  }), [storeCons, fluxoConsMap, storeConsAvg])
+
+  function StoreOptionContent({ pdv, inline }: { pdv: string; inline?: boolean }) {
+    const loja = lojaMap.get(pdv)
+    const lbs  = (loja?.labels ?? []).map(lid => labels.find(l => l.id === lid)).filter(Boolean) as typeof labels
+    return (
+      <span className={`store-option-content${inline ? ' store-option-content--inline' : ''}`}>
+        <span className="store-option-pdv">{pdv}</span>
+        {loja?.apelido && <span className="store-option-apelido">{loja.apelido}</span>}
+        {lbs.map(lb => (
+          <span key={lb.id} className="label-chip label-chip--xs" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span>
+        ))}
+      </span>
+    )
+  }
+
+  const groupBM   = mainTotal?.bm_atual  ?? 0
+  const groupIV   = mainTotal?.iv_atual  ?? 0
+  const groupPM   = mainTotal?.pm_atual  ?? 0
+  // conv_pct vem como decimal (0.28) → normaliza para 0-100
+  const groupConv = (fluxoTotal?.conv_pct ?? 0) * 100
+
+  const rows = useMemo(() => {
+    return mainRows
+      .map(r => {
+        const loja  = lojaMap.get(r.pdv)
+        const fluxo = fluxoMap.get(r.pdv)
+        const conv  = fluxo ? fluxo.conv_pct * 100 : null
+
+        const devBM   = groupBM   > 0 && r.bm_atual > 0 ? (r.bm_atual  - groupBM)   / groupBM   * 100 : null
+        const devIV   = groupIV   > 0 && r.iv_atual > 0 ? (r.iv_atual  - groupIV)   / groupIV   * 100 : null
+        const devPM   = groupPM   > 0 && r.pm_atual > 0 ? (r.pm_atual  - groupPM)   / groupPM   * 100 : null
+        const devConv = groupConv > 0 && conv !== null   ? (conv        - groupConv) / groupConv * 100 : null
+
+        const devs = [devBM, devIV, devPM, devConv].filter((d): d is number => d !== null)
+        const absDevAvg = devs.length > 0 ? devs.reduce((s, d) => s + Math.abs(d), 0) / devs.length : 0
+
+        return { ...r, loja, conv, devBM, devIV, devPM, devConv, absDevAvg }
+      })
+      .filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+      .sort((a, b) => {
+        const key: Record<typeof sortBy, number> = {
+          total: b.absDevAvg - a.absDevAvg,
+          bm:    Math.abs(b.devBM   ?? 0) - Math.abs(a.devBM   ?? 0),
+          iv:    Math.abs(b.devIV   ?? 0) - Math.abs(a.devIV   ?? 0),
+          pm:    Math.abs(b.devPM   ?? 0) - Math.abs(a.devPM   ?? 0),
+          conv:  Math.abs(b.devConv ?? 0) - Math.abs(a.devConv ?? 0),
+        }
+        return key[sortBy]
+      })
+  }, [mainRows, fluxoMap, lojaMap, groupBM, groupIV, groupPM, groupConv, selectedLabels, sortBy])
+
+  const sortBtns: { key: typeof sortBy; label: string }[] = [
+    { key: 'total', label: 'Maior desvio' },
+    { key: 'bm',   label: 'BM' },
+    { key: 'iv',   label: 'IV' },
+    { key: 'pm',   label: 'PM' },
+    { key: 'conv', label: 'Ação de Fluxo' },
+  ]
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Dispersão de Indicadores</h2>
+          <p className="page-subtitle">{rows.length} lojas · referência: BM {fBRLR(groupBM)} · IV {fDec(groupIV)} · PM {fBRLR(groupPM)}{groupConv > 0 ? ` · AF ${Math.round(groupConv)}%` : ''}</p>
+        </div>
+      </div>
+      <IndicadoresRef />
+
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      <div className="dispersao-legend">
+        <span className="dispersao-legend-label">Dispersão:</span>
+        {([
+          { range: '≤ 10%',    desc: 'Muito baixa', cls: 'dispersao-legend-item--green'  },
+          { range: '10%–20%',  desc: 'Baixa',       cls: 'dispersao-legend-item--yellow' },
+          { range: '20%–30%',  desc: 'Alta',         cls: 'dispersao-legend-item--orange' },
+          { range: '> 30%',    desc: 'Muito alta',   cls: 'dispersao-legend-item--red'    },
+        ] as const).map(item => (
+          <span key={item.range} className={`dispersao-legend-item ${item.cls}`}>
+            <span className="dispersao-legend-dot" />
+            <span className="dispersao-legend-range">{item.range}</span>
+            <span className="dispersao-legend-desc">{item.desc}</span>
+          </span>
+        ))}
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="dispersao-toolbar">
+          <span className="dispersao-sort-label">Ordenar por desvio em:</span>
+          <div className="dispersao-sort-btns">
+            {sortBtns.map(b => (
+              <button key={b.key} className={`ranking-metric-btn${sortBy === b.key ? ' active' : ''}`} onClick={() => setSortBy(b.key)}>{b.label}</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table dispersao-table">
+            <thead>
+              <tr>
+                <th rowSpan={2} className="col-rank">#</th>
+                <th rowSpan={2}>Loja</th>
+                <th rowSpan={2}>Região</th>
+                <th colSpan={2} className="col-group-head col-group-head--blue">Boleto Médio</th>
+                <th colSpan={2} className="col-group-head col-group-head--green">Itens por Venda</th>
+                <th colSpan={2} className="col-group-head col-group-head--purple">Preço Médio</th>
+                {groupConv > 0 && <th colSpan={2} className="col-group-head col-group-head--amber">Ação de Fluxo</th>}
+              </tr>
+              <tr>
+                <th className="col-sub-head col-sub-head--blue">Resultado</th>
+                <th className="col-sub-head col-sub-disp col-sub-head--blue">Dispersão</th>
+                <th className="col-sub-head col-sub-head--green">Resultado</th>
+                <th className="col-sub-head col-sub-disp col-sub-head--green">Dispersão</th>
+                <th className="col-sub-head col-sub-head--purple">Resultado</th>
+                <th className="col-sub-head col-sub-disp col-sub-head--purple">Dispersão</th>
+                {groupConv > 0 && <><th className="col-sub-head col-sub-head--amber">Resultado</th><th className="col-sub-head col-sub-disp col-sub-head--amber">Dispersão</th></>}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={r.pdv}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td>
+                    <div className="col-pdv-name">
+                      <span className="col-pdv">{r.pdv}</span>
+                      {r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="label-chips-group">
+                      {(r.loja?.labels ?? []).map(lid => {
+                        const lb = labels.find(x => x.id === lid)
+                        return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                      })}
+                    </div>
+                  </td>
+                  <td className="col-num">{r.bm_atual > 0 ? fBRLR(r.bm_atual) : <span className="dev-na">—</span>}</td>
+                  <td className="col-num col-disp" style={{ color: r.devBM !== null ? (r.devBM >= 0 ? '#059669' : '#dc2626') : undefined }}>{fDisp(r.devBM)}</td>
+                  <td className="col-num">{r.iv_atual > 0 ? fDec(r.iv_atual) : <span className="dev-na">—</span>}</td>
+                  <td className="col-num col-disp" style={{ color: r.devIV !== null ? (r.devIV >= 0 ? '#059669' : '#dc2626') : undefined }}>{fDisp(r.devIV)}</td>
+                  <td className="col-num">{r.pm_atual > 0 ? fBRLR(r.pm_atual) : <span className="dev-na">—</span>}</td>
+                  <td className="col-num col-disp" style={{ color: r.devPM !== null ? (r.devPM >= 0 ? '#059669' : '#dc2626') : undefined }}>{fDisp(r.devPM)}</td>
+                  {groupConv > 0 && <>
+                    <td className="col-num">{r.conv !== null ? `${Math.round(r.conv)}%` : <span className="dev-na">—</span>}</td>
+                    <td className="col-num col-disp" style={{ color: r.devConv !== null ? (r.devConv >= 0 ? '#059669' : '#dc2626') : undefined }}>{fDisp(r.devConv)}</td>
+                  </>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Dispersão por consultores da loja ── */}
+      {consultorRows.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          {/* Header com picker */}
+          <div className="dispersao-cons-header">
+            <div>
+              <h3 className="dispersao-cons-title">Dispersão por Consultores</h3>
+              <p className="dispersao-cons-sub">
+                Desvio de cada consultor em relação à média da loja · BM {fBRLR(storeConsAvg.bm)} · IV {fDec(storeConsAvg.iv)} · PM {fBRLR(storeConsAvg.pm)}{storeConsAvg.af > 0 ? ` · AF ${Math.round(storeConsAvg.af)}%` : ''}
+              </p>
+            </div>
+            <div className="store-picker" ref={pickerRef}>
+              <span className="detalhe-selector-label">Loja</span>
+              <button className="store-picker-btn" onClick={() => setPickerOpen(o => !o)}>
+                <StoreOptionContent pdv={activePdv} inline />
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              {pickerOpen && (
+                <div className="store-picker-dropdown">
+                  {mainRows.map(r => (
+                    <button
+                      key={r.pdv}
+                      className={`store-picker-option${r.pdv === activePdv ? ' selected' : ''}`}
+                      onClick={() => { setSelectedPdv(r.pdv); setPickerOpen(false) }}
+                    >
+                      <StoreOptionContent pdv={r.pdv} />
+                      {r.pdv === activePdv && (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {consRows.length === 0 ? (
+            <div style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+              Nenhum dado de consultores para esta loja.
+            </div>
+          ) : (
+            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+              <table className="dash-table dispersao-table">
+                <thead>
+                  <tr>
+                    <th rowSpan={2} className="col-rank">#</th>
+                    <th rowSpan={2}>Consultor</th>
+                    <th colSpan={2} className="col-group-head col-group-head--blue">Boleto Médio</th>
+                    <th colSpan={2} className="col-group-head col-group-head--green">Itens por Venda</th>
+                    <th colSpan={2} className="col-group-head col-group-head--purple">Preço Médio</th>
+                    {storeConsAvg.af > 0 && <th colSpan={2} className="col-group-head col-group-head--amber">Ação de Fluxo</th>}
+                  </tr>
+                  <tr>
+                    <th className="col-sub-head col-sub-head--blue">Resultado</th>
+                    <th className="col-sub-head col-sub-disp col-sub-head--blue">Dispersão</th>
+                    <th className="col-sub-head col-sub-head--green">Resultado</th>
+                    <th className="col-sub-head col-sub-disp col-sub-head--green">Dispersão</th>
+                    <th className="col-sub-head col-sub-head--purple">Resultado</th>
+                    <th className="col-sub-head col-sub-disp col-sub-head--purple">Dispersão</th>
+                    {storeConsAvg.af > 0 && <><th className="col-sub-head col-sub-head--amber">Resultado</th><th className="col-sub-head col-sub-disp col-sub-head--amber">Dispersão</th></>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {consRows.map((c, i) => (
+                    <tr key={c.consultor}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-num">{c.bm_atual > 0 ? fBRLR(c.bm_atual) : <span className="dev-na">—</span>}</td>
+                      <td className="col-num col-disp" style={{ color: c.devBM !== null ? (c.devBM >= 0 ? '#059669' : '#dc2626') : undefined }}>{fDisp(c.devBM)}</td>
+                      <td className="col-num">{c.iv_atual > 0 ? fDec(c.iv_atual) : <span className="dev-na">—</span>}</td>
+                      <td className="col-num col-disp" style={{ color: c.devIV !== null ? (c.devIV >= 0 ? '#059669' : '#dc2626') : undefined }}>{fDisp(c.devIV)}</td>
+                      <td className="col-num">{c.pm_atual > 0 ? fBRLR(c.pm_atual) : <span className="dev-na">—</span>}</td>
+                      <td className="col-num col-disp" style={{ color: c.devPM !== null ? (c.devPM >= 0 ? '#059669' : '#dc2626') : undefined }}>{fDisp(c.devPM)}</td>
+                      {storeConsAvg.af > 0 && <>
+                        <td className="col-num">{c.af !== null ? `${Math.round(c.af)}%` : <span className="dev-na">—</span>}</td>
+                        <td className="col-num col-disp" style={{ color: c.devAF !== null ? (c.devAF >= 0 ? '#059669' : '#dc2626') : undefined }}>{fDisp(c.devAF)}</td>
+                      </>}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── IAF — Ação de Fluxo ────────────────────────────── */
+function IafFluxoPage() {
+  const { fluxoRows, fluxoConsultorRows, mainTotal, cpData } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [selectedPdv, setSelectedPdv] = useState<string>('')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  if (fluxoRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+      <div className="page-empty-title">Dados não carregados</div>
+      <div className="page-empty-desc">Importe a planilha Ação de Fluxo para visualizar as oportunidades.</div>
+    </div>
+  )
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  const groupBM = cpData?.bm_valor ?? mainTotal?.bm_atual ?? 0
+  const TARGET = 28
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const activePdv = selectedPdv || fluxoRows[0]?.pdv || ''
+
+  function calcGap(resgates: number, conversoes: number) {
+    const gapConv = Math.max(0, resgates * (TARGET / 100) - conversoes)
+    return { gapConv, gapReceita: gapConv * groupBM }
+  }
+  function normConv(v: number) { return v < 1 ? v * 100 : v }
+
+  // Lojas enriquecidas
+  const storeRows = useMemo(() => fluxoRows.map(r => {
+    const loja = lojaMap.get(r.pdv)
+    const conv = normConv(r.conv_pct)
+    const { gapConv, gapReceita } = calcGap(r.resgates, r.conversoes)
+    return { ...r, loja, conv, gapConv, gapReceita }
+  }), [fluxoRows, lojaMap, groupBM])
+
+  // Resumo por região
+  const regionGroups = useMemo(() => {
+    if (labels.length === 0) return []
+    return labels
+      .filter(lb => selectedLabels.length === 0 || selectedLabels.includes(lb.id))
+      .map(lb => {
+        const rows = storeRows.filter(r => (r.loja?.labels ?? []).includes(lb.id))
+        if (rows.length === 0) return null
+        const totResg = rows.reduce((s, r) => s + r.resgates, 0)
+        const totConv = rows.reduce((s, r) => s + r.conversoes, 0)
+        const totGapConv = rows.reduce((s, r) => s + r.gapConv, 0)
+        const totGapReceita = rows.reduce((s, r) => s + r.gapReceita, 0)
+        const conv = totResg > 0 ? totConv / totResg * 100 : 0
+        return { label: lb, totResg, totConv, conv, totGapConv, totGapReceita }
+      })
+      .filter(Boolean) as { label: typeof labels[0]; totResg: number; totConv: number; conv: number; totGapConv: number; totGapReceita: number }[]
+  }, [labels, storeRows, selectedLabels])
+
+  // Lojas filtradas
+  const filteredStores = useMemo(() =>
+    storeRows
+      .filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+      .sort((a, b) => b.gapReceita - a.gapReceita)
+  , [storeRows, selectedLabels])
+
+  const totalResg     = filteredStores.reduce((s, r) => s + r.resgates,   0)
+  const totalConv     = filteredStores.reduce((s, r) => s + r.conversoes, 0)
+  const totalGapConv  = filteredStores.reduce((s, r) => s + r.gapConv,    0)
+  const totalGapRec   = filteredStores.reduce((s, r) => s + r.gapReceita, 0)
+  const totalConvPct  = totalResg > 0 ? totalConv / totalResg * 100 : 0
+
+  // 1. Pareto — concentração do GAP
+  const paretoRows = useMemo(() => {
+    let cum = 0
+    return filteredStores
+      .filter(r => r.gapReceita > 0)
+      .map(r => { cum += r.gapReceita; return { ...r, cumPct: totalGapRec > 0 ? cum / totalGapRec * 100 : 0 } })
+  }, [filteredStores, totalGapRec])
+
+  // 2. Lojas que atingem a meta
+  const metaStores = useMemo(() =>
+    filteredStores.filter(r => r.conv >= TARGET).sort((a, b) => b.conv - a.conv)
+  , [filteredStores])
+
+  // 3. Ranking global de consultores por conv%
+  const consRanking = useMemo(() =>
+    fluxoConsultorRows
+      .map(c => { const loja = lojaMap.get(c.pdv); return { ...c, conv: normConv(c.conv_pct), loja } })
+      .filter(c => selectedLabels.length === 0 || selectedLabels.some(lid => (c.loja?.labels ?? []).includes(lid)))
+      .sort((a, b) => b.conv - a.conv)
+  , [fluxoConsultorRows, lojaMap, selectedLabels])
+
+  // Consultores da loja selecionada
+  const consRows = useMemo(() => {
+    return fluxoConsultorRows
+      .filter(c => c.pdv === activePdv)
+      .map(c => {
+        const conv = normConv(c.conv_pct)
+        const { gapConv, gapReceita } = calcGap(c.resgates, c.conversoes)
+        return { ...c, conv, gapConv, gapReceita }
+      })
+      .sort((a, b) => b.gapReceita - a.gapReceita)
+  }, [fluxoConsultorRows, activePdv, groupBM])
+
+  function StoreOptionContent({ pdv, inline }: { pdv: string; inline?: boolean }) {
+    const loja = lojaMap.get(pdv)
+    const lbs  = (loja?.labels ?? []).map(lid => labels.find(l => l.id === lid)).filter(Boolean) as typeof labels
+    return (
+      <span className={`store-option-content${inline ? ' store-option-content--inline' : ''}`}>
+        <span className="store-option-pdv">{pdv}</span>
+        {loja?.apelido && <span className="store-option-apelido">{loja.apelido}</span>}
+        {lbs.map(lb => <span key={lb.id} className="label-chip label-chip--xs" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span>)}
+      </span>
+    )
+  }
+
+  function ConvCell({ conv, gapConv }: { conv: number; gapConv: number }) {
+    const ok = conv >= TARGET
+    return (
+      <td className="col-num" style={{ color: ok ? '#059669' : '#dc2626', fontWeight: 600 }}>
+        {Math.round(conv)}%
+        {!ok && <span className="fluxo-conv-gap"> −{fInt(Math.round(gapConv))}</span>}
+      </td>
+    )
+  }
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Ação de Fluxo</h2>
+          <p className="page-subtitle">Meta de conversão: {TARGET}% · BM referência: {fBRLR(groupBM)}</p>
+        </div>
+      </div>
+      <IndicadoresRef />
+
+      {/* Filtro */}
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Resumo por região */}
+      {regionGroups.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Resumo por Região</h3>
+            <span className="fluxo-gap-total">{fBRLR(regionGroups.reduce((s, g) => s + g.totGapReceita, 0))} deixados na mesa</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table dash-table--potential">
+              <thead>
+                <tr>
+                  <th>Região</th>
+                  <th className="col-num">Resgates</th>
+                  <th className="col-num">Conversões</th>
+                  <th className="col-num">Conv%</th>
+                  <th className="col-num">GAP Conv.</th>
+                  <th className="col-num col-gap-head">GAP Receita</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regionGroups.map(g => (
+                  <tr key={g.label.id}>
+                    <td><span className="label-chip" style={{ '--chip-color': g.label.color } as React.CSSProperties}>{g.label.name}</span></td>
+                    <td className="col-num">{fInt(g.totResg)}</td>
+                    <td className="col-num">{fInt(g.totConv)}</td>
+                    <td className="col-num" style={{ color: g.conv >= TARGET ? '#059669' : '#dc2626', fontWeight: 600 }}>{Math.round(g.conv)}%</td>
+                    <td className="col-num">{g.totGapConv > 0 ? fInt(Math.round(g.totGapConv)) : <span className="dash-muted">—</span>}</td>
+                    <td className="col-num col-gap-val">{g.totGapReceita > 0 ? fBRLR(g.totGapReceita) : <span className="dash-muted">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Detalhe por loja */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Detalhe por Loja</h3>
+          <span className="fluxo-gap-total">{fBRLR(totalGapRec)} deixados na mesa</span>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Resgates</th>
+                <th className="col-num">Conversões</th>
+                <th className="col-num">Conv%</th>
+                <th className="col-num">GAP Conv.</th>
+                <th className="col-num col-gap-head">GAP Receita</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredStores.map((r, i) => (
+                <tr key={r.pdv}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td>
+                    <div className="col-pdv-name">
+                      <span className="col-pdv">{r.pdv}</span>
+                      {r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="label-chips-group">
+                      {(r.loja?.labels ?? []).map(lid => {
+                        const lb = labels.find(x => x.id === lid)
+                        return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                      })}
+                    </div>
+                  </td>
+                  <td className="col-num">{fInt(r.resgates)}</td>
+                  <td className="col-num">{fInt(r.conversoes)}</td>
+                  <ConvCell conv={r.conv} gapConv={r.gapConv} />
+                  <td className="col-num">{r.gapConv > 0 ? fInt(Math.round(r.gapConv)) : <span className="dash-muted">—</span>}</td>
+                  <td className="col-num col-gap-val">{r.gapReceita > 0 ? fBRLR(r.gapReceita) : <span className="dash-muted">—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="gap-table-total">
+                <td colSpan={3} className="gap-total-label">Total</td>
+                <td className="col-num">{fInt(totalResg)}</td>
+                <td className="col-num">{fInt(totalConv)}</td>
+                <td className="col-num" style={{ color: totalConvPct >= TARGET ? '#059669' : '#dc2626', fontWeight: 600 }}>{Math.round(totalConvPct)}%</td>
+                <td className="col-num">{fInt(Math.round(totalGapConv))}</td>
+                <td className="col-num col-gap-val">{fBRLR(totalGapRec)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* 1. Pareto — concentração do GAP */}
+      {paretoRows.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <div>
+              <h3 className="fluxo-card-title">Concentração do GAP</h3>
+              <p className="dispersao-cons-sub">
+                {(() => {
+                  const idx = paretoRows.findIndex(r => r.cumPct >= 80)
+                  const n = idx >= 0 ? idx + 1 : paretoRows.length
+                  return `${n} loja${n !== 1 ? 's' : ''} concentram ${Math.round(paretoRows[n - 1]?.cumPct ?? 0)}% do GAP total`
+                })()}
+              </p>
+            </div>
+            <span className="fluxo-gap-total">{fBRLR(totalGapRec)} total</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Loja</th>
+                  <th>Região</th>
+                  <th className="col-num col-gap-head">GAP Receita</th>
+                  <th className="col-num">% do Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paretoRows.map((r, i) => (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td>
+                      <div className="col-pdv-name">
+                        <span className="col-pdv">{r.pdv}</span>
+                        {r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(r.loja?.labels ?? []).map(lid => { const lb = labels.find(x => x.id === lid); return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null })}
+                      </div>
+                    </td>
+                    <td className="col-num col-gap-val">{fBRLR(r.gapReceita)}</td>
+                    <td className="col-num">{fDec(totalGapRec > 0 ? r.gapReceita / totalGapRec * 100 : 0, 1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Lojas que atingem a meta */}
+      {metaStores.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <div>
+              <h3 className="fluxo-card-title" style={{ color: '#059669' }}>Lojas na Meta ≥ {TARGET}%</h3>
+              <p className="dispersao-cons-sub">Benchmarks internos — {metaStores.length} loja{metaStores.length !== 1 ? 's' : ''} atingindo ou superando a meta</p>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#059669', background: '#d1fae5', borderRadius: 8, padding: '3px 10px' }}>
+              {Math.round(metaStores.reduce((s, r) => s + r.conv, 0) / metaStores.length)}% conv. média
+            </span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Loja</th>
+                  <th>Região</th>
+                  <th className="col-num">Resgates</th>
+                  <th className="col-num">Conversões</th>
+                  <th className="col-num">Conv%</th>
+                  <th className="col-num">Acima da meta</th>
+                </tr>
+              </thead>
+              <tbody>
+                {metaStores.map((r, i) => (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td>
+                      <div className="col-pdv-name">
+                        <span className="col-pdv">{r.pdv}</span>
+                        {r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(r.loja?.labels ?? []).map(lid => { const lb = labels.find(x => x.id === lid); return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null })}
+                      </div>
+                    </td>
+                    <td className="col-num">{fInt(r.resgates)}</td>
+                    <td className="col-num">{fInt(r.conversoes)}</td>
+                    <td className="col-num" style={{ color: '#059669', fontWeight: 700 }}>{Math.round(r.conv)}%</td>
+                    <td className="col-num" style={{ color: '#059669', fontWeight: 600 }}>+{fDec(r.conv - TARGET, 1)}pp</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Ranking global de consultores */}
+      {consRanking.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Ranking de Consultores por Conversão</h3>
+            <span className="dispersao-cons-sub">{consRanking.length} consultores · meta {TARGET}%</span>
+          </div>
+          <div className="fluxo-ranking-cons-wrap">
+            <div>
+              <div className="fluxo-ranking-cons-title fluxo-ranking-cons-title--top">Top conversores</div>
+              <table className="dash-table">
+                <thead><tr><th className="col-rank">#</th><th>Consultor</th><th className="col-pdv">PDV</th><th className="col-num">Conv%</th></tr></thead>
+                <tbody>
+                  {consRanking.slice(0, 10).map((c, i) => (
+                    <tr key={`${c.pdv}-${c.consultor}`}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-pdv">{c.pdv}</td>
+                      <td className="col-num" style={{ color: '#059669', fontWeight: 700 }}>{Math.round(c.conv)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <div className="fluxo-ranking-cons-title fluxo-ranking-cons-title--bottom">Precisam de atenção</div>
+              <table className="dash-table">
+                <thead><tr><th className="col-rank">#</th><th>Consultor</th><th className="col-pdv">PDV</th><th className="col-num">Conv%</th></tr></thead>
+                <tbody>
+                  {consRanking.slice(-10).reverse().map((c, i) => (
+                    <tr key={`${c.pdv}-${c.consultor}`}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-pdv">{c.pdv}</td>
+                      <td className="col-num" style={{ color: c.conv >= TARGET ? '#059669' : '#dc2626', fontWeight: 700 }}>{Math.round(c.conv)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Consultores por loja */}
+      {fluxoConsultorRows.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="dispersao-cons-header">
+            <div>
+              <h3 className="dispersao-cons-title">Consultores por Loja</h3>
+              <p className="dispersao-cons-sub">Oportunidade por consultor · meta {TARGET}% de conversão</p>
+            </div>
+            <div className="store-picker" ref={pickerRef}>
+              <span className="detalhe-selector-label">Loja</span>
+              <button className="store-picker-btn" onClick={() => setPickerOpen(o => !o)}>
+                <StoreOptionContent pdv={activePdv} inline />
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              {pickerOpen && (
+                <div className="store-picker-dropdown">
+                  {fluxoRows.map(r => (
+                    <button key={r.pdv}
+                      className={`store-picker-option${r.pdv === activePdv ? ' selected' : ''}`}
+                      onClick={() => { setSelectedPdv(r.pdv); setPickerOpen(false) }}
+                    >
+                      <StoreOptionContent pdv={r.pdv} />
+                      {r.pdv === activePdv && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {consRows.length === 0 ? (
+            <div style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>Nenhum dado de consultores para esta loja.</div>
+          ) : (
+            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th className="col-rank">#</th>
+                    <th>Consultor</th>
+                    <th className="col-num">Resgates</th>
+                    <th className="col-num">Conversões</th>
+                    <th className="col-num">Conv%</th>
+                    <th className="col-num">GAP Conv.</th>
+                    <th className="col-num col-gap-head">GAP Receita</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consRows.map((c, i) => (
+                    <tr key={c.consultor}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-num">{fInt(c.resgates)}</td>
+                      <td className="col-num">{fInt(c.conversoes)}</td>
+                      <ConvCell conv={c.conv} gapConv={c.gapConv} />
+                      <td className="col-num">{c.gapConv > 0 ? fInt(Math.round(c.gapConv)) : <span className="dash-muted">—</span>}</td>
+                      <td className="col-num col-gap-val">{c.gapReceita > 0 ? fBRLR(c.gapReceita) : <span className="dash-muted">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="gap-table-total">
+                    <td colSpan={4} className="gap-total-label">Total loja · {activePdv}</td>
+                    <td className="col-num" style={{ color: (() => { const r = fluxoRows.find(r => r.pdv === activePdv); return r && normConv(r.conv_pct) >= TARGET ? '#059669' : '#dc2626' })(), fontWeight: 600 }}>
+                      {(() => { const r = fluxoRows.find(r => r.pdv === activePdv); return r ? `${Math.round(normConv(r.conv_pct))}%` : '—' })()}
+                    </td>
+                    <td className="col-num">{fInt(Math.round(consRows.reduce((s, c) => s + c.gapConv, 0)))}</td>
+                    <td className="col-num col-gap-val">{fBRLR(consRows.reduce((s, c) => s + c.gapReceita, 0))}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── IAF — Skin (Cuidados Faciais) ─────────────────── */
+function IafSkinPage() {
+  const { skinRows, skinConsultorRows, skinCP, mainRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [selectedPdv, setSelectedPdv] = useState<string>('')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  const TARGET_MIN = 2.7
+
+  const { openImport } = useFileStatus()
+
+  if (skinRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3 3 3-3"/></svg>
+      <div className="page-empty-title">Skin — Cuidados Faciais</div>
+      <div className="page-empty-desc">Importe a planilha de Cuidados Faciais para visualizar os dados.</div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  const mainMap = useMemo(() => new Map(mainRows.map(r => [r.pdv, r])), [mainRows])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const activePdv = selectedPdv || skinRows[0]?.pdv || ''
+
+  const storeRows = useMemo(() => skinRows.map(r => {
+    const loja = lojaMap.get(r.pdv)
+    const main = mainMap.get(r.pdv)
+    const sharePct = r.share * 100
+    const vf_total = main?.vf_atual ?? 0
+    const gapReceita = vf_total > 0 ? Math.max(0, vf_total * (TARGET_MIN / 100) - r.receita_atual) : 0
+    return { ...r, loja, sharePct, gapReceita, vf_total }
+  }), [skinRows, lojaMap, mainMap])
+
+  const filteredRows = useMemo(() =>
+    storeRows.filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+  , [storeRows, selectedLabels])
+
+  const belowTarget = useMemo(() =>
+    filteredRows.filter(r => r.sharePct < TARGET_MIN).sort((a, b) => a.sharePct - b.sharePct)
+  , [filteredRows])
+
+  const allRanked = useMemo(() =>
+    [...filteredRows].sort((a, b) => b.sharePct - a.sharePct)
+  , [filteredRows])
+
+  const consRows = useMemo(() =>
+    skinConsultorRows
+      .filter(c => c.pdv === activePdv)
+      .sort((a, b) => b.share - a.share)
+      .map(c => ({ ...c, sharePct: c.share * 100 }))
+  , [skinConsultorRows, activePdv])
+
+  // Share calculado sobre as lojas filtradas (usa vf_total quando disponível, senão usa skinCP)
+  const filteredReceita = filteredRows.reduce((s, r) => s + r.receita_atual, 0)
+  const filteredVF = filteredRows.reduce((s, r) => s + r.vf_total, 0)
+  const filteredSharePct = filteredVF > 0
+    ? filteredReceita / filteredVF * 100
+    : (skinCP ? skinCP.share * 100 : null)
+
+  const totalGap = belowTarget.reduce((s, r) => s + r.gapReceita, 0)
+
+  const potencialRows = useMemo(() =>
+    filteredRows
+      .filter(r => r.vf_total > 0)
+      .map(r => ({
+        ...r,
+        inc4: Math.max(0, r.vf_total * 0.04 - r.receita_atual),
+        inc5: Math.max(0, r.vf_total * 0.05 - r.receita_atual),
+        inc6: Math.max(0, r.vf_total * 0.06 - r.receita_atual),
+      }))
+      .sort((a, b) => b.inc6 - a.inc6)
+  , [filteredRows])
+  const totInc4 = potencialRows.reduce((s, r) => s + r.inc4, 0)
+  const totInc5 = potencialRows.reduce((s, r) => s + r.inc5, 0)
+  const totInc6 = potencialRows.reduce((s, r) => s + r.inc6, 0)
+
+  // 1. Resumo por região
+  const regionGroups = useMemo(() => {
+    if (labels.length === 0) return []
+    return labels
+      .filter(lb => selectedLabels.length === 0 || selectedLabels.includes(lb.id))
+      .map(lb => {
+        const rows = storeRows.filter(r => (r.loja?.labels ?? []).includes(lb.id))
+        if (rows.length === 0) return null
+        const totSkin = rows.reduce((s, r) => s + r.receita_atual, 0)
+        const totVF   = rows.reduce((s, r) => s + r.vf_total,    0)
+        const sharePct = totVF > 0 ? totSkin / totVF * 100 : 0
+        const totGap   = rows.reduce((s, r) => s + r.gapReceita, 0)
+        const belowCount = rows.filter(r => r.sharePct < TARGET_MIN).length
+        return { label: lb, count: rows.length, sharePct, totSkin, totGap, belowCount }
+      })
+      .filter(Boolean) as { label: typeof labels[0]; count: number; sharePct: number; totSkin: number; totGap: number; belowCount: number }[]
+  }, [labels, storeRows, selectedLabels])
+
+  // 2. Ranking global de consultores por share skin
+  const consRanking = useMemo(() =>
+    skinConsultorRows
+      .map(c => { const loja = lojaMap.get(c.pdv); return { ...c, loja, sharePct: c.share * 100 } })
+      .filter(c => selectedLabels.length === 0 || selectedLabels.some(lid => (c.loja?.labels ?? []).includes(lid)))
+      .filter(c => c.receita_atual > 0)
+      .sort((a, b) => b.sharePct - a.sharePct)
+  , [skinConsultorRows, lojaMap, selectedLabels])
+
+  function StoreOptionContent({ pdv, inline }: { pdv: string; inline?: boolean }) {
+    const loja = lojaMap.get(pdv)
+    const lbs  = (loja?.labels ?? []).map(lid => labels.find(l => l.id === lid)).filter(Boolean) as typeof labels
+    return (
+      <span className={`store-option-content${inline ? ' store-option-content--inline' : ''}`}>
+        <span className="store-option-pdv">{pdv}</span>
+        {loja?.apelido && <span className="store-option-apelido">{loja.apelido}</span>}
+        {lbs.map(lb => <span key={lb.id} className="label-chip label-chip--xs" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span>)}
+      </span>
+    )
+  }
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Skin — Cuidados Faciais</h2>
+          <p className="page-subtitle">Meta mínima: {TARGET_MIN}% de share · {filteredRows.length} lojas</p>
+        </div>
+      </div>
+
+      {/* Cartão de resumo — atualiza conforme filtro de região */}
+      {filteredSharePct !== null && (
+        <div className={`skin-summary-card${filteredSharePct >= TARGET_MIN ? ' skin-summary-card--ok' : ' skin-summary-card--alert'}`}>
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct">{fDec(filteredSharePct, 2)}%</span>
+            <span className="skin-summary-label">
+              {selectedLabels.length > 0 ? `share — ${selectedLabels.map(lid => labels.find(l => l.id === lid)?.name ?? '').join(', ')}` : 'share do grupo'}
+            </span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct skin-summary-pct--target">{TARGET_MIN}%</span>
+            <span className="skin-summary-label">meta mínima</span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            {filteredSharePct >= TARGET_MIN ? (
+              <span className="skin-summary-status skin-summary-status--ok">✓ Meta atingida</span>
+            ) : (
+              <span className="skin-summary-status skin-summary-status--nok">✗ {fDec(TARGET_MIN - filteredSharePct, 2)}pp abaixo da meta</span>
+            )}
+            <span className="skin-summary-label">receita skin: {fBRLR(filteredReceita)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Filtro por região */}
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {/* 1. Resumo por região */}
+      {regionGroups.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Resumo por Região</h3>
+            <span className="dispersao-cons-sub">share vs meta {TARGET_MIN}%</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th>Região</th>
+                  <th className="col-num">Lojas</th>
+                  <th className="col-num">Share</th>
+                  <th className="col-num">Receita Skin</th>
+                  <th className="col-num">Lojas abaixo</th>
+                  <th className="col-num col-gap-head">GAP total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regionGroups.map(g => (
+                  <tr key={g.label.id}>
+                    <td><span className="label-chip" style={{ '--chip-color': g.label.color } as React.CSSProperties}>{g.label.name}</span></td>
+                    <td className="col-num">{g.count}</td>
+                    <td className="col-num" style={{ color: g.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 700 }}>{fDec(g.sharePct, 2)}%</td>
+                    <td className="col-num">{fBRLR(g.totSkin)}</td>
+                    <td className="col-num" style={{ color: g.belowCount > 0 ? '#dc2626' : '#059669', fontWeight: 600 }}>{g.belowCount}</td>
+                    <td className="col-num col-gap-val">{g.totGap > 0 ? fBRLR(g.totGap) : <span className="dash-muted">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Lojas abaixo da meta */}
+      {belowTarget.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="skin-alert-header">
+            <div>
+              <h3 className="skin-alert-title">Lojas Abaixo de {TARGET_MIN}%</h3>
+              <p className="dispersao-cons-sub">{belowTarget.length} loja{belowTarget.length !== 1 ? 's' : ''} abaixo da meta mínima · GAP total: {fBRLR(totalGap)}</p>
+            </div>
+            <span className="skin-alert-badge">{belowTarget.length}</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Loja</th>
+                  <th>Região</th>
+                  <th className="col-num">Share Atual</th>
+                  <th className="col-num">Receita Skin</th>
+                  <th className="col-num col-gap-head">GAP p/ {TARGET_MIN}%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {belowTarget.map((r, i) => (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td>
+                      <div className="col-pdv-name">
+                        <span className="col-pdv">{r.pdv}</span>
+                        {r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(r.loja?.labels ?? []).map(lid => { const lb = labels.find(x => x.id === lid); return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null })}
+                      </div>
+                    </td>
+                    <td className="col-num" style={{ color: '#dc2626', fontWeight: 700 }}>{fDec(r.sharePct, 2)}%</td>
+                    <td className="col-num">{fBRLR(r.receita_atual)}</td>
+                    <td className="col-num col-gap-val">{r.gapReceita > 0 ? fBRLR(r.gapReceita) : <span className="dash-muted">—</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Ranking de todas as lojas */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Ranking de Lojas por Share</h3>
+          <span className="dispersao-cons-sub">{allRanked.length} lojas · meta {TARGET_MIN}%</span>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Share</th>
+                <th className="col-num">Receita Skin Atual</th>
+                <th className="col-num">Receita Skin Ant.</th>
+                <th className="col-num">Variação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allRanked.map((r, i) => (
+                <tr key={r.pdv}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td>
+                    <div className="col-pdv-name">
+                      <span className="col-pdv">{r.pdv}</span>
+                      {r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}
+                    </div>
+                  </td>
+                  <td>
+                    <div className="label-chips-group">
+                      {(r.loja?.labels ?? []).map(lid => { const lb = labels.find(x => x.id === lid); return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null })}
+                    </div>
+                  </td>
+                  <td className="col-num" style={{ color: r.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 600 }}>{fDec(r.sharePct, 2)}%</td>
+                  <td className="col-num">{fBRLR(r.receita_atual)}</td>
+                  <td className="col-num">{fBRLR(r.receita_ant)}</td>
+                  <td className="col-num" style={{ color: r.var_pct >= 0 ? '#059669' : '#dc2626' }}>
+                    {(r.var_pct >= 0 ? '+' : '') + fDec(r.var_pct * 100, 1) + '%'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 3. Breakdown BOTIK vs Demais Marcas */}
+      {allRanked.some(r => r.botik_atual > 0 || r.demais_atual > 0) && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <div>
+              <h3 className="fluxo-card-title">BOTIK vs Demais Marcas</h3>
+              <p className="dispersao-cons-sub">Composição do share de skincare por loja</p>
+            </div>
+            {skinCP && (
+              <div style={{ textAlign: 'right', fontSize: 13 }}>
+                <div><span className="skin-brand-tag skin-brand-tag--botik">BOTIK</span> {fDec(skinCP.botik_share * 100, 2)}% do total</div>
+                <div><span className="skin-brand-tag skin-brand-tag--demais">Demais</span> {fDec(skinCP.demais_share * 100, 2)}% do total</div>
+              </div>
+            )}
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Loja</th>
+                  <th>Região</th>
+                  <th className="col-num">Share Total</th>
+                  <th className="col-num skin-col-botik">BOTIK R$</th>
+                  <th className="col-num skin-col-botik">BOTIK %</th>
+                  <th className="col-num skin-col-demais">Demais R$</th>
+                  <th className="col-num skin-col-demais">Demais %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allRanked.map((r, i) => {
+                  const botikPct = r.vf_total > 0 ? r.botik_atual / r.vf_total * 100 : 0
+                  const demaisPct = r.vf_total > 0 ? r.demais_atual / r.vf_total * 100 : 0
+                  return (
+                    <tr key={r.pdv}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td>
+                        <div className="col-pdv-name">
+                          <span className="col-pdv">{r.pdv}</span>
+                          {r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="label-chips-group">
+                          {(r.loja?.labels ?? []).map(lid => { const lb = labels.find(x => x.id === lid); return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null })}
+                        </div>
+                      </td>
+                      <td className="col-num" style={{ color: r.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 600 }}>{fDec(r.sharePct, 2)}%</td>
+                      <td className="col-num skin-col-botik">{r.botik_atual > 0 ? fBRLR(r.botik_atual) : <span className="dash-muted">—</span>}</td>
+                      <td className="col-num skin-col-botik">{fDec(botikPct, 2)}%</td>
+                      <td className="col-num skin-col-demais">{r.demais_atual > 0 ? fBRLR(r.demais_atual) : <span className="dash-muted">—</span>}</td>
+                      <td className="col-num skin-col-demais">{fDec(demaisPct, 2)}%</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Ranking global de consultores */}
+      {consRanking.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Ranking de Consultores por Share Skin</h3>
+            <span className="dispersao-cons-sub">{consRanking.length} consultores · meta {TARGET_MIN}%</span>
+          </div>
+          <div className="fluxo-ranking-cons-wrap">
+            <div>
+              <div className="fluxo-ranking-cons-title fluxo-ranking-cons-title--top">Top embaixadores</div>
+              <table className="dash-table">
+                <thead><tr><th className="col-rank">#</th><th>Consultor</th><th className="col-pdv">PDV</th><th className="col-num">Share</th><th className="col-num">Receita Skin</th></tr></thead>
+                <tbody>
+                  {consRanking.slice(0, 10).map((c, i) => (
+                    <tr key={`${c.pdv}-${c.consultor}`}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-pdv">{c.pdv}</td>
+                      <td className="col-num" style={{ color: c.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 700 }}>{fDec(c.sharePct, 2)}%</td>
+                      <td className="col-num">{fBRLR(c.receita_atual)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <div className="fluxo-ranking-cons-title fluxo-ranking-cons-title--bottom">Precisam de atenção</div>
+              <table className="dash-table">
+                <thead><tr><th className="col-rank">#</th><th>Consultor</th><th className="col-pdv">PDV</th><th className="col-num">Share</th><th className="col-num">Receita Skin</th></tr></thead>
+                <tbody>
+                  {consRanking.slice(-10).reverse().map((c, i) => (
+                    <tr key={`${c.pdv}-${c.consultor}`}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-pdv">{c.pdv}</td>
+                      <td className="col-num" style={{ color: c.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 700 }}>{fDec(c.sharePct, 2)}%</td>
+                      <td className="col-num">{fBRLR(c.receita_atual)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Potencial por faixa de share */}
+      {potencialRows.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <div>
+              <h3 className="fluxo-card-title">Potencial de Incremento por Faixa</h3>
+              <p className="dispersao-cons-sub">Receita adicional estimada se o share de cada loja atingisse 4%, 5% ou 6%</p>
+            </div>
+            <div style={{ textAlign: 'right', fontSize: 13, lineHeight: 1.8 }}>
+              <div><span className="skin-brand-tag" style={{ background: '#ede9fe', color: '#6d28d9' }}>6%</span> +{fBRLR(totInc6)}</div>
+              <div><span className="skin-brand-tag" style={{ background: '#e0e7ff', color: '#4338ca' }}>5%</span> +{fBRLR(totInc5)}</div>
+              <div><span className="skin-brand-tag" style={{ background: '#dbeafe', color: '#1d4ed8' }}>4%</span> +{fBRLR(totInc4)}</div>
+            </div>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Loja</th>
+                  <th>Região</th>
+                  <th className="col-num">Share Atual</th>
+                  <th className="col-num">Receita Skin</th>
+                  <th className="col-num skin-col-inc4">+ se 4%</th>
+                  <th className="col-num skin-col-inc5">+ se 5%</th>
+                  <th className="col-num skin-col-inc6">+ se 6%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {potencialRows.map((r, i) => (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td>
+                      <div className="col-pdv-name">
+                        <span className="col-pdv">{r.pdv}</span>
+                        {r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(r.loja?.labels ?? []).map(lid => { const lb = labels.find(x => x.id === lid); return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null })}
+                      </div>
+                    </td>
+                    <td className="col-num" style={{ color: r.sharePct >= 6 ? '#059669' : r.sharePct >= TARGET_MIN ? '#d97706' : '#dc2626', fontWeight: 600 }}>{fDec(r.sharePct, 2)}%</td>
+                    <td className="col-num">{fBRLR(r.receita_atual)}</td>
+                    <td className="col-num skin-col-inc4" style={{ fontWeight: r.inc4 > 0 ? 600 : 400, color: r.inc4 > 0 ? '#1d4ed8' : '#059669' }}>{r.inc4 > 0 ? `+${fBRLR(r.inc4)}` : '✓'}</td>
+                    <td className="col-num skin-col-inc5" style={{ fontWeight: r.inc5 > 0 ? 600 : 400, color: r.inc5 > 0 ? '#4338ca' : '#059669' }}>{r.inc5 > 0 ? `+${fBRLR(r.inc5)}` : '✓'}</td>
+                    <td className="col-num skin-col-inc6" style={{ fontWeight: r.inc6 > 0 ? 600 : 400, color: r.inc6 > 0 ? '#6d28d9' : '#059669' }}>{r.inc6 > 0 ? `+${fBRLR(r.inc6)}` : '✓'}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="gap-table-total">
+                  <td colSpan={5} className="gap-total-label">Total</td>
+                  <td className="col-num skin-col-inc4" style={{ color: '#1d4ed8', fontWeight: 700 }}>+{fBRLR(totInc4)}</td>
+                  <td className="col-num skin-col-inc5" style={{ color: '#4338ca', fontWeight: 700 }}>+{fBRLR(totInc5)}</td>
+                  <td className="col-num skin-col-inc6" style={{ color: '#6d28d9', fontWeight: 700 }}>+{fBRLR(totInc6)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Consultores por loja */}
+      {skinConsultorRows.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="dispersao-cons-header">
+            <div>
+              <h3 className="dispersao-cons-title">Consultores por Loja</h3>
+              <p className="dispersao-cons-sub">Share de skincare por consultor · meta {TARGET_MIN}%</p>
+            </div>
+            <div className="store-picker" ref={pickerRef}>
+              <span className="detalhe-selector-label">Loja</span>
+              <button className="store-picker-btn" onClick={() => setPickerOpen(o => !o)}>
+                <StoreOptionContent pdv={activePdv} inline />
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              {pickerOpen && (
+                <div className="store-picker-dropdown">
+                  {skinRows.map(r => (
+                    <button key={r.pdv}
+                      className={`store-picker-option${r.pdv === activePdv ? ' selected' : ''}`}
+                      onClick={() => { setSelectedPdv(r.pdv); setPickerOpen(false) }}
+                    >
+                      <StoreOptionContent pdv={r.pdv} />
+                      {r.pdv === activePdv && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {consRows.length === 0 ? (
+            <div style={{ padding: '32px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>Nenhum dado de consultores para esta loja.</div>
+          ) : (
+            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th className="col-rank">#</th>
+                    <th>Consultor</th>
+                    <th className="col-num">Share Skin</th>
+                    <th className="col-num">Receita Skin Atual</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consRows.map((c, i) => (
+                    <tr key={c.consultor}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-num" style={{ color: c.sharePct >= TARGET_MIN ? '#059669' : '#dc2626', fontWeight: 600 }}>{fDec(c.sharePct, 2)}%</td>
+                      <td className="col-num">{fBRLR(c.receita_atual)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -2838,12 +4214,12 @@ export default function AppShell() {
             <Route path="lojas/ranking"       element={<RankingPage />} />
             <Route path="lojas/detalhe"       element={<DetalhePage />} />
             <Route path="lojas/consultores"   element={<ConsultoresPage />} />
-            <Route path="lojas/dispersao"     element={<WipPage title="Dispersão"              requires={['main','fluxo']} />} />
+            <Route path="lojas/dispersao"     element={<DispersaoPage />} />
             {/* Mensal – IAF */}
             <Route path="iaf"          element={<WipPage title="IAF — Indicadores" />} />
             <Route path="iaf/detalhe"  element={<WipPage title="IAF — Detalhe" />} />
-            <Route path="iaf/fluxo"    element={<WipPage title="Ação de Fluxo" />} />
-            <Route path="iaf/skin"     element={<WipPage title="Skin"     requires={['skin','parcial-skin']} />} />
+            <Route path="iaf/fluxo"    element={<IafFluxoPage />} />
+            <Route path="iaf/skin"     element={<IafSkinPage />} />
             <Route path="iaf/servicos" element={<WipPage title="Serviços" requires={['servicos']} />} />
             {/* Anual – Lojas */}
             <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas"              requires={['anual-main']} />} />

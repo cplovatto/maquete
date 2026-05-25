@@ -76,6 +76,37 @@ export interface CPData {
   pm_efc: number      // Preço Médio EFC (col F)
 }
 
+export interface SkinRow {
+  pdv: string
+  share: number         // decimal, e.g. 0.0259 = 2.59%
+  receita_atual: number
+  receita_ant: number
+  var_pct: number       // decimal
+  botik_atual: number
+  botik_ant: number
+  demais_atual: number
+  demais_ant: number
+}
+
+export interface SkinConsultorRow {
+  consultor: string
+  pdv: string
+  share: number
+  receita_atual: number
+  receita_ant: number
+}
+
+export interface SkinCP {
+  share: number
+  receita_ant: number
+  receita_atual: number
+  var_pct: number
+  botik_share: number
+  botik_atual: number
+  demais_share: number
+  demais_atual: number
+}
+
 interface DataCtxType {
   mainRows: MainRow[]
   mainTotal: MainTotal | null
@@ -84,6 +115,9 @@ interface DataCtxType {
   fluxoTotal: FluxoTotal | null
   consultorRows: ConsultorRow[]
   fluxoConsultorRows: FluxoConsultorRow[]
+  skinRows: SkinRow[]
+  skinConsultorRows: SkinConsultorRow[]
+  skinCP: SkinCP | null
   loadFile: (id: string, file: File) => Promise<void>
 }
 
@@ -261,6 +295,68 @@ async function parseFluxoFile(file: File): Promise<{ rows: FluxoRow[]; total: Fl
   return { rows, total, fluxoConsultorRows }
 }
 
+function parseSkinPdvSheet(wb: XLSX.WorkBook): SkinRow[] {
+  const ws = wb.Sheets['PDV']
+  if (!ws) return []
+  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  return raw.slice(4).filter(r => {
+    const a = r as unknown[]
+    const pdv = String(a[0] ?? '').trim()
+    return pdv && pdv.toUpperCase() !== 'PDV' && pdv.toUpperCase() !== 'TOTAL'
+  }).map(r => {
+    const a = r as unknown[]
+    return {
+      pdv: String(a[0]),
+      share: toNum(a[1]),
+      receita_atual: toNum(a[2]), receita_ant: toNum(a[3]), var_pct: toNum(a[4]),
+      botik_atual: toNum(a[5]),   botik_ant: toNum(a[6]),
+      demais_atual: toNum(a[8]),  demais_ant: toNum(a[9]),
+    }
+  })
+}
+
+function parseSkinConsultorSheet(wb: XLSX.WorkBook): SkinConsultorRow[] {
+  const ws = wb.Sheets['CONSULTOR']
+  if (!ws) return []
+  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  return raw.slice(4).filter(r => {
+    const a = r as unknown[]
+    const con = String(a[0] ?? '').trim()
+    const pdv = String(a[1] ?? '').trim()
+    return con && pdv && con.toUpperCase() !== 'CONSULTOR' && pdv.toUpperCase() !== 'PDV'
+  }).map(r => {
+    const a = r as unknown[]
+    return { consultor: String(a[0]), pdv: String(a[1]), share: toNum(a[2]), receita_atual: toNum(a[3]), receita_ant: toNum(a[4]) }
+  })
+}
+
+function parseSkinCPSheet(wb: XLSX.WorkBook): SkinCP | null {
+  const ws = wb.Sheets['CP']
+  if (!ws) return null
+  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  // Skin total: "RECEITA CUIDADOS FACIAIS + BOTIK"
+  const rowSkin = raw.find(r => { const c = String((r as unknown[])[0] ?? '').toLowerCase(); return c.includes('cuidados') || c.includes('facial') })
+  // BOTIK total: row where col A = 'BOTIK' and col B = '' (not a subcategory)
+  const rowBotik = raw.find(r => { const a = r as unknown[]; return String(a[0] ?? '').toLowerCase() === 'botik' && String(a[1] ?? '').trim() === '' })
+  // Demais Marcas
+  const rowDemais = raw.find(r => String((r as unknown[])[0] ?? '').toLowerCase().includes('demais'))
+  if (!rowSkin) return null
+  const a = rowSkin as unknown[]
+  const b = rowBotik as unknown[] | undefined
+  const d = rowDemais as unknown[] | undefined
+  return {
+    share: toNum(a[2]), receita_ant: toNum(a[3]), receita_atual: toNum(a[4]), var_pct: toNum(a[6]),
+    botik_share: b ? toNum(b[2]) : 0, botik_atual: b ? toNum(b[4]) : 0,
+    demais_share: d ? toNum(d[2]) : 0, demais_atual: d ? toNum(d[4]) : 0,
+  }
+}
+
+async function parseSkinFile(file: File): Promise<{ rows: SkinRow[]; consultorRows: SkinConsultorRow[]; cp: SkinCP | null }> {
+  const buf = await file.arrayBuffer()
+  const wb = XLSX.read(buf)
+  return { rows: parseSkinPdvSheet(wb), consultorRows: parseSkinConsultorSheet(wb), cp: parseSkinCPSheet(wb) }
+}
+
 function tryParse<T>(key: string, fallback: T): T {
   try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : fallback } catch { return fallback }
 }
@@ -273,6 +369,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [fluxoTotal, setFluxoTotal]                   = useState<FluxoTotal | null>(() => tryParse('prisma-data-fluxo-total', null))
   const [consultorRows, setConsultorRows]             = useState<ConsultorRow[]>(() => tryParse('prisma-data-consultor', []))
   const [fluxoConsultorRows, setFluxoConsultorRows]   = useState<FluxoConsultorRow[]>(() => tryParse('prisma-data-fluxo-consultor', []))
+  const [skinRows, setSkinRows]                       = useState<SkinRow[]>(() => tryParse('prisma-data-skin', []))
+  const [skinConsultorRows, setSkinConsultorRows]     = useState<SkinConsultorRow[]>(() => tryParse('prisma-data-skin-consultor', []))
+  const [skinCP, setSkinCP]                           = useState<SkinCP | null>(() => tryParse('prisma-data-skin-cp', null))
 
   useEffect(() => { try { localStorage.setItem('prisma-data-main', JSON.stringify(mainRows)) } catch {} }, [mainRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-main-total', JSON.stringify(mainTotal)) } catch {} }, [mainTotal])
@@ -281,6 +380,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem('prisma-data-fluxo-total', JSON.stringify(fluxoTotal)) } catch {} }, [fluxoTotal])
   useEffect(() => { try { localStorage.setItem('prisma-data-consultor', JSON.stringify(consultorRows)) } catch {} }, [consultorRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-fluxo-consultor', JSON.stringify(fluxoConsultorRows)) } catch {} }, [fluxoConsultorRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-skin', JSON.stringify(skinRows)) } catch {} }, [skinRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-skin-consultor', JSON.stringify(skinConsultorRows)) } catch {} }, [skinConsultorRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-skin-cp', JSON.stringify(skinCP)) } catch {} }, [skinCP])
 
   async function loadFile(id: string, file: File) {
     if (id === 'main') {
@@ -289,11 +391,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } else if (id === 'fluxo') {
       const { rows, total, fluxoConsultorRows: fcr } = await parseFluxoFile(file)
       setFluxoRows(rows); setFluxoTotal(total); setFluxoConsultorRows(fcr)
+    } else if (id === 'skin') {
+      const { rows, consultorRows: cr, cp } = await parseSkinFile(file)
+      setSkinRows(rows); setSkinConsultorRows(cr); setSkinCP(cp)
     }
   }
 
   return (
-    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, loadFile }}>
+    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, loadFile }}>
       {children}
     </DataCtx.Provider>
   )
