@@ -3465,7 +3465,7 @@ function IDClientePage() {
           <div className="skin-summary-block">
             <span className="skin-summary-pct">{fDec(groupPctCpf, 1)}%</span>
             <span className="skin-summary-label">
-              {selectedLabels.length > 0 ? `% CPF IAF — ${selectedLabels.map(lid => labels.find(l => l.id === lid)?.name ?? '').join(', ')}` : '% CPF IAF do grupo'}
+              {selectedLabels.length > 0 ? `% ID IAF — ${selectedLabels.map(lid => labels.find(l => l.id === lid)?.name ?? '').join(', ')}` : '% ID IAF do grupo'}
             </span>
           </div>
           <div className="skin-summary-divider" />
@@ -3504,7 +3504,7 @@ function IDClientePage() {
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="fluxo-card-header">
             <h3 className="fluxo-card-title">Resumo por Região</h3>
-            <span className="dispersao-cons-sub">% CPF IAF — meta 115%</span>
+            <span className="dispersao-cons-sub">% ID IAF — meta 115%</span>
           </div>
           <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
             <table className="dash-table">
@@ -3512,7 +3512,7 @@ function IDClientePage() {
                 <tr>
                   <th>Região</th>
                   <th className="col-num">Lojas</th>
-                  <th className="col-num">% CPF</th>
+                  <th className="col-num">% ID</th>
                   <th className="col-num">Uso Indevido</th>
                   <th className="col-num">Lojas abaixo</th>
                 </tr>
@@ -3550,8 +3550,8 @@ function IDClientePage() {
                   <th>Loja</th>
                   <th>Região</th>
                   <th className="col-num">Atend. ID</th>
-                  <th className="col-num">% CPF Ant.</th>
-                  <th className="col-num">% CPF Atual</th>
+                  <th className="col-num">% ID Ant.</th>
+                  <th className="col-num">% ID Atual</th>
                   <th className="col-num">Uso Indevido</th>
                 </tr>
               </thead>
@@ -3575,7 +3575,7 @@ function IDClientePage() {
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="fluxo-card-header">
-          <h3 className="fluxo-card-title">Ranking de Lojas por % CPF IAF</h3>
+          <h3 className="fluxo-card-title">Ranking de Lojas por % ID IAF</h3>
           <span className="dispersao-cons-sub">{allRanked.length} lojas · meta IAF 115%</span>
         </div>
         <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
@@ -3586,8 +3586,8 @@ function IDClientePage() {
                 <th>Loja</th>
                 <th>Região</th>
                 <th className="col-num">Atend. ID</th>
-                <th className="col-num">% CPF Ant.</th>
-                <th className="col-num">% CPF Atual</th>
+                <th className="col-num">% ID Ant.</th>
+                <th className="col-num">% ID Atual</th>
                 <th className="col-num">Uso Indevido</th>
                 <th className="col-num">Boletos ID</th>
                 <th className="col-num">% Bol. Válidos</th>
@@ -3642,7 +3642,7 @@ function IDClientePage() {
                   <th className="col-rank">#</th>
                   <th>Consultor</th>
                   <th className="col-num">Atend. ID</th>
-                  <th className="col-num">% CPF</th>
+                  <th className="col-num">% ID</th>
                   <th className="col-num">Uso Indevido</th>
                   <th className="col-num">% Bol. Válidos</th>
                 </tr>
