@@ -3712,7 +3712,7 @@ function LojaDigitalPage() {
   const boletoMedio     = lojaDigitalTotal?.boleto_medio  ?? (totalConvertidos > 0 ? totalReceita / totalConvertidos : 0)
   const perdidos        = totalAtendidos - totalConvertidos
 
-  const scenarios = [10, 15, 20].map(targetPct => {
+  const scenarios = [10, 15, 20, 25, 30, 40, 50].map(targetPct => {
     const convertidosPot = Math.round(totalAtendidos * targetPct / 100)
     const incremento = Math.max(0, convertidosPot - totalConvertidos)
     const ganho = incremento * boletoMedio
