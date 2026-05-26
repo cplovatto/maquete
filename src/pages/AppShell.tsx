@@ -4917,15 +4917,23 @@ function IafSkinPage() {
 
 /* ── IAF — Resgates ─────────────────────────────────── */
 function ResgatesPage() {
-  const { resgatesPdvRows, resgatesTotal, resgatesConsultorRows } = useData()
+  const { resgatesPdvRows, resgatesTotal, resgatesConsultorRows, consultorRows } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
   const [consSort, setConsSort] = useState<'desc' | 'asc'>('desc')
+  const [selectedPdv, setSelectedPdv] = useState<string>('')
 
   const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  // Cruza nome do consultor com PDV via consultorRows do arquivo principal
+  const consultorPdvMap = useMemo(() => {
+    const map = new Map<string, string>()
+    consultorRows.forEach(r => map.set(r.consultor, r.pdv))
+    return map
+  }, [consultorRows])
 
   const storeRows = useMemo(() => {
     const rows = resgatesPdvRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
@@ -4937,11 +4945,21 @@ function ResgatesPage() {
     )
   }, [resgatesPdvRows, lojaMap, selectedLabels, sortDir])
 
-  const sortedConsultores = useMemo(() =>
-    [...resgatesConsultorRows].sort((a, b) =>
-      consSort === 'desc' ? b.pct_atual - a.pct_atual : a.pct_atual - b.pct_atual
-    )
-  , [resgatesConsultorRows, consSort])
+  const enrichedConsultores = useMemo(() =>
+    [...resgatesConsultorRows]
+      .map(c => ({ ...c, pdv: consultorPdvMap.get(c.nome) ?? null }))
+      .sort((a, b) => consSort === 'desc' ? b.pct_atual - a.pct_atual : a.pct_atual - b.pct_atual)
+  , [resgatesConsultorRows, consultorPdvMap, consSort])
+
+  const pdvOptions = useMemo(() => {
+    const pdvs = new Set<string>()
+    enrichedConsultores.forEach(c => { if (c.pdv) pdvs.add(c.pdv) })
+    return Array.from(pdvs).sort()
+  }, [enrichedConsultores])
+
+  const filteredConsultores = useMemo(() =>
+    selectedPdv ? enrichedConsultores.filter(c => c.pdv === selectedPdv) : enrichedConsultores
+  , [enrichedConsultores, selectedPdv])
 
   if (resgatesPdvRows.length === 0) return (
     <div className="page-empty-state">
@@ -4963,7 +4981,7 @@ function ResgatesPage() {
       <div className="page-title-row">
         <div>
           <h2 className="page-title">Resgates</h2>
-          <p className="page-subtitle">{storeRows.length} lojas · {sortedConsultores.length} consultores</p>
+          <p className="page-subtitle">{storeRows.length} lojas · {enrichedConsultores.length} consultores</p>
         </div>
       </div>
 
@@ -5071,13 +5089,30 @@ function ResgatesPage() {
       </div>
 
       {/* Tabela Consultores */}
-      {sortedConsultores.length > 0 && (
+      {enrichedConsultores.length > 0 && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="fluxo-card-header">
             <h3 className="fluxo-card-title">Ranking por Consultor</h3>
-            <button className="btn btn-sm btn-ghost" onClick={() => setConsSort(d => d === 'desc' ? 'asc' : 'desc')} style={{ fontSize: 12 }}>
-              {consSort === 'desc' ? '▼ Maior → Menor' : '▲ Menor → Maior'}
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {pdvOptions.length > 0 && (
+                <select
+                  className="form-input"
+                  style={{ fontSize: 13, padding: '4px 8px', height: 'auto', minWidth: 160 }}
+                  value={selectedPdv}
+                  onChange={e => setSelectedPdv(e.target.value)}
+                >
+                  <option value="">Todas as lojas</option>
+                  {pdvOptions.map(pdv => (
+                    <option key={pdv} value={pdv}>
+                      {pdv}{lojaMap.get(pdv)?.apelido ? ` — ${lojaMap.get(pdv)!.apelido}` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button className="btn btn-sm btn-ghost" onClick={() => setConsSort(d => d === 'desc' ? 'asc' : 'desc')} style={{ fontSize: 12 }}>
+                {consSort === 'desc' ? '▼ Maior → Menor' : '▲ Menor → Maior'}
+              </button>
+            </div>
           </div>
           <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
             <table className="dash-table">
@@ -5085,25 +5120,30 @@ function ResgatesPage() {
                 <tr>
                   <th className="col-rank">#</th>
                   <th>Consultor</th>
+                  <th className="col-pdv">PDV</th>
                   <th className="col-num">% Resgates</th>
                   <th className="col-num">Qtd Resgates</th>
                   <th className="col-num">Qtd Boletos</th>
                 </tr>
               </thead>
               <tbody>
-                {sortedConsultores.map((c, i) => {
+                {filteredConsultores.map((c, i) => {
                   const netMedia = resgatesTotal ? resgatesTotal.pct_atual : 0
                   const color = c.pct_atual >= netMedia ? '#059669' : '#d97706'
                   return (
                     <tr key={c.nome}>
                       <td className="col-rank">{i + 1}</td>
                       <td>{c.nome}</td>
+                      <td className="col-pdv">{c.pdv ?? <span className="dash-muted">—</span>}</td>
                       <td className="col-num" style={{ fontWeight: 700, color }}>{fDec(c.pct_atual * 100, 1)}%</td>
                       <td className="col-num">{fInt(c.qtd_resgate_atual)}</td>
                       <td className="col-num">{fInt(c.qtd_boletos_atual)}</td>
                     </tr>
                   )
                 })}
+                {filteredConsultores.length === 0 && (
+                  <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>Nenhum consultor nesta loja.</td></tr>
+                )}
               </tbody>
             </table>
           </div>
