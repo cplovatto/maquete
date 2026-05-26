@@ -685,7 +685,8 @@ const MENSAL_SOURCES: DataSource[] = [
   { id: 'id-cliente',   name: 'ID do Cliente',           format: 'XLSX', icon: IC.idCard,      defaultStatus: 'pending',  section: 'IAF' },
   { id: 'loja-digital', name: 'Loja Digital',           format: 'XLSX', icon: IC.lojaDigital, defaultStatus: 'pending',  section: 'IAF' },
   { id: 'servicos',     name: 'Serviços',                format: 'XLSX', icon: IC.doc,         defaultStatus: 'pending',  section: 'IAF' },
-  { id: 'resgates',    name: 'Resgates',               format: 'XLSX', icon: IC.gift,        defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'resgates',      name: 'Resgates',               format: 'XLSX', icon: IC.gift,        defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'boleto-promo',  name: 'Boleto Promocional',     format: 'XLSX', icon: IC.ticket,      defaultStatus: 'pending',  section: 'IAF' },
 ]
 
 const ANUAL_SOURCES: DataSource[] = [
@@ -4916,6 +4917,8 @@ function IafSkinPage() {
 }
 
 /* ── IAF — Resgates ─────────────────────────────────── */
+const RESGATE_META = 0.52
+
 function ResgatesPage() {
   const { resgatesPdvRows, resgatesTotal, resgatesConsultorRows, consultorRows, fluxoConsultorRows } = useData()
   const { lojas } = useLojas()
@@ -4923,18 +4926,8 @@ function ResgatesPage() {
   const { openImport } = useFileStatus()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
-  const [consSort, setConsSort] = useState<'desc' | 'asc'>('desc')
-  const [selectedConsLabel, setSelectedConsLabel] = useState<string>('')
 
   const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
-
-  // Cruza nome do consultor com PDV — usa consultorRows + fluxoConsultorRows para maximizar cobertura
-  const consultorPdvMap = useMemo(() => {
-    const map = new Map<string, string>()
-    consultorRows.forEach(r => map.set(r.consultor, r.pdv))
-    fluxoConsultorRows.forEach(r => { if (!map.has(r.consultor)) map.set(r.consultor, r.pdv) })
-    return map
-  }, [consultorRows, fluxoConsultorRows])
 
   const storeRows = useMemo(() => {
     const rows = resgatesPdvRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
@@ -4946,22 +4939,58 @@ function ResgatesPage() {
     )
   }, [resgatesPdvRows, lojaMap, selectedLabels, sortDir])
 
-  const enrichedConsultores = useMemo(() =>
-    [...resgatesConsultorRows]
-      .map(c => ({ ...c, pdv: consultorPdvMap.get(c.nome) ?? null }))
-      .sort((a, b) => consSort === 'desc' ? b.pct_atual - a.pct_atual : a.pct_atual - b.pct_atual)
-  , [resgatesConsultorRows, consultorPdvMap, consSort])
+  const regionGroups = useMemo(() => {
+    if (labels.length === 0) return []
+    const allRows = resgatesPdvRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+    return labels
+      .filter(lb => selectedLabels.length === 0 || selectedLabels.includes(lb.id))
+      .map(lb => {
+        const rows = allRows.filter(r => (r.loja?.labels ?? []).includes(lb.id))
+        if (rows.length === 0) return null
+        const totBolAtual = rows.reduce((s, r) => s + r.qtd_boletos_atual, 0)
+        const totBolAnt   = rows.reduce((s, r) => s + r.qtd_boletos_anterior, 0)
+        const totResAtual = rows.reduce((s, r) => s + r.qtd_resgate_atual, 0)
+        const totResAnt   = rows.reduce((s, r) => s + r.qtd_resgate_anterior, 0)
+        const pct_atual    = totBolAtual > 0 ? totResAtual / totBolAtual : 0
+        const pct_anterior = totBolAnt   > 0 ? totResAnt   / totBolAnt   : 0
+        return { label: lb, count: rows.length, pct_atual, pct_anterior, totResAtual, totBolAtual }
+      })
+      .filter(Boolean)
+      .sort((a, b) => b!.pct_atual - a!.pct_atual) as
+        { label: typeof labels[0]; count: number; pct_atual: number; pct_anterior: number; totResAtual: number; totBolAtual: number }[]
+  }, [labels, resgatesPdvRows, lojaMap, selectedLabels])
 
-  const labelPdvSet = useMemo(() => {
-    if (!selectedConsLabel) return null
-    return new Set(lojas.filter(l => (l.labels ?? []).includes(selectedConsLabel)).map(l => l.id))
-  }, [selectedConsLabel, lojas])
+  const belowTarget = useMemo(() =>
+    [...storeRows].filter(r => r.pct_atual < RESGATE_META).sort((a, b) => a.pct_atual - b.pct_atual)
+  , [storeRows])
 
-  const filteredConsultores = useMemo(() =>
-    labelPdvSet
-      ? enrichedConsultores.filter(c => c.pdv != null && labelPdvSet.has(c.pdv))
-      : enrichedConsultores
-  , [enrichedConsultores, labelPdvSet])
+  const consultorPdvMap = useMemo(() => {
+    const map = new Map<string, string>()
+    consultorRows.forEach(r => map.set(r.consultor, r.pdv))
+    fluxoConsultorRows.forEach(r => { if (!map.has(r.consultor)) map.set(r.consultor, r.pdv) })
+    return map
+  }, [consultorRows, fluxoConsultorRows])
+
+  // Consultores abaixo da meta agrupados por label, ordenados pelo maior gap
+  const opportunityGroups = useMemo(() => {
+    if (labels.length === 0 || resgatesConsultorRows.length === 0) return []
+    const below = resgatesConsultorRows
+      .filter(c => c.pct_atual < RESGATE_META)
+      .map(c => {
+        const pdv  = consultorPdvMap.get(c.nome) ?? null
+        const loja = pdv ? lojaMap.get(pdv) : undefined
+        return { ...c, pdv, loja }
+      })
+    return labels
+      .filter(lb => selectedLabels.length === 0 || selectedLabels.includes(lb.id))
+      .map(lb => {
+        const rows = below
+          .filter(c => (c.loja?.labels ?? []).includes(lb.id))
+          .sort((a, b) => a.pct_atual - b.pct_atual)
+        return rows.length > 0 ? { label: lb, rows } : null
+      })
+      .filter(Boolean) as { label: typeof labels[0]; rows: typeof below }[]
+  }, [labels, resgatesConsultorRows, consultorPdvMap, lojaMap, selectedLabels])
 
   if (resgatesPdvRows.length === 0) return (
     <div className="page-empty-state">
@@ -4978,33 +5007,73 @@ function ResgatesPage() {
   const varPp = resgatesTotal ? (resgatesTotal.pct_atual - resgatesTotal.pct_anterior) * 100 : null
   const varColor = varPp === null ? 'var(--text-primary)' : varPp >= 0 ? '#059669' : '#dc2626'
 
+  async function exportGroup(g: typeof opportunityGroups[0]) {
+    const mod = await import('xlsx')
+    const { utils, writeFile } = mod
+    const data: (string | number)[][] = [
+      ['Consultor', 'PDV', 'Loja', '% Atual', 'Gap para meta (pp)'],
+      ...g.rows.map(c => [
+        c.nome,
+        c.pdv ?? '',
+        c.loja?.apelido ?? '',
+        +(c.pct_atual * 100).toFixed(1),
+        +((RESGATE_META - c.pct_atual) * 100).toFixed(1),
+      ]),
+    ]
+    const ws = utils.aoa_to_sheet(data)
+    ws['!cols'] = [{ wch: 32 }, { wch: 10 }, { wch: 24 }, { wch: 10 }, { wch: 20 }]
+    const wb = utils.book_new()
+    utils.book_append_sheet(wb, ws, g.label.name.slice(0, 31))
+    const date = new Date().toISOString().slice(0, 10)
+    const slug = g.label.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+    writeFile(wb, `resgates_oportunidade_${slug}_${date}.xlsx`)
+  }
+
+  const pctAtual = resgatesTotal?.pct_atual ?? null
+  const abaixoCount = storeRows.filter(r => r.pct_atual < RESGATE_META).length
+
   return (
     <div className="page-content">
       <div className="page-title-row">
         <div>
           <h2 className="page-title">Resgates</h2>
-          <p className="page-subtitle">{storeRows.length} lojas · {enrichedConsultores.length} consultores</p>
+          <p className="page-subtitle">Meta: {fDec(RESGATE_META * 100, 0)}% · {storeRows.length} lojas</p>
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="kpi-row">
-        <div className="kpi-card">
-          <div className="kpi-label">% Resgates Atual</div>
-          <div className="kpi-value">{resgatesTotal ? fDec(resgatesTotal.pct_atual * 100, 1) + '%' : '—'}</div>
-          {varPp !== null && (
-            <div className="kpi-var" style={{ color: varColor }}>
-              {varPp >= 0 ? '+' : ''}{fDec(varPp, 1)} pp vs. anterior
-            </div>
-          )}
+      {/* Banner de resumo */}
+      {pctAtual !== null && (
+        <div className={`skin-summary-card${pctAtual >= RESGATE_META ? ' skin-summary-card--ok' : ' skin-summary-card--alert'}`}>
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct">{fDec(pctAtual * 100, 1)}%</span>
+            <span className="skin-summary-label">
+              {selectedLabels.length > 0
+                ? `% Resgates — ${selectedLabels.map(lid => labels.find(l => l.id === lid)?.name ?? '').join(', ')}`
+                : '% Resgates do grupo'}
+            </span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct skin-summary-pct--target">{fDec(RESGATE_META * 100, 0)}%</span>
+            <span className="skin-summary-label">meta</span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            {pctAtual >= RESGATE_META
+              ? <span className="skin-summary-status skin-summary-status--ok">✓ Meta atingida</span>
+              : <span className="skin-summary-status skin-summary-status--nok">✗ {fDec((RESGATE_META - pctAtual) * 100, 1)}pp abaixo da meta</span>
+            }
+            <span className="skin-summary-label">
+              {varPp !== null ? `${varPp >= 0 ? '+' : ''}${fDec(varPp, 1)}pp vs. anterior` : ''}
+            </span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct" style={{ fontSize: 28 }}>{fInt(resgatesTotal!.qtd_resgate_atual)}</span>
+            <span className="skin-summary-label">resgates · {fInt(resgatesTotal!.qtd_boletos_atual)} boletos</span>
+          </div>
         </div>
-        <div className="kpi-card">
-          <div className="kpi-label">% Resgates Anterior</div>
-          <div className="kpi-value">{resgatesTotal ? fDec(resgatesTotal.pct_anterior * 100, 1) + '%' : '—'}</div>
-        </div>
-        <KpiCard label="Qtd Resgates"  value={resgatesTotal ? fInt(resgatesTotal.qtd_resgate_atual) : '—'} />
-        <KpiCard label="Qtd Boletos"   value={resgatesTotal ? fInt(resgatesTotal.qtd_boletos_atual) : '—'} />
-      </div>
+      )}
 
       {/* Filtro */}
       {labels.length > 0 && (
@@ -5018,6 +5087,101 @@ function ResgatesPage() {
               onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
             >{lb.name}</button>
           ))}
+        </div>
+      )}
+
+      {/* Tabela por Região */}
+      {regionGroups.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Por Região</h3>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th>Região</th>
+                  <th className="col-num">Lojas</th>
+                  <th className="col-num">% Anterior</th>
+                  <th className="col-num">% Atual</th>
+                  <th className="col-num">Var (pp)</th>
+                  <th className="col-num">Resgates</th>
+                  <th className="col-num">Boletos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regionGroups.map(g => {
+                  const pp = (g.pct_atual - g.pct_anterior) * 100
+                  const ppColor = pp >= 0 ? '#059669' : '#dc2626'
+                  const atualColor = g.pct_atual >= RESGATE_META ? '#059669' : '#dc2626'
+                  return (
+                    <tr key={g.label.id}>
+                      <td>
+                        <span className="label-chip" style={{ '--chip-color': g.label.color } as React.CSSProperties}>
+                          {g.label.name}
+                        </span>
+                      </td>
+                      <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{g.count}</td>
+                      <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(g.pct_anterior * 100, 1)}%</td>
+                      <td className="col-num" style={{ fontWeight: 700, color: atualColor }}>{fDec(g.pct_atual * 100, 1)}%</td>
+                      <td className="col-num" style={{ fontWeight: 600, color: ppColor }}>{pp >= 0 ? '+' : ''}{fDec(pp, 1)}</td>
+                      <td className="col-num">{fInt(g.totResAtual)}</td>
+                      <td className="col-num">{fInt(g.totBolAtual)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Lojas abaixo da meta */}
+      {belowTarget.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="skin-alert-header">
+            <div>
+              <h3 className="skin-alert-title">Lojas Abaixo de {fDec(RESGATE_META * 100, 0)}%</h3>
+              <p className="dispersao-cons-sub">{belowTarget.length} loja{belowTarget.length !== 1 ? 's' : ''} abaixo da meta · pior primeiro</p>
+            </div>
+            <span className="skin-alert-badge">{belowTarget.length}</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Loja</th>
+                  <th>Região</th>
+                  <th className="col-num">% Anterior</th>
+                  <th className="col-num">% Atual</th>
+                  <th className="col-num">Gap (pp)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {belowTarget.map((r, i) => {
+                  const gap = (RESGATE_META - r.pct_atual) * 100
+                  return (
+                    <tr key={r.pdv}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td><div className="col-pdv-name"><span className="col-pdv">{r.pdv}</span>{r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}</div></td>
+                      <td>
+                        <div className="label-chips-group">
+                          {(r.loja?.labels ?? []).map(lid => {
+                            const lb = labels.find(x => x.id === lid)
+                            return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                          })}
+                        </div>
+                      </td>
+                      <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(r.pct_anterior * 100, 1)}%</td>
+                      <td className="col-num" style={{ fontWeight: 700, color: '#dc2626' }}>{fDec(r.pct_atual * 100, 1)}%</td>
+                      <td className="col-num" style={{ fontWeight: 600, color: '#dc2626' }}>−{fDec(gap, 1)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -5048,8 +5212,7 @@ function ResgatesPage() {
               {storeRows.map((r, i) => {
                 const pp = (r.pct_atual - r.pct_anterior) * 100
                 const ppColor = pp >= 0 ? '#059669' : '#dc2626'
-                const netMedia = resgatesTotal ? resgatesTotal.pct_atual : 0
-                const atualColor = r.pct_atual >= netMedia ? '#059669' : '#d97706'
+                const atualColor = r.pct_atual >= RESGATE_META ? '#059669' : '#dc2626'
                 return (
                   <tr key={r.pdv}>
                     <td className="col-rank">{i + 1}</td>
@@ -5090,29 +5253,12 @@ function ResgatesPage() {
         </div>
       </div>
 
-      {/* Tabela Consultores */}
-      {enrichedConsultores.length > 0 && (
+      {/* Tabela de Oportunidade por Região */}
+      {opportunityGroups.length > 0 && (
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="fluxo-card-header">
-            <h3 className="fluxo-card-title">Ranking por Consultor</h3>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {labels.length > 0 && (
-                <select
-                  className="form-input"
-                  style={{ fontSize: 13, padding: '4px 8px', height: 'auto', minWidth: 160 }}
-                  value={selectedConsLabel}
-                  onChange={e => setSelectedConsLabel(e.target.value)}
-                >
-                  <option value="">Todas as regiões</option>
-                  {labels.map(lb => (
-                    <option key={lb.id} value={lb.id}>{lb.name}</option>
-                  ))}
-                </select>
-              )}
-              <button className="btn btn-sm btn-ghost" onClick={() => setConsSort(d => d === 'desc' ? 'asc' : 'desc')} style={{ fontSize: 12 }}>
-                {consSort === 'desc' ? '▼ Maior → Menor' : '▲ Menor → Maior'}
-              </button>
-            </div>
+            <h3 className="fluxo-card-title">Oportunidade por Região</h3>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>consultores abaixo de {fDec(RESGATE_META * 100, 0)}% · maior gap primeiro</span>
           </div>
           <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
             <table className="dash-table">
@@ -5121,31 +5267,430 @@ function ResgatesPage() {
                   <th className="col-rank">#</th>
                   <th>Consultor</th>
                   <th className="col-pdv">PDV</th>
-                  <th className="col-num">% Resgates</th>
-                  <th className="col-num">Qtd Resgates</th>
-                  <th className="col-num">Qtd Boletos</th>
+                  <th className="col-num">% Atual</th>
+                  <th className="col-num">Gap (pp)</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredConsultores.map((c, i) => {
-                  const netMedia = resgatesTotal ? resgatesTotal.pct_atual : 0
-                  const color = c.pct_atual >= netMedia ? '#059669' : '#d97706'
+                {opportunityGroups.map(g => (
+                  <>
+                    <tr key={`hdr-${g.label.id}`} style={{ background: g.label.color + '18' }}>
+                      <td colSpan={5} style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="label-chip" style={{ '--chip-color': g.label.color } as React.CSSProperties}>
+                          {g.label.name}
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          {g.rows.length} consultor{g.rows.length !== 1 ? 'es' : ''}
+                        </span>
+                        <button
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => exportGroup(g)}
+                          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Exportar
+                        </button>
+                      </td>
+                    </tr>
+                    {g.rows.map((c, i) => {
+                      const gap = (RESGATE_META - c.pct_atual) * 100
+                      return (
+                        <tr key={c.nome}>
+                          <td className="col-rank">{i + 1}</td>
+                          <td>{c.nome}</td>
+                          <td className="col-pdv">{c.pdv ?? <span className="dash-muted">—</span>}</td>
+                          <td className="col-num" style={{ fontWeight: 700, color: '#dc2626' }}>{fDec(c.pct_atual * 100, 1)}%</td>
+                          <td className="col-num" style={{ fontWeight: 600, color: '#dc2626' }}>−{fDec(gap, 1)}</td>
+                        </tr>
+                      )
+                    })}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+    </div>
+  )
+}
+
+/* ── IAF — Boleto Promocional ───────────────────────── */
+// Meta a definir — altere este valor quando souber o alvo
+const BOLETO_PROMO_META = 0.33
+
+function BoletoPromocionalPage() {
+  const { boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, consultorRows, fluxoConsultorRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+  const [selectedPdv, setSelectedPdv] = useState<string>('')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const storeRows = useMemo(() => {
+    const rows = boletoPromoPdvRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+    const filtered = selectedLabels.length === 0
+      ? rows
+      : rows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+    return [...filtered].sort((a, b) =>
+      sortDir === 'desc' ? b.convertidos_pct - a.convertidos_pct : a.convertidos_pct - b.convertidos_pct
+    )
+  }, [boletoPromoPdvRows, lojaMap, selectedLabels, sortDir])
+
+  const regionGroups = useMemo(() => {
+    if (labels.length === 0) return []
+    const allRows = boletoPromoPdvRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+    return labels
+      .filter(lb => selectedLabels.length === 0 || selectedLabels.includes(lb.id))
+      .map(lb => {
+        const rows = allRows.filter(r => (r.loja?.labels ?? []).includes(lb.id))
+        if (rows.length === 0) return null
+        const totEleg = rows.reduce((s, r) => s + r.elegiveis_qtd, 0)
+        const totConv = rows.reduce((s, r) => s + r.convertidos_qtd, 0)
+        const convertidos_pct = totEleg > 0 ? totConv / totEleg : 0
+        const belowCount = BOLETO_PROMO_META !== null ? rows.filter(r => r.convertidos_pct < BOLETO_PROMO_META!).length : 0
+        return { label: lb, count: rows.length, convertidos_pct, totConv, totEleg, belowCount }
+      })
+      .filter(Boolean)
+      .sort((a, b) => b!.convertidos_pct - a!.convertidos_pct) as
+        { label: typeof labels[0]; count: number; convertidos_pct: number; totConv: number; totEleg: number; belowCount: number }[]
+  }, [labels, boletoPromoPdvRows, lojaMap, selectedLabels])
+
+  const belowTarget = useMemo(() =>
+    BOLETO_PROMO_META !== null
+      ? [...storeRows].filter(r => r.convertidos_pct < BOLETO_PROMO_META!).sort((a, b) => a.convertidos_pct - b.convertidos_pct)
+      : []
+  , [storeRows])
+
+  const consultorPdvMap = useMemo(() => {
+    const map = new Map<string, string>()
+    consultorRows.forEach(r => map.set(r.consultor, r.pdv))
+    fluxoConsultorRows.forEach(r => { if (!map.has(r.consultor)) map.set(r.consultor, r.pdv) })
+    return map
+  }, [consultorRows, fluxoConsultorRows])
+
+  const activePdv = selectedPdv || boletoPromoPdvRows[0]?.pdv || ''
+
+  const consRows = useMemo(() =>
+    boletoPromoConsultorRows
+      .filter(c => (consultorPdvMap.get(c.nome) ?? '') === activePdv)
+      .sort((a, b) => b.convertidos_pct - a.convertidos_pct)
+  , [boletoPromoConsultorRows, consultorPdvMap, activePdv])
+
+  function StoreOptionContent({ pdv, inline }: { pdv: string; inline?: boolean }) {
+    const loja = lojaMap.get(pdv)
+    const lbs  = (loja?.labels ?? []).map(lid => labels.find(l => l.id === lid)).filter(Boolean) as typeof labels
+    return (
+      <span className={`store-option-content${inline ? ' store-option-content--inline' : ''}`}>
+        <span className="store-option-pdv">{pdv}</span>
+        {loja?.apelido && <span className="store-option-apelido">{loja.apelido}</span>}
+        {lbs.map(lb => <span key={lb.id} className="label-chip label-chip--xs" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span>)}
+      </span>
+    )
+  }
+
+  if (boletoPromoPdvRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h.01M11 15h2M16 9h.01M7 9h.01"/></svg>
+      <div className="page-empty-title">Boleto Promocional não carregado</div>
+      <div className="page-empty-desc">Importe a planilha para visualizar este relatório</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Boleto Promocional <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  const pctConv = boletoPromoTotal?.convertidos_pct ?? null
+  const isOk = BOLETO_PROMO_META !== null && pctConv !== null && pctConv >= BOLETO_PROMO_META
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Boleto Promocional</h2>
+          <p className="page-subtitle">% Convertidos · {storeRows.length} lojas</p>
+        </div>
+      </div>
+
+      {/* Banner de resumo */}
+      {pctConv !== null && (
+        <div className={`skin-summary-card${BOLETO_PROMO_META !== null ? (isOk ? ' skin-summary-card--ok' : ' skin-summary-card--alert') : ''}`}>
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct">{fDec(pctConv * 100, 1)}%</span>
+            <span className="skin-summary-label">
+              {selectedLabels.length > 0
+                ? `% Convertidos — ${selectedLabels.map(lid => labels.find(l => l.id === lid)?.name ?? '').join(', ')}`
+                : '% Convertidos do grupo'}
+            </span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct" style={{ fontSize: 28 }}>{fDec(boletoPromoTotal!.elegiveis_pct * 100, 1)}%</span>
+            <span className="skin-summary-label">elegíveis · {fInt(boletoPromoTotal!.elegiveis_qtd)} boletos</span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct" style={{ fontSize: 28 }}>{fInt(boletoPromoTotal!.convertidos_qtd)}</span>
+            <span className="skin-summary-label">convertidos · {fInt(boletoPromoTotal!.total_boletos)} total</span>
+          </div>
+          {BOLETO_PROMO_META !== null && (
+            <>
+              <div className="skin-summary-divider" />
+              <div className="skin-summary-block">
+                <span className="skin-summary-pct skin-summary-pct--target">{fDec(BOLETO_PROMO_META * 100, 0)}%</span>
+                <span className="skin-summary-label">meta</span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Filtro */}
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Por Região */}
+      {regionGroups.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Por Região</h3>
+            <span className="dispersao-cons-sub">% Convertidos · elegíveis / total</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th>Região</th>
+                  <th className="col-num">Lojas</th>
+                  <th className="col-num">Elegíveis</th>
+                  <th className="col-num">% Convertidos</th>
+                  <th className="col-num">Convertidos</th>
+                  {BOLETO_PROMO_META !== null && <th className="col-num">Abaixo da meta</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {regionGroups.map(g => {
+                  const color = BOLETO_PROMO_META !== null
+                    ? (g.convertidos_pct >= BOLETO_PROMO_META ? '#059669' : '#dc2626')
+                    : 'var(--text-primary)'
                   return (
-                    <tr key={c.nome}>
-                      <td className="col-rank">{i + 1}</td>
-                      <td>{c.nome}</td>
-                      <td className="col-pdv">{c.pdv ?? <span className="dash-muted">—</span>}</td>
-                      <td className="col-num" style={{ fontWeight: 700, color }}>{fDec(c.pct_atual * 100, 1)}%</td>
-                      <td className="col-num">{fInt(c.qtd_resgate_atual)}</td>
-                      <td className="col-num">{fInt(c.qtd_boletos_atual)}</td>
+                    <tr key={g.label.id}>
+                      <td><span className="label-chip" style={{ '--chip-color': g.label.color } as React.CSSProperties}>{g.label.name}</span></td>
+                      <td className="col-num">{g.count}</td>
+                      <td className="col-num">{fInt(g.totEleg)}</td>
+                      <td className="col-num" style={{ fontWeight: 700, color }}>{fDec(g.convertidos_pct * 100, 1)}%</td>
+                      <td className="col-num">{fInt(g.totConv)}</td>
+                      {BOLETO_PROMO_META !== null && (
+                        <td className="col-num" style={{ color: g.belowCount > 0 ? '#dc2626' : '#059669', fontWeight: 600 }}>{g.belowCount}</td>
+                      )}
                     </tr>
                   )
                 })}
-                {filteredConsultores.length === 0 && (
-                  <tr><td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 32 }}>Nenhum consultor nesta loja.</td></tr>
-                )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Lojas abaixo da meta */}
+      {belowTarget.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="skin-alert-header">
+            <div>
+              <h3 className="skin-alert-title">Lojas Abaixo de {fDec(BOLETO_PROMO_META! * 100, 0)}%</h3>
+              <p className="dispersao-cons-sub">{belowTarget.length} loja{belowTarget.length !== 1 ? 's' : ''} abaixo da meta · pior primeiro</p>
+            </div>
+            <span className="skin-alert-badge">{belowTarget.length}</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Loja</th>
+                  <th>Região</th>
+                  <th className="col-num">Elegíveis</th>
+                  <th className="col-num">% Convertidos</th>
+                  <th className="col-num">Gap (pp)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {belowTarget.map((r, i) => (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td><div className="col-pdv-name"><span className="col-pdv">{r.pdv}</span>{r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}</div></td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(r.loja?.labels ?? []).map(lid => { const lb = labels.find(x => x.id === lid); return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null })}
+                      </div>
+                    </td>
+                    <td className="col-num">{fInt(r.elegiveis_qtd)}</td>
+                    <td className="col-num" style={{ fontWeight: 700, color: '#dc2626' }}>{fDec(r.convertidos_pct * 100, 1)}%</td>
+                    <td className="col-num" style={{ fontWeight: 600, color: '#dc2626' }}>−{fDec((BOLETO_PROMO_META! - r.convertidos_pct) * 100, 1)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Ranking por Loja */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Ranking por Loja</h3>
+          <button className="btn btn-sm btn-ghost" onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')} style={{ fontSize: 12 }}>
+            {sortDir === 'desc' ? '▼ Maior → Menor' : '▲ Menor → Maior'}
+          </button>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Total</th>
+                <th className="col-num">Elegíveis</th>
+                <th className="col-num">% Eleg.</th>
+                <th className="col-num">Convertidos</th>
+                <th className="col-num">% Conv.</th>
+                <th className="col-num">Oficiais</th>
+                <th className="col-num">% Of.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {storeRows.map((r, i) => {
+                const convColor = BOLETO_PROMO_META !== null
+                  ? (r.convertidos_pct >= BOLETO_PROMO_META ? '#059669' : '#dc2626')
+                  : 'var(--text-primary)'
+                return (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td className="col-pdv">{r.pdv}</td>
+                    <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(r.loja?.labels ?? []).map(lid => { const lb = labels.find(x => x.id === lid); return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null })}
+                      </div>
+                    </td>
+                    <td className="col-num">{fInt(r.total_boletos)}</td>
+                    <td className="col-num">{fInt(r.elegiveis_qtd)}</td>
+                    <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(r.elegiveis_pct * 100, 1)}%</td>
+                    <td className="col-num">{fInt(r.convertidos_qtd)}</td>
+                    <td className="col-num" style={{ fontWeight: 700, color: convColor }}>{fDec(r.convertidos_pct * 100, 1)}%</td>
+                    <td className="col-num">{fInt(r.oficiais_qtd)}</td>
+                    <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(r.oficiais_pct * 100, 1)}%</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            {boletoPromoTotal && (
+              <tfoot>
+                <tr className="gap-table-total">
+                  <td colSpan={4} className="gap-total-label">Total</td>
+                  <td className="col-num">{fInt(boletoPromoTotal.total_boletos)}</td>
+                  <td className="col-num">{fInt(boletoPromoTotal.elegiveis_qtd)}</td>
+                  <td className="col-num">{fDec(boletoPromoTotal.elegiveis_pct * 100, 1)}%</td>
+                  <td className="col-num">{fInt(boletoPromoTotal.convertidos_qtd)}</td>
+                  <td className="col-num" style={{ fontWeight: 700 }}>{fDec(boletoPromoTotal.convertidos_pct * 100, 1)}%</td>
+                  <td className="col-num">{fInt(boletoPromoTotal.oficiais_qtd)}</td>
+                  <td className="col-num">{fDec(boletoPromoTotal.oficiais_pct * 100, 1)}%</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+
+      {/* Consultores por Loja */}
+      {boletoPromoConsultorRows.length > 0 && (
+        <div className="card" style={{ padding: 0 }}>
+          <div className="fluxo-card-header" style={{ alignItems: 'flex-start', gap: 8 }}>
+            <h3 className="fluxo-card-title">Consultores por Loja</h3>
+            <div className="store-picker" ref={pickerRef}>
+              <button className="store-picker-btn" onClick={() => setPickerOpen(p => !p)}>
+                <StoreOptionContent pdv={activePdv} inline />
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              {pickerOpen && (
+                <div className="store-picker-dropdown">
+                  {boletoPromoPdvRows.map(r => (
+                    <button key={r.pdv} className={`store-picker-option${r.pdv === activePdv ? ' selected' : ''}`}
+                      onClick={() => { setSelectedPdv(r.pdv); setPickerOpen(false) }}>
+                      <StoreOptionContent pdv={r.pdv} />
+                      {r.pdv === activePdv && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{ overflow: 'hidden', borderRadius: '0 0 16px 16px' }}>
+            {consRows.length === 0 ? (
+              <div style={{ padding: '24px', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum consultor encontrado para esta loja.</div>
+            ) : (
+              <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+                <table className="dash-table">
+                  <thead>
+                    <tr>
+                      <th className="col-rank">#</th>
+                      <th>Consultor</th>
+                      <th className="col-num">Total</th>
+                      <th className="col-num">Elegíveis</th>
+                      <th className="col-num">% Eleg.</th>
+                      <th className="col-num">Convertidos</th>
+                      <th className="col-num">% Conv.</th>
+                      <th className="col-num">% Of.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {consRows.map((c, i) => {
+                      const convColor = c.convertidos_pct >= BOLETO_PROMO_META ? '#059669' : '#dc2626'
+                      return (
+                        <tr key={c.nome}>
+                          <td className="col-rank">{i + 1}</td>
+                          <td className="col-consultor">{c.nome}</td>
+                          <td className="col-num">{fInt(c.total_boletos)}</td>
+                          <td className="col-num">{fInt(c.elegiveis_qtd)}</td>
+                          <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(c.elegiveis_pct * 100, 1)}%</td>
+                          <td className="col-num">{fInt(c.convertidos_qtd)}</td>
+                          <td className="col-num" style={{ fontWeight: 700, color: convColor }}>{fDec(c.convertidos_pct * 100, 1)}%</td>
+                          <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(c.oficiais_pct * 100, 1)}%</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -5432,14 +5977,12 @@ function Sidebar() {
           <div className="nav-group">
             <div className="nav-group-title">IAF</div>
             <SideItem to="/app/iaf"            icon={IC.check}   label="Indicadores" />
-            <SideItem to="/app/iaf/detalhe"    icon={IC.search}  label="Detalhe" />
             <SideItem to="/app/iaf/fluxo"      icon={IC.arrows}  label="Ação de Fluxo" />
             <SideItem to="/app/iaf/skin"       icon={IC.skin}    label="Skin"          requires={['skin','parcial-skin']} />
             <SideItem to="/app/iaf/id-cliente"    icon={IC.idCard}      label="ID do Cliente" requires={['id-cliente']} />
             <SideItem to="/app/iaf/loja-digital" icon={IC.lojaDigital} label="Loja Digital"  requires={['loja-digital']} />
             <SideItem to="/app/iaf/servicos"           icon={IC.doc}    label="Serviços"           requires={['servicos']} />
-            <SideItem to="/app/iaf/boleto-promocional" icon={IC.ticket} label="Boleto Promocional" />
-            <SideItem to="/app/iaf/boleto-turbinado"   icon={IC.bolt}   label="Boleto Turbinado" />
+            <SideItem to="/app/iaf/boleto-promocional" icon={IC.ticket} label="Boleto Promocional" requires={['boleto-promo']} />
             <SideItem to="/app/iaf/resgates"           icon={IC.gift}   label="Resgates"           requires={['resgates']} />
           </div>
         </nav>
@@ -5464,6 +6007,186 @@ function Sidebar() {
       )}
 
     </aside>
+  )
+}
+
+/* ── IAF — Indicadores (Resumo por loja) ────────────── */
+const IAF_IND_METAS = { skin: 2.7, af: 28, bp: 33, resgate: 52, id: 115 }
+
+function IafIndicadoresPage() {
+  const { skinRows, fluxoRows, idClienteRows, servicosRows, resgatesPdvRows, boletoPromoPdvRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+
+  const lojaMap    = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  const skinMap    = useMemo(() => new Map(skinRows.map(r => [r.pdv, r])), [skinRows])
+  const fluxoMap   = useMemo(() => new Map(fluxoRows.map(r => [r.pdv, r])), [fluxoRows])
+  const idMap      = useMemo(() => new Map(idClienteRows.map(r => [r.pdv, r])), [idClienteRows])
+  const servMap    = useMemo(() => new Map(servicosRows.map(r => [r.pdv, r])), [servicosRows])
+  const resgateMap = useMemo(() => new Map(resgatesPdvRows.map(r => [r.pdv, r])), [resgatesPdvRows])
+  const bpMap      = useMemo(() => new Map(boletoPromoPdvRows.map(r => [r.pdv, r])), [boletoPromoPdvRows])
+
+  const allPdvs = useMemo(() => {
+    const set = new Set<string>()
+    skinRows.forEach(r => set.add(r.pdv))
+    fluxoRows.forEach(r => set.add(r.pdv))
+    idClienteRows.forEach(r => set.add(r.pdv))
+    servicosRows.forEach(r => set.add(r.pdv))
+    resgatesPdvRows.forEach(r => set.add(r.pdv))
+    boletoPromoPdvRows.forEach(r => set.add(r.pdv))
+    return [...set].sort()
+  }, [skinRows, fluxoRows, idClienteRows, servicosRows, resgatesPdvRows, boletoPromoPdvRows])
+
+  const rows = useMemo(() =>
+    allPdvs
+      .map(pdv => {
+        const loja   = lojaMap.get(pdv)
+        const skin   = skinMap.get(pdv)
+        const fl     = fluxoMap.get(pdv)
+        const id     = idMap.get(pdv)
+        const serv   = servMap.get(pdv)
+        const res    = resgateMap.get(pdv)
+        const bp     = bpMap.get(pdv)
+        return {
+          pdv, loja,
+          skinPct:    skin != null ? skin.share * 100 : null,
+          afPct:      fl   != null ? (fl.conv_pct < 1 ? fl.conv_pct * 100 : fl.conv_pct) : null,
+          bpPct:      bp   != null ? bp.convertidos_pct * 100 : null,
+          resgatePct: res  != null ? res.pct_atual * 100 : null,
+          idPct:      id   != null ? id.pct_cpf_atual * 100 : null,
+          servPct:    serv != null ? serv.pct_completos * 100 : null,
+        }
+      })
+      .filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+  , [allPdvs, lojaMap, skinMap, fluxoMap, idMap, servMap, resgateMap, bpMap, selectedLabels])
+
+  if (allPdvs.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+      <div className="page-empty-title">Nenhum dado IAF carregado</div>
+      <div className="page-empty-desc">Importe ao menos uma planilha IAF para ver o resumo consolidado</div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilhas</button>
+    </div>
+  )
+
+  function ICell({ v, meta }: { v: number | null; meta: number | null }) {
+    if (v === null) return <td className="col-num" style={{ color: 'var(--text-muted)' }}>—</td>
+    const ok = meta !== null ? v >= meta : null
+    return (
+      <td className="col-num" style={{ fontWeight: ok === false ? 700 : undefined, color: ok === null ? 'var(--text-secondary)' : ok ? '#059669' : '#dc2626' }}>
+        {fDec(v, 1)}%
+      </td>
+    )
+  }
+
+  const fmt = (n: number) => n % 1 === 0 ? fInt(n) : fDec(n, 1)
+
+  function ColHead({ label, meta }: { label: string; meta?: number }) {
+    return (
+      <th className="col-num">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+          <span>{label}</span>
+          {meta !== undefined && <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>meta {fmt(meta)}%</span>}
+        </div>
+      </th>
+    )
+  }
+
+  const below = {
+    skin:    { n: rows.filter(r => r.skinPct    != null && r.skinPct    < IAF_IND_METAS.skin).length,    has: rows.some(r => r.skinPct    != null) },
+    af:      { n: rows.filter(r => r.afPct      != null && r.afPct      < IAF_IND_METAS.af).length,      has: rows.some(r => r.afPct      != null) },
+    bp:      { n: rows.filter(r => r.bpPct      != null && r.bpPct      < IAF_IND_METAS.bp).length,      has: rows.some(r => r.bpPct      != null) },
+    resgate: { n: rows.filter(r => r.resgatePct != null && r.resgatePct < IAF_IND_METAS.resgate).length, has: rows.some(r => r.resgatePct != null) },
+    id:      { n: rows.filter(r => r.idPct      != null && r.idPct      < IAF_IND_METAS.id).length,      has: rows.some(r => r.idPct      != null) },
+  }
+
+  function BelowCell({ b }: { b: { n: number; has: boolean } }) {
+    if (!b.has) return <td className="col-num" style={{ color: 'var(--text-muted)' }}>—</td>
+    return <td className="col-num" style={{ color: b.n > 0 ? '#dc2626' : '#059669', fontWeight: 700 }}>{b.n} loja{b.n !== 1 ? 's' : ''}</td>
+  }
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <h2 className="page-title">IAF — Indicadores</h2>
+          <p className="page-subtitle">Resumo por loja · {rows.length} loja{rows.length !== 1 ? 's' : ''}</p>
+        </div>
+      </div>
+
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+        <table className="dash-table">
+          <thead>
+            <tr>
+              <th className="col-rank">#</th>
+              <th>Loja</th>
+              <th>Região</th>
+              <ColHead label="SKIN"    meta={IAF_IND_METAS.skin} />
+              <ColHead label="AF"      meta={IAF_IND_METAS.af} />
+              <ColHead label="BP"      meta={IAF_IND_METAS.bp} />
+              <ColHead label="Resgate" meta={IAF_IND_METAS.resgate} />
+              <ColHead label="ID"      meta={IAF_IND_METAS.id} />
+              <ColHead label="Serviços" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.pdv}>
+                <td className="col-rank">{i + 1}</td>
+                <td>
+                  <div className="col-pdv-name">
+                    <span className="col-pdv">{r.pdv}</span>
+                    {r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}
+                  </div>
+                </td>
+                <td>
+                  <div className="label-chips-group">
+                    {(r.loja?.labels ?? []).map(lid => {
+                      const lb = labels.find(x => x.id === lid)
+                      return lb ? <span key={lid} className="label-chip label-chip--xs" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                    })}
+                  </div>
+                </td>
+                <ICell v={r.skinPct}    meta={IAF_IND_METAS.skin} />
+                <ICell v={r.afPct}      meta={IAF_IND_METAS.af} />
+                <ICell v={r.bpPct}      meta={IAF_IND_METAS.bp} />
+                <ICell v={r.resgatePct} meta={IAF_IND_METAS.resgate} />
+                <ICell v={r.idPct}      meta={IAF_IND_METAS.id} />
+                <ICell v={r.servPct}    meta={null} />
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={3} className="gap-total-label">Abaixo da meta</td>
+              <BelowCell b={below.skin} />
+              <BelowCell b={below.af} />
+              <BelowCell b={below.bp} />
+              <BelowCell b={below.resgate} />
+              <BelowCell b={below.id} />
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
   )
 }
 
@@ -5699,15 +6422,13 @@ export default function AppShell() {
             <Route path="lojas/dispersao"         element={<DispersaoPage />} />
             <Route path="lojas/share-categorias"  element={<ShareCategoriasPage />} />
             {/* Mensal – IAF */}
-            <Route path="iaf"          element={<WipPage title="IAF — Indicadores" />} />
-            <Route path="iaf/detalhe"  element={<WipPage title="IAF — Detalhe" />} />
+            <Route path="iaf"          element={<IafIndicadoresPage />} />
             <Route path="iaf/fluxo"    element={<IafFluxoPage />} />
             <Route path="iaf/skin"       element={<IafSkinPage />} />
             <Route path="iaf/id-cliente"    element={<IDClientePage />} />
             <Route path="iaf/loja-digital"  element={<LojaDigitalPage />} />
             <Route path="iaf/servicos"           element={<ServicosPage />} />
-            <Route path="iaf/boleto-promocional" element={<WipPage title="IAF — Boleto Promocional" />} />
-            <Route path="iaf/boleto-turbinado"   element={<WipPage title="IAF — Boleto Turbinado" />} />
+            <Route path="iaf/boleto-promocional" element={<BoletoPromocionalPage />} />
             <Route path="iaf/resgates"           element={<ResgatesPage />} />
             {/* Anual – Lojas */}
             <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas"              requires={['anual-main']} />} />
