@@ -3350,11 +3350,10 @@ function ServicosPage() {
   const { openImport } = useFileStatus()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
-  const [meta, setMeta] = useState<number | null>(() => {
-    const s = localStorage.getItem('prisma-prefs-servicos-meta')
-    return s ? Number(s) : null
+  const [metas, setMetas] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-servicos-metas') ?? '{}') } catch { return {} }
   })
-  const [editingMeta, setEditingMeta] = useState(false)
+  const [editingPdv, setEditingPdv] = useState<string | null>(null)
   const [metaInput, setMetaInput] = useState('')
 
   const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
@@ -3387,21 +3386,34 @@ function ServicosPage() {
   const totalTotais    = servicosTotal?.servicos_totais    ?? storeRows.reduce((s, r) => s + r.servicos_totais, 0)
   const pctGeral       = servicosTotal?.pct_completos      ?? (totalTotais > 0 ? totalCompletos / totalTotais : 0)
   const avgPorLoja     = storeRows.length > 0 ? storeRows.reduce((s, r) => s + r.servicos_completos, 0) / storeRows.length : 0
-
-  const atingimento    = meta && meta > 0 ? (totalCompletos / meta) * 100 : null
-  const gap            = meta ? totalCompletos - meta : null
-  const atingColor     = atingimento === null ? 'var(--text-primary)'
-    : atingimento >= 100 ? '#059669'
-    : atingimento >= 80  ? '#d97706'
+  const totalMeta      = Object.values(metas).reduce((s, v) => s + v, 0)
+  const metasDefinidas = Object.keys(metas).length
+  const atingGeral     = totalMeta > 0 ? (totalCompletos / totalMeta) * 100 : null
+  const atingGeralColor = atingGeral === null ? 'var(--text-primary)'
+    : atingGeral >= 100 ? '#059669'
+    : atingGeral >= 80  ? '#d97706'
     : '#dc2626'
 
-  function saveMeta() {
+  function startEdit(pdv: string) {
+    setEditingPdv(pdv)
+    setMetaInput(metas[pdv] != null ? String(metas[pdv]) : '')
+  }
+
+  function saveMeta(pdv: string) {
     const v = parseFloat(metaInput.replace(',', '.'))
     if (!isNaN(v) && v > 0) {
-      setMeta(v)
-      localStorage.setItem('prisma-prefs-servicos-meta', String(v))
+      const next = { ...metas, [pdv]: v }
+      setMetas(next)
+      localStorage.setItem('prisma-prefs-servicos-metas', JSON.stringify(next))
     }
-    setEditingMeta(false)
+    setEditingPdv(null)
+  }
+
+  function clearMeta(pdv: string) {
+    const next = { ...metas }
+    delete next[pdv]
+    setMetas(next)
+    localStorage.setItem('prisma-prefs-servicos-metas', JSON.stringify(next))
   }
 
   return (
@@ -3413,60 +3425,27 @@ function ServicosPage() {
         </div>
       </div>
 
-      {/* KPIs + Meta */}
+      {/* KPIs */}
       <div className="kpi-row">
         <KpiCard label="Serviços Completos" value={fDec(totalCompletos, 1)} />
         <KpiCard label="Serviços Totais"    value={fDec(totalTotais, 1)} />
         <KpiCard label="% Completos"        value={fDec(pctGeral * 100, 1) + '%'} />
         <KpiCard label="Média por Loja"     value={fDec(avgPorLoja, 1)} />
-
-        {/* Card de meta editável */}
         <div className="kpi-card" style={{ minWidth: 160 }}>
-          <div className="kpi-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            Meta do Mês
-            {!editingMeta && (
-              <button
-                onClick={() => { setMetaInput(meta ? String(meta) : ''); setEditingMeta(true) }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, lineHeight: 1 }}
-                title="Editar meta"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              </button>
-            )}
-          </div>
-
-          {editingMeta ? (
-            <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
-              <input
-                autoFocus
-                type="number"
-                className="lojas-input"
-                style={{ width: '100%', fontSize: 14 }}
-                value={metaInput}
-                onChange={e => setMetaInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') saveMeta(); if (e.key === 'Escape') setEditingMeta(false) }}
-                placeholder="Ex: 700"
-              />
-              <button className="lojas-btn-save" onClick={saveMeta}>✓</button>
-              <button className="lojas-btn-cancel" onClick={() => setEditingMeta(false)}>✕</button>
-            </div>
-          ) : meta ? (
+          <div className="kpi-label">Meta Total</div>
+          {totalMeta > 0 ? (
             <>
-              <div className="kpi-value">{fDec(meta, 0)}</div>
-              {atingimento !== null && (
-                <div className="kpi-var" style={{ color: atingColor }}>
-                  {fDec(atingimento, 1)}% atingido
-                </div>
+              <div className="kpi-value">{fDec(totalMeta, 0)}</div>
+              {atingGeral !== null && (
+                <div className="kpi-var" style={{ color: atingGeralColor }}>{fDec(atingGeral, 1)}% atingido</div>
               )}
-              {gap !== null && (
-                <div style={{ fontSize: 12, color: gap >= 0 ? '#059669' : '#dc2626', marginTop: 2 }}>
-                  {gap >= 0 ? `+${fDec(gap, 1)} acima` : `${fDec(gap, 1)} abaixo`}
-                </div>
-              )}
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                {metasDefinidas}/{storeRows.length} lojas com meta
+              </div>
             </>
           ) : (
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
-              Clique no lápis para definir
+              Defina a meta de cada loja na tabela
             </div>
           )}
         </div>
@@ -3511,18 +3490,21 @@ function ServicosPage() {
                 <th className="col-num">Serv. Completos</th>
                 <th className="col-num">Serv. Totais</th>
                 <th className="col-num">% Completos</th>
+                <th className="col-num">Meta</th>
+                <th className="col-num">Ating.</th>
               </tr>
             </thead>
             <tbody>
               {storeRows.map((r, i) => {
                 const pct = r.pct_completos * 100
-                const metaLoja = meta && servicosRows.length > 0 ? meta / servicosRows.length : null
+                const metaLoja = metas[r.pdv] ?? null
                 const ating = metaLoja ? (r.servicos_completos / metaLoja) * 100 : null
                 const servColor = ating === null
                   ? 'var(--text-primary)'
                   : ating >= 100 ? '#059669'
                   : ating >= 80  ? '#d97706'
                   : '#dc2626'
+                const isEditing = editingPdv === r.pdv
                 return (
                   <tr key={r.pdv}>
                     <td className="col-rank">{i + 1}</td>
@@ -3536,9 +3518,50 @@ function ServicosPage() {
                         })}
                       </div>
                     </td>
-                    <td className="col-num" style={{ fontWeight: 700, color: servColor }}>{fDec(r.servicos_completos, 1)}</td>
+                    <td className="col-num" style={{ fontWeight: 700 }}>{fDec(r.servicos_completos, 1)}</td>
                     <td className="col-num">{fDec(r.servicos_totais, 1)}</td>
                     <td className="col-num" style={{ color: pct >= pctGeral * 100 ? '#059669' : '#d97706', fontWeight: 600 }}>{fDec(pct, 1)}%</td>
+                    <td className="col-num" style={{ minWidth: 110 }}>
+                      {isEditing ? (
+                        <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                          <input
+                            autoFocus
+                            type="number"
+                            className="lojas-input"
+                            style={{ width: 70, fontSize: 13, padding: '2px 4px' }}
+                            value={metaInput}
+                            onChange={e => setMetaInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveMeta(r.pdv); if (e.key === 'Escape') setEditingPdv(null) }}
+                            placeholder="Meta"
+                          />
+                          <button className="lojas-btn-save" style={{ padding: '2px 6px', fontSize: 12 }} onClick={() => saveMeta(r.pdv)}>✓</button>
+                          <button className="lojas-btn-cancel" style={{ padding: '2px 6px', fontSize: 12 }} onClick={() => setEditingPdv(null)}>✕</button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                          <span>{metaLoja != null ? fDec(metaLoja, 0) : <span style={{ color: 'var(--text-muted)' }}>—</span>}</span>
+                          <button
+                            onClick={() => startEdit(r.pdv)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, lineHeight: 1, opacity: 0.7 }}
+                            title="Editar meta"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
+                          {metaLoja != null && (
+                            <button
+                              onClick={() => clearMeta(r.pdv)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, lineHeight: 1, opacity: 0.5 }}
+                              title="Remover meta"
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="col-num" style={{ fontWeight: 600, color: servColor }}>
+                      {ating != null ? fDec(ating, 1) + '%' : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                    </td>
                   </tr>
                 )
               })}
@@ -3549,6 +3572,8 @@ function ServicosPage() {
                 <td className="col-num" style={{ fontWeight: 700 }}>{fDec(totalCompletos, 1)}</td>
                 <td className="col-num">{fDec(totalTotais, 1)}</td>
                 <td className="col-num" style={{ fontWeight: 700 }}>{fDec(pctGeral * 100, 1)}%</td>
+                <td className="col-num" style={{ fontWeight: 700 }}>{totalMeta > 0 ? fDec(totalMeta, 0) : '—'}</td>
+                <td className="col-num" style={{ fontWeight: 700, color: atingGeralColor }}>{atingGeral != null ? fDec(atingGeral, 1) + '%' : '—'}</td>
               </tr>
             </tfoot>
           </table>
