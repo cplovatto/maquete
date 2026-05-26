@@ -306,6 +306,7 @@ const IC = {
   ticket:      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-2a2 2 0 0 0 0-4z"/><line x1="9" y1="8" x2="9" y2="16"/></svg>,
   bolt:        <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
   gift:        <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>,
+  sliders:     <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>,
 }
 
 /* ── Lojas ──────────────────────────────────────────── */
@@ -939,6 +940,9 @@ function VisaoGeralPage() {
   const { labels } = useLabels()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [selectedImpactLabels, setSelectedImpactLabels] = useState<string[]>([])
+  const [metasMensais] = useState<Record<string, MetaMensal>>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-metas-mensais') ?? '{}') } catch { return {} }
+  })
 
   if (mainRows.length === 0) return <LojasEmptyState />
 
@@ -1234,16 +1238,15 @@ function VisaoGeralPage() {
 
       {/* ── Progresso do Mês ── */}
       {(() => {
-        // TODO: substituir META_PADRAO pela meta mensal real de cada loja
-        // quando o módulo de metas for implementado.
-        // progressoRows precisará cruzar com a fonte "parcial" do mês corrente.
+        const hasMetas = Object.keys(metasMensais).length > 0
         const progressoRows = mainRows
+          .filter(r => metasMensais[r.pdv] != null)
           .map(r => ({
             ...r,
             loja: lojaMap.get(r.pdv),
-            meta: META_PADRAO,                          // <- trocar pela meta real
-            realizado: r.vf_atual,                      // <- trocar pelo parcial do mês
-            pct: r.vf_atual / META_PADRAO,
+            meta: metasMensais[r.pdv]!.meta,
+            realizado: r.vf_atual,
+            pct: r.vf_atual / metasMensais[r.pdv]!.meta,
           }))
           .sort((a, b) => b.pct - a.pct)
 
@@ -1255,8 +1258,17 @@ function VisaoGeralPage() {
           <div className="impact-table-card">
             <div className="impact-table-header">
               <div className="impact-table-title">Progresso do Mês</div>
-              <span className="progresso-placeholder-badge">Meta provisória · R$ 100k / loja</span>
+              {!hasMetas && (
+                <span style={{ fontSize: 12, color: '#d97706' }}>
+                  Configure as metas em <strong>Gestão → Metas do Mês</strong>
+                </span>
+              )}
             </div>
+            {!hasMetas ? (
+              <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+                Nenhuma meta configurada. Acesse <strong>Metas do Mês</strong> no sidebar para definir a meta de cada loja.
+              </div>
+            ) :
             <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
               <table className="dash-table">
                 <thead>
@@ -1322,7 +1334,7 @@ function VisaoGeralPage() {
                   </tr>
                 </tfoot>
               </table>
-            </div>
+            </div>}
           </div>
         )
       })()}
@@ -4902,6 +4914,182 @@ function IafSkinPage() {
   )
 }
 
+/* ── Metas do Mês ───────────────────────────────────── */
+type MetaMensal = { meta: number; crescimento: number }
+
+function MetasMesPage() {
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const [metas, setMetas] = useState<Record<string, MetaMensal>>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-metas-mensais') ?? '{}') } catch { return {} }
+  })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editMeta, setEditMeta] = useState('')
+  const [editCrescimento, setEditCrescimento] = useState('')
+
+  function startEdit(id: string) {
+    const m = metas[id]
+    setEditingId(id)
+    setEditMeta(m ? String(m.meta) : '')
+    setEditCrescimento(m ? String(m.crescimento) : '')
+  }
+
+  function save(id: string) {
+    const meta = parseFloat(editMeta.replace(',', '.'))
+    const crescimento = parseFloat(editCrescimento.replace(',', '.').replace('%', ''))
+    if (!isNaN(meta) && meta > 0 && !isNaN(crescimento) && crescimento >= 0) {
+      const next = { ...metas, [id]: { meta, crescimento } }
+      setMetas(next)
+      localStorage.setItem('prisma-prefs-metas-mensais', JSON.stringify(next))
+    }
+    setEditingId(null)
+  }
+
+  function clear(id: string) {
+    const next = { ...metas }
+    delete next[id]
+    setMetas(next)
+    localStorage.setItem('prisma-prefs-metas-mensais', JSON.stringify(next))
+  }
+
+  const totalMeta = Object.values(metas).reduce((s, v) => s + v.meta, 0)
+  const lojasComMeta = Object.keys(metas).length
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Metas do Mês</h2>
+          <p className="page-subtitle">Configure a meta mensal e o crescimento por loja — atualizado 1× por mês</p>
+        </div>
+      </div>
+
+      <div className="kpi-row">
+        <div className="kpi-card">
+          <div className="kpi-label">Total Meta Mensal</div>
+          <div className="kpi-value">{totalMeta > 0 ? fBRLR(totalMeta) : '—'}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">Lojas configuradas</div>
+          <div className="kpi-value">{lojasComMeta}<span style={{ fontSize: 16, color: 'var(--text-muted)', fontWeight: 400 }}>/{lojas.length}</span></div>
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Configuração por Loja</h3>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Clique no lápis para editar</span>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Meta do Mês (R$)</th>
+                <th className="col-num">Crescimento (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lojas.map(l => {
+                const m = metas[l.id]
+                const isEditing = editingId === l.id
+                return (
+                  <tr key={l.id}>
+                    <td className="col-pdv">{l.id}</td>
+                    <td>{l.apelido || <span className="dash-muted">—</span>}</td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(l.labels ?? []).map(lid => {
+                          const lb = labels.find(x => x.id === lid)
+                          return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                        })}
+                      </div>
+                    </td>
+                    {isEditing ? (
+                      <>
+                        <td className="col-num">
+                          <input
+                            autoFocus
+                            type="number"
+                            className="lojas-input"
+                            style={{ width: 120, fontSize: 13, padding: '2px 4px' }}
+                            value={editMeta}
+                            onChange={e => setEditMeta(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') save(l.id); if (e.key === 'Escape') setEditingId(null) }}
+                            placeholder="Ex: 110000"
+                          />
+                        </td>
+                        <td className="col-num">
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'flex-end' }}>
+                            <input
+                              type="number"
+                              className="lojas-input"
+                              style={{ width: 70, fontSize: 13, padding: '2px 4px' }}
+                              value={editCrescimento}
+                              onChange={e => setEditCrescimento(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') save(l.id); if (e.key === 'Escape') setEditingId(null) }}
+                              placeholder="Ex: 10"
+                            />
+                            <button className="lojas-btn-save" style={{ padding: '2px 6px', fontSize: 12 }} onClick={() => save(l.id)}>✓</button>
+                            <button className="lojas-btn-cancel" style={{ padding: '2px 6px', fontSize: 12 }} onClick={() => setEditingId(null)}>✕</button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="col-num" style={{ fontWeight: m ? 600 : 400 }}>
+                          {m ? fBRLR(m.meta) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                        </td>
+                        <td className="col-num">
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                            {m
+                              ? <span style={{ fontWeight: 600, color: '#7c3aed' }}>{fDec(m.crescimento, 1)}%</span>
+                              : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                            <button
+                              onClick={() => startEdit(l.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, lineHeight: 1, opacity: 0.7 }}
+                              title="Editar"
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            {m && (
+                              <button
+                                onClick={() => clear(l.id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, lineHeight: 1, opacity: 0.5 }}
+                                title="Remover"
+                              >
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                )
+              })}
+              {lojas.length === 0 && (
+                <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>Nenhuma loja cadastrada. Importe as lojas primeiro.</td></tr>
+              )}
+            </tbody>
+            {lojasComMeta > 0 && (
+              <tfoot>
+                <tr className="gap-table-total">
+                  <td colSpan={3} className="gap-total-label">Total</td>
+                  <td className="col-num" style={{ fontWeight: 700 }}>{fBRLR(totalMeta)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Placeholder page ───────────────────────────────── */
 function WipPage({ title, requires }: { title: string; requires?: string[] }) {
   const { statuses, openImport } = useFileStatus()
@@ -4965,6 +5153,7 @@ function Sidebar() {
         <nav className="nav-sections">
           <div className="nav-group">
             <div className="nav-group-title">Gestão Instantânea</div>
+            <SideItem to="/app/metas-mes"     icon={IC.sliders}  label="Metas do Mês" />
             <SideItem to="/app/meta"          icon={IC.target}   label="Meta do Dia" />
             <SideItem to="/app/parcial"       icon={IC.clock}    label="Parcial do Dia"  requires={['parcial']} />
             <SideItem to="/app/dia-anterior"  icon={IC.calendar} label="Dia Anterior"    requires={['dia-ant','meta-diaant']} />
@@ -5236,6 +5425,7 @@ export default function AppShell() {
           <Routes>
             <Route index element={<Navigate to="meta" replace />} />
             {/* Mensal – Gestão Instantânea */}
+            <Route path="metas-mes"     element={<MetasMesPage />} />
             <Route path="meta"          element={<WipPage title="Meta do Dia" />} />
             <Route path="parcial"       element={<WipPage title="Parcial do Dia"  requires={['parcial']} />} />
             <Route path="dia-anterior"  element={<WipPage title="Dia Anterior"    requires={['dia-ant','meta-diaant']} />} />
