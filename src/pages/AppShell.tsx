@@ -4917,7 +4917,7 @@ function IafSkinPage() {
 
 /* ── IAF — Resgates ─────────────────────────────────── */
 function ResgatesPage() {
-  const { resgatesPdvRows, resgatesTotal, resgatesConsultorRows, consultorRows } = useData()
+  const { resgatesPdvRows, resgatesTotal, resgatesConsultorRows, consultorRows, fluxoConsultorRows } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
@@ -4928,12 +4928,13 @@ function ResgatesPage() {
 
   const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
 
-  // Cruza nome do consultor com PDV via consultorRows do arquivo principal
+  // Cruza nome do consultor com PDV — usa consultorRows + fluxoConsultorRows para maximizar cobertura
   const consultorPdvMap = useMemo(() => {
     const map = new Map<string, string>()
     consultorRows.forEach(r => map.set(r.consultor, r.pdv))
+    fluxoConsultorRows.forEach(r => { if (!map.has(r.consultor)) map.set(r.consultor, r.pdv) })
     return map
-  }, [consultorRows])
+  }, [consultorRows, fluxoConsultorRows])
 
   const storeRows = useMemo(() => {
     const rows = resgatesPdvRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
