@@ -303,6 +303,9 @@ const IC = {
   idCard:      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="7.5" cy="12" r="2.5"/><path d="M13 10h5M13 14h5"/></svg>,
   lojaDigital: <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>,
   pieChart:    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>,
+  ticket:      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-2a2 2 0 0 0 0-4z"/><line x1="9" y1="8" x2="9" y2="16"/></svg>,
+  bolt:        <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+  gift:        <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>,
 }
 
 /* ── Lojas ──────────────────────────────────────────── */
@@ -3427,7 +3430,15 @@ function ServicosPage() {
 
       {/* KPIs */}
       <div className="kpi-row">
-        <KpiCard label="Serviços Completos" value={fDec(totalCompletos, 1)} />
+        <div className="kpi-card">
+          <div className="kpi-label">Serviços Completos</div>
+          <div className="kpi-value" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {fDec(totalCompletos, 1)}
+            {atingGeral !== null && atingGeral >= 100 && (
+              <span style={{ fontSize: 22, lineHeight: 1 }}>🏆</span>
+            )}
+          </div>
+        </div>
         <KpiCard label="Serviços Totais"    value={fDec(totalTotais, 1)} />
         <KpiCard label="% Completos"        value={fDec(pctGeral * 100, 1) + '%'} />
         <KpiCard label="Média por Loja"     value={fDec(avgPorLoja, 1)} />
@@ -3579,6 +3590,71 @@ function ServicosPage() {
           </table>
         </div>
       </div>
+
+      {/* Lojas abaixo da meta */}
+      {(() => {
+        const abaixo = storeRows.filter(r => {
+          const m = metas[r.pdv]
+          return m != null && r.servicos_completos < m
+        })
+        if (abaixo.length === 0) return null
+        return (
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="fluxo-card-header" style={{ background: '#fef2f2' }}>
+              <h3 className="fluxo-card-title" style={{ color: '#dc2626' }}>
+                ⚠️ Lojas abaixo da meta ({abaixo.length})
+              </h3>
+            </div>
+            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th className="col-pdv">PDV</th>
+                    <th>Loja</th>
+                    <th>Região</th>
+                    <th className="col-num">Serv. Completos</th>
+                    <th className="col-num">Meta</th>
+                    <th className="col-num">Ating.</th>
+                    <th className="col-num">Faltam</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {abaixo
+                    .slice()
+                    .sort((a, b) => {
+                      const pA = (metas[a.pdv] ?? 1) > 0 ? a.servicos_completos / (metas[a.pdv] ?? 1) : 0
+                      const pB = (metas[b.pdv] ?? 1) > 0 ? b.servicos_completos / (metas[b.pdv] ?? 1) : 0
+                      return pA - pB
+                    })
+                    .map(r => {
+                      const m = metas[r.pdv]!
+                      const ating = (r.servicos_completos / m) * 100
+                      const faltam = m - r.servicos_completos
+                      return (
+                        <tr key={r.pdv}>
+                          <td className="col-pdv">{r.pdv}</td>
+                          <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                          <td>
+                            <div className="label-chips-group">
+                              {(r.loja?.labels ?? []).map(lid => {
+                                const lb = labels.find(x => x.id === lid)
+                                return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                              })}
+                            </div>
+                          </td>
+                          <td className="col-num" style={{ fontWeight: 700 }}>{fDec(r.servicos_completos, 1)}</td>
+                          <td className="col-num">{fDec(m, 0)}</td>
+                          <td className="col-num" style={{ fontWeight: 600, color: ating >= 80 ? '#d97706' : '#dc2626' }}>{fDec(ating, 1)}%</td>
+                          <td className="col-num" style={{ color: '#dc2626', fontWeight: 700 }}>-{fDec(faltam, 1)}</td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -4911,7 +4987,10 @@ function Sidebar() {
             <SideItem to="/app/iaf/skin"       icon={IC.skin}    label="Skin"          requires={['skin','parcial-skin']} />
             <SideItem to="/app/iaf/id-cliente"    icon={IC.idCard}      label="ID do Cliente" requires={['id-cliente']} />
             <SideItem to="/app/iaf/loja-digital" icon={IC.lojaDigital} label="Loja Digital"  requires={['loja-digital']} />
-            <SideItem to="/app/iaf/servicos"     icon={IC.doc}         label="Serviços"      requires={['servicos']} />
+            <SideItem to="/app/iaf/servicos"           icon={IC.doc}    label="Serviços"           requires={['servicos']} />
+            <SideItem to="/app/iaf/boleto-promocional" icon={IC.ticket} label="Boleto Promocional" />
+            <SideItem to="/app/iaf/boleto-turbinado"   icon={IC.bolt}   label="Boleto Turbinado" />
+            <SideItem to="/app/iaf/resgates"           icon={IC.gift}   label="Resgates" />
           </div>
         </nav>
       )}
@@ -5175,7 +5254,10 @@ export default function AppShell() {
             <Route path="iaf/skin"       element={<IafSkinPage />} />
             <Route path="iaf/id-cliente"    element={<IDClientePage />} />
             <Route path="iaf/loja-digital"  element={<LojaDigitalPage />} />
-            <Route path="iaf/servicos"      element={<ServicosPage />} />
+            <Route path="iaf/servicos"           element={<ServicosPage />} />
+            <Route path="iaf/boleto-promocional" element={<WipPage title="IAF — Boleto Promocional" />} />
+            <Route path="iaf/boleto-turbinado"   element={<WipPage title="IAF — Boleto Turbinado" />} />
+            <Route path="iaf/resgates"           element={<WipPage title="IAF — Resgates" />} />
             {/* Anual – Lojas */}
             <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas"              requires={['anual-main']} />} />
             <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional"   requires={['anual-main']} />} />
