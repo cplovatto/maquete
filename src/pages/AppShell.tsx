@@ -3350,6 +3350,12 @@ function ServicosPage() {
   const { openImport } = useFileStatus()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+  const [meta, setMeta] = useState<number | null>(() => {
+    const s = localStorage.getItem('prisma-prefs-servicos-meta')
+    return s ? Number(s) : null
+  })
+  const [editingMeta, setEditingMeta] = useState(false)
+  const [metaInput, setMetaInput] = useState('')
 
   const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
 
@@ -3382,6 +3388,22 @@ function ServicosPage() {
   const pctGeral       = servicosTotal?.pct_completos      ?? (totalTotais > 0 ? totalCompletos / totalTotais : 0)
   const avgPorLoja     = storeRows.length > 0 ? storeRows.reduce((s, r) => s + r.servicos_completos, 0) / storeRows.length : 0
 
+  const atingimento    = meta && meta > 0 ? (totalCompletos / meta) * 100 : null
+  const gap            = meta ? totalCompletos - meta : null
+  const atingColor     = atingimento === null ? 'var(--text-primary)'
+    : atingimento >= 100 ? '#059669'
+    : atingimento >= 80  ? '#d97706'
+    : '#dc2626'
+
+  function saveMeta() {
+    const v = parseFloat(metaInput.replace(',', '.'))
+    if (!isNaN(v) && v > 0) {
+      setMeta(v)
+      localStorage.setItem('prisma-prefs-servicos-meta', String(v))
+    }
+    setEditingMeta(false)
+  }
+
   return (
     <div className="page-content">
       <div className="page-title-row">
@@ -3391,12 +3413,63 @@ function ServicosPage() {
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs + Meta */}
       <div className="kpi-row">
         <KpiCard label="Serviços Completos" value={fDec(totalCompletos, 1)} />
         <KpiCard label="Serviços Totais"    value={fDec(totalTotais, 1)} />
         <KpiCard label="% Completos"        value={fDec(pctGeral * 100, 1) + '%'} />
         <KpiCard label="Média por Loja"     value={fDec(avgPorLoja, 1)} />
+
+        {/* Card de meta editável */}
+        <div className="kpi-card" style={{ minWidth: 160 }}>
+          <div className="kpi-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            Meta do Mês
+            {!editingMeta && (
+              <button
+                onClick={() => { setMetaInput(meta ? String(meta) : ''); setEditingMeta(true) }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, lineHeight: 1 }}
+                title="Editar meta"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+            )}
+          </div>
+
+          {editingMeta ? (
+            <div style={{ display: 'flex', gap: 4, marginTop: 6 }}>
+              <input
+                autoFocus
+                type="number"
+                className="lojas-input"
+                style={{ width: '100%', fontSize: 14 }}
+                value={metaInput}
+                onChange={e => setMetaInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveMeta(); if (e.key === 'Escape') setEditingMeta(false) }}
+                placeholder="Ex: 700"
+              />
+              <button className="lojas-btn-save" onClick={saveMeta}>✓</button>
+              <button className="lojas-btn-cancel" onClick={() => setEditingMeta(false)}>✕</button>
+            </div>
+          ) : meta ? (
+            <>
+              <div className="kpi-value">{fDec(meta, 0)}</div>
+              {atingimento !== null && (
+                <div className="kpi-var" style={{ color: atingColor }}>
+                  {fDec(atingimento, 1)}% atingido
+                </div>
+              )}
+              {gap !== null && (
+                <div style={{ fontSize: 12, color: gap >= 0 ? '#059669' : '#dc2626', marginTop: 2 }}>
+                  {gap >= 0 ? `+${fDec(gap, 1)} acima` : `${fDec(gap, 1)} abaixo`}
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
+              Clique no lápis para definir
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Filtro de região */}
@@ -3443,7 +3516,13 @@ function ServicosPage() {
             <tbody>
               {storeRows.map((r, i) => {
                 const pct = r.pct_completos * 100
-                const pctColor = pct >= pctGeral * 100 ? '#059669' : '#d97706'
+                const metaLoja = meta && servicosRows.length > 0 ? meta / servicosRows.length : null
+                const ating = metaLoja ? (r.servicos_completos / metaLoja) * 100 : null
+                const servColor = ating === null
+                  ? 'var(--text-primary)'
+                  : ating >= 100 ? '#059669'
+                  : ating >= 80  ? '#d97706'
+                  : '#dc2626'
                 return (
                   <tr key={r.pdv}>
                     <td className="col-rank">{i + 1}</td>
@@ -3457,9 +3536,9 @@ function ServicosPage() {
                         })}
                       </div>
                     </td>
-                    <td className="col-num" style={{ fontWeight: 700 }}>{fDec(r.servicos_completos, 1)}</td>
+                    <td className="col-num" style={{ fontWeight: 700, color: servColor }}>{fDec(r.servicos_completos, 1)}</td>
                     <td className="col-num">{fDec(r.servicos_totais, 1)}</td>
-                    <td className="col-num" style={{ color: pctColor, fontWeight: 600 }}>{fDec(pct, 1)}%</td>
+                    <td className="col-num" style={{ color: pct >= pctGeral * 100 ? '#059669' : '#d97706', fontWeight: 600 }}>{fDec(pct, 1)}%</td>
                   </tr>
                 )
               })}
