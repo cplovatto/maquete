@@ -38,7 +38,7 @@ export default function AdminShell() {
       <header className="app-header">
         <NavLink to="/admin" className="app-header-logo">
           <div className="app-header-logo-icon">💎</div>
-          <span className="app-header-logo-text">Prisma Retail</span>
+          <span className="app-header-logo-text">Velo Retail</span>
         </NavLink>
 
         <div className="app-header-spacer" />

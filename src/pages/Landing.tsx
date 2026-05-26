@@ -45,7 +45,7 @@ export default function Landing() {
       <nav className="nav">
         <a href="#topo" className="nav-logo" onClick={e => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
           <div className="nav-logo-icon">💎</div>
-          <span className="nav-logo-text">Prisma Retail</span>
+          <span className="nav-logo-text">Velo Retail</span>
         </a>
         <ul className="nav-links">
           <li><a onClick={() => scrollTo('produtos')}>Produtos</a></li>
@@ -71,7 +71,7 @@ export default function Landing() {
           <span className="gradient-text">Simples e Poderosa</span>
         </h1>
         <p>
-          O <strong>Prisma Retail</strong> unifica a operação da sua{' '}
+          O <strong>Velo Retail</strong> unifica a operação da sua{' '}
           <strong>Loja</strong> e equipe de{' '}
           <strong>Venda Direta</strong> no segmento de cosméticos.
           Tudo em um só lugar, feito para o Brasil.
@@ -241,7 +241,7 @@ export default function Landing() {
             <div>
               <div className="nav-logo" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                 <div className="nav-logo-icon">💎</div>
-                <span className="nav-logo-text">Prisma Retail</span>
+                <span className="nav-logo-text">Velo Retail</span>
               </div>
               <p className="footer-brand-desc">
                 Plataforma de gestão para o varejo de cosméticos brasileiro.
@@ -277,7 +277,7 @@ export default function Landing() {
             </div>
           </div>
           <div className="footer-bottom">
-            <p>© 2025 Prisma Retail. Todos os direitos reservados.</p>
+            <p>© 2025 Velo Retail. Todos os direitos reservados.</p>
             <span className="footer-badge">🧪 Maquete — Apenas Demo</span>
           </div>
         </div>
