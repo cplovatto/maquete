@@ -180,6 +180,19 @@ export interface ShareCategoriasCP {
   outros_r: number;  outros_pct: number
 }
 
+export interface ServicosRow {
+  pdv: string
+  servicos_totais: number
+  servicos_completos: number
+  pct_completos: number
+}
+
+export interface ServicosTotal {
+  servicos_totais: number
+  servicos_completos: number
+  pct_completos: number
+}
+
 interface DataCtxType {
   mainRows: MainRow[]
   mainTotal: MainTotal | null
@@ -198,6 +211,8 @@ interface DataCtxType {
   lojaDigitalTotal: LojaDigitalTotal | null
   shareCatRows: ShareCategoriasRow[]
   shareCatCP: ShareCategoriasCP | null
+  servicosRows: ServicosRow[]
+  servicosTotal: ServicosTotal | null
   loadFile: (id: string, file: File) => Promise<void>
 }
 
@@ -582,6 +597,39 @@ async function parseShareCategoriasFile(file: File): Promise<{ rows: ShareCatego
   return { rows, cp }
 }
 
+async function parseServicosFile(file: File): Promise<{ rows: ServicosRow[]; total: ServicosTotal | null }> {
+  const buf = await file.arrayBuffer()
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
+  const ws = wb.Sheets['PDV']
+  if (!ws) return { rows: [], total: null }
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+
+  // linha 1 = Total (valores vêm como strings com aspas: "\"563.5\"")
+  const tr = raw[1] as unknown[] | undefined
+  const parseQ = (v: unknown): number => {
+    if (typeof v === 'number') return v
+    return parseFloat(String(v ?? '').replace(/"/g, '').trim()) || 0
+  }
+  const total: ServicosTotal | null = tr ? {
+    servicos_totais:   parseQ(tr[2]),
+    servicos_completos: parseQ(tr[3]),
+    pct_completos:     toNum(tr[4]),
+  } : null
+
+  const rows: ServicosRow[] = raw.slice(2).filter(r => (r as unknown[])[1]).map(r => {
+    const a = r as unknown[]
+    return {
+      pdv:                String(a[1]),
+      servicos_totais:    toNum(a[2]),
+      servicos_completos: toNum(a[3]),
+      pct_completos:      toNum(a[4]),
+    }
+  })
+
+  return { rows, total }
+}
+
 function tryParse<T>(key: string, fallback: T): T {
   try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : fallback } catch { return fallback }
 }
@@ -604,6 +652,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [lojaDigitalTotal, setLojaDigitalTotal]                     = useState<LojaDigitalTotal | null>(() => tryParse('prisma-data-lojadigital-total', null))
   const [shareCatRows, setShareCatRows]                             = useState<ShareCategoriasRow[]>(() => tryParse('prisma-data-sharecat', []))
   const [shareCatCP, setShareCatCP]                                 = useState<ShareCategoriasCP | null>(() => tryParse('prisma-data-sharecat-cp', null))
+  const [servicosRows, setServicosRows]                             = useState<ServicosRow[]>(() => tryParse('prisma-data-servicos', []))
+  const [servicosTotal, setServicosTotal]                           = useState<ServicosTotal | null>(() => tryParse('prisma-data-servicos-total', null))
 
   useEffect(() => { try { localStorage.setItem('prisma-data-main', JSON.stringify(mainRows)) } catch {} }, [mainRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-main-total', JSON.stringify(mainTotal)) } catch {} }, [mainTotal])
@@ -622,6 +672,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem('prisma-data-lojadigital-total', JSON.stringify(lojaDigitalTotal)) } catch {} }, [lojaDigitalTotal])
   useEffect(() => { try { localStorage.setItem('prisma-data-sharecat', JSON.stringify(shareCatRows)) } catch {} }, [shareCatRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-sharecat-cp', JSON.stringify(shareCatCP)) } catch {} }, [shareCatCP])
+  useEffect(() => { try { localStorage.setItem('prisma-data-servicos', JSON.stringify(servicosRows)) } catch {} }, [servicosRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-servicos-total', JSON.stringify(servicosTotal)) } catch {} }, [servicosTotal])
 
   async function loadFile(id: string, file: File) {
     if (id === 'main') {
@@ -642,11 +694,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } else if (id === 'share-categorias') {
       const { rows, cp } = await parseShareCategoriasFile(file)
       setShareCatRows(rows); setShareCatCP(cp)
+    } else if (id === 'servicos') {
+      const { rows, total } = await parseServicosFile(file)
+      setServicosRows(rows); setServicosTotal(total)
     }
   }
 
   return (
-    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, shareCatRows, shareCatCP, loadFile }}>
+    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, shareCatRows, shareCatCP, servicosRows, servicosTotal, loadFile }}>
       {children}
     </DataCtx.Provider>
   )

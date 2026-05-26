@@ -3342,6 +3342,143 @@ function IafFluxoPage() {
   )
 }
 
+/* ── IAF — Serviços ─────────────────────────────────── */
+function ServicosPage() {
+  const { servicosRows, servicosTotal } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const storeRows = useMemo(() => {
+    const rows = servicosRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+    const filtered = selectedLabels.length === 0
+      ? rows
+      : rows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+    return [...filtered].sort((a, b) =>
+      sortDir === 'desc'
+        ? b.servicos_completos - a.servicos_completos
+        : a.servicos_completos - b.servicos_completos
+    )
+  }, [servicosRows, lojaMap, selectedLabels, sortDir])
+
+  if (servicosRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+      <div className="page-empty-title">Dados de Serviços não carregados</div>
+      <div className="page-empty-desc">Importe a planilha para visualizar este relatório</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Serviços <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  const totalCompletos = servicosTotal?.servicos_completos ?? storeRows.reduce((s, r) => s + r.servicos_completos, 0)
+  const totalTotais    = servicosTotal?.servicos_totais    ?? storeRows.reduce((s, r) => s + r.servicos_totais, 0)
+  const pctGeral       = servicosTotal?.pct_completos      ?? (totalTotais > 0 ? totalCompletos / totalTotais : 0)
+  const avgPorLoja     = storeRows.length > 0 ? storeRows.reduce((s, r) => s + r.servicos_completos, 0) / storeRows.length : 0
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Serviços</h2>
+          <p className="page-subtitle">{storeRows.length} lojas</p>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="kpi-row">
+        <KpiCard label="Serviços Completos" value={fDec(totalCompletos, 1)} />
+        <KpiCard label="Serviços Totais"    value={fDec(totalTotais, 1)} />
+        <KpiCard label="% Completos"        value={fDec(pctGeral * 100, 1) + '%'} />
+        <KpiCard label="Média por Loja"     value={fDec(avgPorLoja, 1)} />
+      </div>
+
+      {/* Filtro de região */}
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Ranking */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Ranking por Serviços Completos</h3>
+          <button
+            className="btn btn-sm btn-ghost"
+            onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+            style={{ fontSize: 12 }}
+          >
+            {sortDir === 'desc' ? '▼ Maior → Menor' : '▲ Menor → Maior'}
+          </button>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Serv. Completos</th>
+                <th className="col-num">Serv. Totais</th>
+                <th className="col-num">% Completos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {storeRows.map((r, i) => {
+                const pct = r.pct_completos * 100
+                const pctColor = pct >= pctGeral * 100 ? '#059669' : '#d97706'
+                return (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td className="col-pdv">{r.pdv}</td>
+                    <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(r.loja?.labels ?? []).map(lid => {
+                          const lb = labels.find(x => x.id === lid)
+                          return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                        })}
+                      </div>
+                    </td>
+                    <td className="col-num" style={{ fontWeight: 700 }}>{fDec(r.servicos_completos, 1)}</td>
+                    <td className="col-num">{fDec(r.servicos_totais, 1)}</td>
+                    <td className="col-num" style={{ color: pctColor, fontWeight: 600 }}>{fDec(pct, 1)}%</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="gap-table-total">
+                <td colSpan={4} className="gap-total-label">Total</td>
+                <td className="col-num" style={{ fontWeight: 700 }}>{fDec(totalCompletos, 1)}</td>
+                <td className="col-num">{fDec(totalTotais, 1)}</td>
+                <td className="col-num" style={{ fontWeight: 700 }}>{fDec(pctGeral * 100, 1)}%</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── IAF — ID do Cliente ───────────────────────────── */
 function IDClientePage() {
   const { idClienteRows, idClienteConsultorRows, idClienteCP } = useData()
@@ -4934,7 +5071,7 @@ export default function AppShell() {
             <Route path="iaf/skin"       element={<IafSkinPage />} />
             <Route path="iaf/id-cliente"    element={<IDClientePage />} />
             <Route path="iaf/loja-digital"  element={<LojaDigitalPage />} />
-            <Route path="iaf/servicos"      element={<WipPage title="Serviços" requires={['servicos']} />} />
+            <Route path="iaf/servicos"      element={<ServicosPage />} />
             {/* Anual – Lojas */}
             <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas"              requires={['anual-main']} />} />
             <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional"   requires={['anual-main']} />} />
