@@ -4924,7 +4924,7 @@ function ResgatesPage() {
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
   const [consSort, setConsSort] = useState<'desc' | 'asc'>('desc')
-  const [selectedPdv, setSelectedPdv] = useState<string>('')
+  const [selectedConsLabel, setSelectedConsLabel] = useState<string>('')
 
   const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
 
@@ -4952,15 +4952,16 @@ function ResgatesPage() {
       .sort((a, b) => consSort === 'desc' ? b.pct_atual - a.pct_atual : a.pct_atual - b.pct_atual)
   , [resgatesConsultorRows, consultorPdvMap, consSort])
 
-  const pdvOptions = useMemo(() => {
-    const pdvs = new Set<string>()
-    enrichedConsultores.forEach(c => { if (c.pdv) pdvs.add(c.pdv) })
-    return Array.from(pdvs).sort()
-  }, [enrichedConsultores])
+  const labelPdvSet = useMemo(() => {
+    if (!selectedConsLabel) return null
+    return new Set(lojas.filter(l => (l.labels ?? []).includes(selectedConsLabel)).map(l => l.id))
+  }, [selectedConsLabel, lojas])
 
   const filteredConsultores = useMemo(() =>
-    selectedPdv ? enrichedConsultores.filter(c => c.pdv === selectedPdv) : enrichedConsultores
-  , [enrichedConsultores, selectedPdv])
+    labelPdvSet
+      ? enrichedConsultores.filter(c => c.pdv != null && labelPdvSet.has(c.pdv))
+      : enrichedConsultores
+  , [enrichedConsultores, labelPdvSet])
 
   if (resgatesPdvRows.length === 0) return (
     <div className="page-empty-state">
@@ -5095,18 +5096,16 @@ function ResgatesPage() {
           <div className="fluxo-card-header">
             <h3 className="fluxo-card-title">Ranking por Consultor</h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              {pdvOptions.length > 0 && (
+              {labels.length > 0 && (
                 <select
                   className="form-input"
                   style={{ fontSize: 13, padding: '4px 8px', height: 'auto', minWidth: 160 }}
-                  value={selectedPdv}
-                  onChange={e => setSelectedPdv(e.target.value)}
+                  value={selectedConsLabel}
+                  onChange={e => setSelectedConsLabel(e.target.value)}
                 >
-                  <option value="">Todas as lojas</option>
-                  {pdvOptions.map(pdv => (
-                    <option key={pdv} value={pdv}>
-                      {pdv}{lojaMap.get(pdv)?.apelido ? ` — ${lojaMap.get(pdv)!.apelido}` : ''}
-                    </option>
+                  <option value="">Todas as regiões</option>
+                  {labels.map(lb => (
+                    <option key={lb.id} value={lb.id}>{lb.name}</option>
                   ))}
                 </select>
               )}
