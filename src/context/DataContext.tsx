@@ -681,7 +681,7 @@ async function parseResgatesFile(file: File): Promise<{ rows: ResgatesPdvRow[]; 
         qtd_boletos_anterior: toNum(a[8]),
         qtd_boletos_atual:    toNum(a[9]),
       }
-      if (String(a[0]) === 'TOTAL') { total = obj } else { rows.push({ pdv: String(a[0]), ...obj }) }
+      if (String(a[0]) === 'TOTAL') { total = obj } else if (obj.pct_atual > 0) { rows.push({ pdv: String(a[0]), ...obj }) }
     }
   }
 
@@ -692,9 +692,11 @@ async function parseResgatesFile(file: File): Promise<{ rows: ResgatesPdvRow[]; 
     for (let i = 3; i < raw.length; i++) {
       const a = raw[i] as unknown[]
       if (!a[0] || String(a[0]) === 'TOTAL') continue
+      const pct = toNum(a[2])
+      if (pct === 0) continue
       consultores.push({
         nome:              String(a[0]),
-        pct_atual:         toNum(a[2]),
+        pct_atual:         pct,
         qtd_resgate_atual: toNum(a[4]),
         qtd_boletos_atual: toNum(a[6]),
       })
