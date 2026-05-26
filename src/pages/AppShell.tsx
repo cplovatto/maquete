@@ -685,6 +685,7 @@ const MENSAL_SOURCES: DataSource[] = [
   { id: 'id-cliente',   name: 'ID do Cliente',           format: 'XLSX', icon: IC.idCard,      defaultStatus: 'pending',  section: 'IAF' },
   { id: 'loja-digital', name: 'Loja Digital',           format: 'XLSX', icon: IC.lojaDigital, defaultStatus: 'pending',  section: 'IAF' },
   { id: 'servicos',     name: 'Serviços',                format: 'XLSX', icon: IC.doc,         defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'resgates',    name: 'Resgates',               format: 'XLSX', icon: IC.gift,        defaultStatus: 'pending',  section: 'IAF' },
 ]
 
 const ANUAL_SOURCES: DataSource[] = [
@@ -4914,6 +4915,204 @@ function IafSkinPage() {
   )
 }
 
+/* ── IAF — Resgates ─────────────────────────────────── */
+function ResgatesPage() {
+  const { resgatesPdvRows, resgatesTotal, resgatesConsultorRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+  const [consSort, setConsSort] = useState<'desc' | 'asc'>('desc')
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const storeRows = useMemo(() => {
+    const rows = resgatesPdvRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+    const filtered = selectedLabels.length === 0
+      ? rows
+      : rows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+    return [...filtered].sort((a, b) =>
+      sortDir === 'desc' ? b.pct_atual - a.pct_atual : a.pct_atual - b.pct_atual
+    )
+  }, [resgatesPdvRows, lojaMap, selectedLabels, sortDir])
+
+  const sortedConsultores = useMemo(() =>
+    [...resgatesConsultorRows].sort((a, b) =>
+      consSort === 'desc' ? b.pct_atual - a.pct_atual : a.pct_atual - b.pct_atual
+    )
+  , [resgatesConsultorRows, consSort])
+
+  if (resgatesPdvRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+      <div className="page-empty-title">Dados de Resgates não carregados</div>
+      <div className="page-empty-desc">Importe a planilha para visualizar este relatório</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Resgates <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  const varPp = resgatesTotal ? (resgatesTotal.pct_atual - resgatesTotal.pct_anterior) * 100 : null
+  const varColor = varPp === null ? 'var(--text-primary)' : varPp >= 0 ? '#059669' : '#dc2626'
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Resgates</h2>
+          <p className="page-subtitle">{storeRows.length} lojas · {sortedConsultores.length} consultores</p>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="kpi-row">
+        <div className="kpi-card">
+          <div className="kpi-label">% Resgates Atual</div>
+          <div className="kpi-value">{resgatesTotal ? fDec(resgatesTotal.pct_atual * 100, 1) + '%' : '—'}</div>
+          {varPp !== null && (
+            <div className="kpi-var" style={{ color: varColor }}>
+              {varPp >= 0 ? '+' : ''}{fDec(varPp, 1)} pp vs. anterior
+            </div>
+          )}
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">% Resgates Anterior</div>
+          <div className="kpi-value">{resgatesTotal ? fDec(resgatesTotal.pct_anterior * 100, 1) + '%' : '—'}</div>
+        </div>
+        <KpiCard label="Qtd Resgates"  value={resgatesTotal ? fInt(resgatesTotal.qtd_resgate_atual) : '—'} />
+        <KpiCard label="Qtd Boletos"   value={resgatesTotal ? fInt(resgatesTotal.qtd_boletos_atual) : '—'} />
+      </div>
+
+      {/* Filtro */}
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Tabela PDV */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Ranking por Loja</h3>
+          <button className="btn btn-sm btn-ghost" onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')} style={{ fontSize: 12 }}>
+            {sortDir === 'desc' ? '▼ Maior → Menor' : '▲ Menor → Maior'}
+          </button>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">% Anterior</th>
+                <th className="col-num">% Atual</th>
+                <th className="col-num">Var (pp)</th>
+                <th className="col-num">Resgates</th>
+                <th className="col-num">Boletos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {storeRows.map((r, i) => {
+                const pp = (r.pct_atual - r.pct_anterior) * 100
+                const ppColor = pp >= 0 ? '#059669' : '#dc2626'
+                const netMedia = resgatesTotal ? resgatesTotal.pct_atual : 0
+                const atualColor = r.pct_atual >= netMedia ? '#059669' : '#d97706'
+                return (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td className="col-pdv">{r.pdv}</td>
+                    <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(r.loja?.labels ?? []).map(lid => {
+                          const lb = labels.find(x => x.id === lid)
+                          return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                        })}
+                      </div>
+                    </td>
+                    <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(r.pct_anterior * 100, 1)}%</td>
+                    <td className="col-num" style={{ fontWeight: 700, color: atualColor }}>{fDec(r.pct_atual * 100, 1)}%</td>
+                    <td className="col-num" style={{ fontWeight: 600, color: ppColor }}>{pp >= 0 ? '+' : ''}{fDec(pp, 1)}</td>
+                    <td className="col-num">{fInt(r.qtd_resgate_atual)}</td>
+                    <td className="col-num">{fInt(r.qtd_boletos_atual)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            {resgatesTotal && (
+              <tfoot>
+                <tr className="gap-table-total">
+                  <td colSpan={4} className="gap-total-label">Total</td>
+                  <td className="col-num">{fDec(resgatesTotal.pct_anterior * 100, 1)}%</td>
+                  <td className="col-num" style={{ fontWeight: 700 }}>{fDec(resgatesTotal.pct_atual * 100, 1)}%</td>
+                  <td className="col-num" style={{ fontWeight: 600, color: varColor }}>
+                    {varPp !== null ? (varPp >= 0 ? '+' : '') + fDec(varPp, 1) : '—'}
+                  </td>
+                  <td className="col-num" style={{ fontWeight: 700 }}>{fInt(resgatesTotal.qtd_resgate_atual)}</td>
+                  <td className="col-num">{fInt(resgatesTotal.qtd_boletos_atual)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+
+      {/* Tabela Consultores */}
+      {sortedConsultores.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Ranking por Consultor</h3>
+            <button className="btn btn-sm btn-ghost" onClick={() => setConsSort(d => d === 'desc' ? 'asc' : 'desc')} style={{ fontSize: 12 }}>
+              {consSort === 'desc' ? '▼ Maior → Menor' : '▲ Menor → Maior'}
+            </button>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Consultor</th>
+                  <th className="col-num">% Resgates</th>
+                  <th className="col-num">Qtd Resgates</th>
+                  <th className="col-num">Qtd Boletos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedConsultores.map((c, i) => {
+                  const netMedia = resgatesTotal ? resgatesTotal.pct_atual : 0
+                  const color = c.pct_atual >= netMedia ? '#059669' : '#d97706'
+                  return (
+                    <tr key={c.nome}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td>{c.nome}</td>
+                      <td className="col-num" style={{ fontWeight: 700, color }}>{fDec(c.pct_atual * 100, 1)}%</td>
+                      <td className="col-num">{fInt(c.qtd_resgate_atual)}</td>
+                      <td className="col-num">{fInt(c.qtd_boletos_atual)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ── Metas do Mês ───────────────────────────────────── */
 type MetaMensal = { meta: number; crescimento: number }
 
@@ -5201,7 +5400,7 @@ function Sidebar() {
             <SideItem to="/app/iaf/servicos"           icon={IC.doc}    label="Serviços"           requires={['servicos']} />
             <SideItem to="/app/iaf/boleto-promocional" icon={IC.ticket} label="Boleto Promocional" />
             <SideItem to="/app/iaf/boleto-turbinado"   icon={IC.bolt}   label="Boleto Turbinado" />
-            <SideItem to="/app/iaf/resgates"           icon={IC.gift}   label="Resgates" />
+            <SideItem to="/app/iaf/resgates"           icon={IC.gift}   label="Resgates"           requires={['resgates']} />
           </div>
         </nav>
       )}
@@ -5469,7 +5668,7 @@ export default function AppShell() {
             <Route path="iaf/servicos"           element={<ServicosPage />} />
             <Route path="iaf/boleto-promocional" element={<WipPage title="IAF — Boleto Promocional" />} />
             <Route path="iaf/boleto-turbinado"   element={<WipPage title="IAF — Boleto Turbinado" />} />
-            <Route path="iaf/resgates"           element={<WipPage title="IAF — Resgates" />} />
+            <Route path="iaf/resgates"           element={<ResgatesPage />} />
             {/* Anual – Lojas */}
             <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas"              requires={['anual-main']} />} />
             <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional"   requires={['anual-main']} />} />

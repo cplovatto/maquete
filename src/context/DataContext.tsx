@@ -193,6 +193,32 @@ export interface ServicosTotal {
   pct_completos: number
 }
 
+export interface ResgatesPdvRow {
+  pdv: string
+  pct_anterior: number
+  pct_atual: number
+  qtd_resgate_anterior: number
+  qtd_resgate_atual: number
+  qtd_boletos_anterior: number
+  qtd_boletos_atual: number
+}
+
+export interface ResgatesTotal {
+  pct_anterior: number
+  pct_atual: number
+  qtd_resgate_anterior: number
+  qtd_resgate_atual: number
+  qtd_boletos_anterior: number
+  qtd_boletos_atual: number
+}
+
+export interface ResgatesConsultorRow {
+  nome: string
+  pct_atual: number
+  qtd_resgate_atual: number
+  qtd_boletos_atual: number
+}
+
 interface DataCtxType {
   mainRows: MainRow[]
   mainTotal: MainTotal | null
@@ -213,6 +239,9 @@ interface DataCtxType {
   shareCatCP: ShareCategoriasCP | null
   servicosRows: ServicosRow[]
   servicosTotal: ServicosTotal | null
+  resgatesPdvRows: ResgatesPdvRow[]
+  resgatesTotal: ResgatesTotal | null
+  resgatesConsultorRows: ResgatesConsultorRow[]
   loadFile: (id: string, file: File) => Promise<void>
 }
 
@@ -630,6 +659,51 @@ async function parseServicosFile(file: File): Promise<{ rows: ServicosRow[]; tot
   return { rows, total }
 }
 
+async function parseResgatesFile(file: File): Promise<{ rows: ResgatesPdvRow[]; total: ResgatesTotal | null; consultores: ResgatesConsultorRow[] }> {
+  const buf = await file.arrayBuffer()
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
+
+  const rows: ResgatesPdvRow[] = []
+  let total: ResgatesTotal | null = null
+
+  const wsPdv = wb.Sheets['PDV']
+  if (wsPdv) {
+    const raw = utils.sheet_to_json<unknown[]>(wsPdv, { header: 1, defval: 0 })
+    for (let i = 2; i < raw.length; i++) {
+      const a = raw[i] as unknown[]
+      if (a[0] === null || a[0] === undefined || a[0] === '') continue
+      const obj = {
+        pct_anterior:         toNum(a[2]),
+        pct_atual:            toNum(a[3]),
+        qtd_resgate_anterior: toNum(a[5]),
+        qtd_resgate_atual:    toNum(a[6]),
+        qtd_boletos_anterior: toNum(a[8]),
+        qtd_boletos_atual:    toNum(a[9]),
+      }
+      if (String(a[0]) === 'TOTAL') { total = obj } else { rows.push({ pdv: String(a[0]), ...obj }) }
+    }
+  }
+
+  const consultores: ResgatesConsultorRow[] = []
+  const wsConsultor = wb.Sheets['CONSULTOR']
+  if (wsConsultor) {
+    const raw = utils.sheet_to_json<unknown[]>(wsConsultor, { header: 1, defval: 0 })
+    for (let i = 3; i < raw.length; i++) {
+      const a = raw[i] as unknown[]
+      if (!a[0] || String(a[0]) === 'TOTAL') continue
+      consultores.push({
+        nome:              String(a[0]),
+        pct_atual:         toNum(a[2]),
+        qtd_resgate_atual: toNum(a[4]),
+        qtd_boletos_atual: toNum(a[6]),
+      })
+    }
+  }
+
+  return { rows, total, consultores }
+}
+
 function tryParse<T>(key: string, fallback: T): T {
   try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : fallback } catch { return fallback }
 }
@@ -654,6 +728,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [shareCatCP, setShareCatCP]                                 = useState<ShareCategoriasCP | null>(() => tryParse('prisma-data-sharecat-cp', null))
   const [servicosRows, setServicosRows]                             = useState<ServicosRow[]>(() => tryParse('prisma-data-servicos', []))
   const [servicosTotal, setServicosTotal]                           = useState<ServicosTotal | null>(() => tryParse('prisma-data-servicos-total', null))
+  const [resgatesPdvRows, setResgatesPdvRows]                       = useState<ResgatesPdvRow[]>(() => tryParse('prisma-data-resgates', []))
+  const [resgatesTotal, setResgatesTotal]                           = useState<ResgatesTotal | null>(() => tryParse('prisma-data-resgates-total', null))
+  const [resgatesConsultorRows, setResgatesConsultorRows]           = useState<ResgatesConsultorRow[]>(() => tryParse('prisma-data-resgates-consultor', []))
 
   useEffect(() => { try { localStorage.setItem('prisma-data-main', JSON.stringify(mainRows)) } catch {} }, [mainRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-main-total', JSON.stringify(mainTotal)) } catch {} }, [mainTotal])
@@ -674,6 +751,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem('prisma-data-sharecat-cp', JSON.stringify(shareCatCP)) } catch {} }, [shareCatCP])
   useEffect(() => { try { localStorage.setItem('prisma-data-servicos', JSON.stringify(servicosRows)) } catch {} }, [servicosRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-servicos-total', JSON.stringify(servicosTotal)) } catch {} }, [servicosTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-resgates', JSON.stringify(resgatesPdvRows)) } catch {} }, [resgatesPdvRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-resgates-total', JSON.stringify(resgatesTotal)) } catch {} }, [resgatesTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-resgates-consultor', JSON.stringify(resgatesConsultorRows)) } catch {} }, [resgatesConsultorRows])
 
   async function loadFile(id: string, file: File) {
     if (id === 'main') {
@@ -697,11 +777,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } else if (id === 'servicos') {
       const { rows, total } = await parseServicosFile(file)
       setServicosRows(rows); setServicosTotal(total)
+    } else if (id === 'resgates') {
+      const { rows, total, consultores } = await parseResgatesFile(file)
+      setResgatesPdvRows(rows); setResgatesTotal(total); setResgatesConsultorRows(consultores)
     }
   }
 
   return (
-    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, shareCatRows, shareCatCP, servicosRows, servicosTotal, loadFile }}>
+    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, shareCatRows, shareCatCP, servicosRows, servicosTotal, resgatesPdvRows, resgatesTotal, resgatesConsultorRows, loadFile }}>
       {children}
     </DataCtx.Provider>
   )
