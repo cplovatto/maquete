@@ -4926,6 +4926,7 @@ function MetasMesPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editMeta, setEditMeta] = useState('')
   const [editCrescimento, setEditCrescimento] = useState('')
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
 
   function startEdit(id: string) {
     const m = metas[id]
@@ -4952,8 +4953,12 @@ function MetasMesPage() {
     localStorage.setItem('prisma-prefs-metas-mensais', JSON.stringify(next))
   }
 
-  const totalMeta = Object.values(metas).reduce((s, v) => s + v.meta, 0)
-  const lojasComMeta = Object.keys(metas).length
+  const filteredLojas = selectedLabels.length === 0
+    ? lojas
+    : lojas.filter(l => selectedLabels.some(lid => (l.labels ?? []).includes(lid)))
+
+  const totalMeta = filteredLojas.reduce((s, l) => s + (metas[l.id]?.meta ?? 0), 0)
+  const lojasComMeta = filteredLojas.filter(l => metas[l.id] != null).length
 
   return (
     <div className="page-content">
@@ -4971,9 +4976,24 @@ function MetasMesPage() {
         </div>
         <div className="kpi-card">
           <div className="kpi-label">Lojas configuradas</div>
-          <div className="kpi-value">{lojasComMeta}<span style={{ fontSize: 16, color: 'var(--text-muted)', fontWeight: 400 }}>/{lojas.length}</span></div>
+          <div className="kpi-value">{lojasComMeta}<span style={{ fontSize: 16, color: 'var(--text-muted)', fontWeight: 400 }}>/{filteredLojas.length}</span></div>
         </div>
       </div>
+
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="fluxo-card-header">
@@ -4992,7 +5012,7 @@ function MetasMesPage() {
               </tr>
             </thead>
             <tbody>
-              {lojas.map(l => {
+              {filteredLojas.map(l => {
                 const m = metas[l.id]
                 const isEditing = editingId === l.id
                 return (
@@ -5070,8 +5090,10 @@ function MetasMesPage() {
                   </tr>
                 )
               })}
-              {lojas.length === 0 && (
-                <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>Nenhuma loja cadastrada. Importe as lojas primeiro.</td></tr>
+              {filteredLojas.length === 0 && (
+                <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
+                  {lojas.length === 0 ? 'Nenhuma loja cadastrada. Importe as lojas primeiro.' : 'Nenhuma loja nessa região.'}
+                </td></tr>
               )}
             </tbody>
             {lojasComMeta > 0 && (
