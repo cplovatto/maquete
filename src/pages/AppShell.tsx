@@ -1065,14 +1065,14 @@ function VisaoGeralPage() {
 
       <div className="gap-section-header">
         <div>
-          <h3 className="gap-section-title">Receita deixada na mesa — BM abaixo da média do grupo</h3>
+          <h3 className="gap-section-title">GAP de Receita — BM abaixo da média do grupo</h3>
           <p className="gap-section-sub">
             {gapRows.length} loja{gapRows.length !== 1 ? 's' : ''} com BM abaixo de {fBRLR(groupBM)} (média do grupo)
             {selectedLabels.length > 0 && ' · filtrado por região'}
           </p>
         </div>
         <div className="gap-section-total">
-          <span className="gap-section-total-label">Total deixado na mesa</span>
+          <span className="gap-section-total-label">Total GAP de Receita</span>
           <span className="gap-section-total-value">{fBRLR(totalGap)}</span>
         </div>
       </div>
@@ -1114,7 +1114,7 @@ function VisaoGeralPage() {
           </tbody>
           <tfoot>
             <tr className="gap-table-total">
-              <td colSpan={7} className="gap-total-label">Total deixado na mesa</td>
+              <td colSpan={7} className="gap-total-label">Total GAP de Receita</td>
               <td className="col-num col-gap-val">{fBRLR(totalGap)}</td>
             </tr>
           </tfoot>
@@ -2032,7 +2032,7 @@ function RegioesPage() {
   )
 }
 
-/* ── Lojas — Detalhe da Loja ─────────────────────────── */
+/* ── Lojas — Raio-X da Loja ─────────────────────────── */
 function DetalhePage() {
   const { mainRows, fluxoRows, consultorRows, fluxoConsultorRows, cpData } = useData()
   const { lojas } = useLojas()
@@ -2090,7 +2090,7 @@ function DetalhePage() {
       {/* Header + store picker */}
       <div className="page-title-row" style={{ alignItems: 'flex-start' }}>
         <div>
-          <h2 className="page-title">Detalhe da Loja</h2>
+          <h2 className="page-title">Raio-X da Loja</h2>
           {regionLabels.length > 0 && (
             <div className="label-chips-group" style={{ marginTop: 4 }}>
               {regionLabels.map(lb => (
@@ -2220,7 +2220,7 @@ function DetalhePage() {
             const totalGapBM = gapBMList.reduce((s, c) => s + c.gap, 0)
             gapBMList.forEach(c => {
               getOrCreate(c.consultor, 'warn').points.push(
-                `BM de ${fBRLR(c.bm_atual)} vs ${fBRLR(refBM)} do grupo — receita deixada na mesa: ${fBRLR(c.gap)}`
+                `BM de ${fBRLR(c.bm_atual)} vs ${fBRLR(refBM)} do grupo — GAP de Receita: ${fBRLR(c.gap)}`
               )
             })
 
@@ -2525,7 +2525,7 @@ function ConsultoresPage() {
             </p>
           </div>
           <div className="cons-alert-total">
-            <span className="cons-alert-total-label">Receita deixada na mesa</span>
+            <span className="cons-alert-total-label">GAP de Receita</span>
             <span className="cons-alert-total-value">{fBRLR(totalGap)}</span>
             <span className="cons-alert-total-sub">{alertRows.length} consultor{alertRows.length !== 1 ? 'es' : ''}{selectedLabels.length > 0 ? ' · filtrado' : ''}</span>
           </div>
@@ -2574,7 +2574,7 @@ function ConsultoresPage() {
             </tbody>
             <tfoot>
               <tr className="gap-table-total">
-                <td colSpan={10} className="gap-total-label">Total deixado na mesa</td>
+                <td colSpan={10} className="gap-total-label">Total GAP de Receita</td>
                 <td className="col-num col-gap-val">{fBRLR(totalGap)}</td>
               </tr>
             </tfoot>
@@ -3046,7 +3046,7 @@ function DispersaoPage() {
 
 /* ── IAF — Ação de Fluxo ────────────────────────────── */
 function IafFluxoPage() {
-  const { fluxoRows, fluxoConsultorRows, mainTotal, cpData } = useData()
+  const { fluxoRows, fluxoConsultorRows, mainRows, mainTotal, cpData } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
@@ -3062,8 +3062,9 @@ function IafFluxoPage() {
     </div>
   )
 
-  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
-  const groupBM = cpData?.bm_valor ?? mainTotal?.bm_atual ?? 0
+  const lojaMap  = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  const mainMap  = useMemo(() => new Map(mainRows.map(r => [r.pdv, r])), [mainRows])
+  const groupBM  = cpData?.bm_valor ?? mainTotal?.bm_atual ?? 0
   const TARGET = 28
 
   useEffect(() => {
@@ -3206,7 +3207,7 @@ function IafFluxoPage() {
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="fluxo-card-header">
             <h3 className="fluxo-card-title">Resumo por Região</h3>
-            <span className="fluxo-gap-total">{fBRLR(regionGroups.reduce((s, g) => s + g.totGapReceita, 0))} deixados na mesa</span>
+            <span className="fluxo-gap-total">{fBRLR(regionGroups.reduce((s, g) => s + g.totGapReceita, 0))} de GAP de Receita</span>
           </div>
           <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
             <table className="dash-table dash-table--potential">
@@ -3241,7 +3242,7 @@ function IafFluxoPage() {
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="fluxo-card-header">
           <h3 className="fluxo-card-title">Detalhe por Loja</h3>
-          <span className="fluxo-gap-total">{fBRLR(totalGapRec)} deixados na mesa</span>
+          <span className="fluxo-gap-total">{fBRLR(totalGapRec)} de GAP de Receita</span>
         </div>
         <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
           <table className="dash-table">
@@ -3285,7 +3286,7 @@ function IafFluxoPage() {
             </tbody>
             <tfoot>
               <tr className="gap-table-total">
-                <td colSpan={3} className="gap-total-label">Total</td>
+                <td colSpan={3} className="gap-total-label">Média ponderada</td>
                 <td className="col-num">{fInt(totalResg)}</td>
                 <td className="col-num">{fInt(totalConv)}</td>
                 <td className="col-num" style={{ color: totalConvPct >= TARGET ? '#059669' : '#dc2626', fontWeight: 600 }}>{Math.round(totalConvPct)}%</td>
@@ -3322,10 +3323,15 @@ function IafFluxoPage() {
                   <th>Região</th>
                   <th className="col-num col-gap-head">GAP Receita</th>
                   <th className="col-num">% do Total</th>
+                  <th className="col-num">AF</th>
+                  <th className="col-num">Cresc. Financeiro</th>
                 </tr>
               </thead>
               <tbody>
-                {paretoRows.map((r, i) => (
+                {paretoRows.map((r, i) => {
+                  const main = mainMap.get(r.pdv)
+                  const crescPct = main && main.vf_ant > 0 ? (main.vf_atual - main.vf_ant) / main.vf_ant * 100 : null
+                  return (
                   <tr key={r.pdv}>
                     <td className="col-rank">{i + 1}</td>
                     <td>
@@ -3341,9 +3347,34 @@ function IafFluxoPage() {
                     </td>
                     <td className="col-num col-gap-val">{fBRLR(r.gapReceita)}</td>
                     <td className="col-num">{fDec(totalGapRec > 0 ? r.gapReceita / totalGapRec * 100 : 0, 1)}%</td>
+                    <td className="col-num" style={{ color: '#dc2626', fontWeight: 600 }}>{Math.round(r.conv)}%</td>
+                    <td className="col-num" style={{ color: crescPct === null ? undefined : crescPct >= 0 ? '#059669' : '#dc2626', fontWeight: 600 }}>
+                      {crescPct === null ? <span className="dash-muted">—</span> : `${crescPct >= 0 ? '+' : ''}${fDec(crescPct, 1)}%`}
+                    </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
+              {(() => {
+                const totalVfAnt   = paretoRows.reduce((s, r) => s + (mainMap.get(r.pdv)?.vf_ant  ?? 0), 0)
+                const totalVfAtual = paretoRows.reduce((s, r) => s + (mainMap.get(r.pdv)?.vf_atual ?? 0), 0)
+                const mediaCresc = totalVfAnt > 0 ? (totalVfAtual - totalVfAnt) / totalVfAnt * 100 : null
+                return (
+                  <tfoot>
+                    <tr className="gap-table-total">
+                      <td colSpan={3} className="gap-total-label">Média ponderada</td>
+                      <td className="col-num col-gap-val">{fBRLR(totalGapRec)}</td>
+                      <td className="col-num">100%</td>
+                      <td className="col-num" style={{ color: '#dc2626', fontWeight: 700 }}>
+                        {paretoRows.length > 0 ? `${Math.round(paretoRows.reduce((s, r) => s + r.resgates, 0) > 0 ? paretoRows.reduce((s, r) => s + r.conversoes, 0) / paretoRows.reduce((s, r) => s + r.resgates, 0) * 100 : 0)}%` : '—'}
+                      </td>
+                      <td className="col-num" style={{ color: mediaCresc === null ? undefined : mediaCresc >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>
+                        {mediaCresc === null ? <span className="dash-muted">—</span> : `${mediaCresc >= 0 ? '+' : ''}${fDec(mediaCresc, 1)}%`}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )
+              })()}
             </table>
           </div>
         </div>
@@ -3372,10 +3403,14 @@ function IafFluxoPage() {
                   <th className="col-num">Conversões</th>
                   <th className="col-num">Conv%</th>
                   <th className="col-num">Acima da meta</th>
+                  <th className="col-num">Cresc. Financeiro</th>
                 </tr>
               </thead>
               <tbody>
-                {metaStores.map((r, i) => (
+                {metaStores.map((r, i) => {
+                  const main = mainMap.get(r.pdv)
+                  const crescPct = main && main.vf_ant > 0 ? (main.vf_atual - main.vf_ant) / main.vf_ant * 100 : null
+                  return (
                   <tr key={r.pdv}>
                     <td className="col-rank">{i + 1}</td>
                     <td>
@@ -3393,9 +3428,35 @@ function IafFluxoPage() {
                     <td className="col-num">{fInt(r.conversoes)}</td>
                     <td className="col-num" style={{ color: '#059669', fontWeight: 700 }}>{Math.round(r.conv)}%</td>
                     <td className="col-num" style={{ color: '#059669', fontWeight: 600 }}>+{fDec(r.conv - TARGET, 1)}pp</td>
+                    <td className="col-num" style={{ color: crescPct === null ? undefined : crescPct >= 0 ? '#059669' : '#dc2626', fontWeight: 600 }}>
+                      {crescPct === null ? <span className="dash-muted">—</span> : `${crescPct >= 0 ? '+' : ''}${fDec(crescPct, 1)}%`}
+                    </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
+              {(() => {
+                const totalVfAnt  = metaStores.reduce((s, r) => s + (mainMap.get(r.pdv)?.vf_ant  ?? 0), 0)
+                const totalVfAtual = metaStores.reduce((s, r) => s + (mainMap.get(r.pdv)?.vf_atual ?? 0), 0)
+                const mediaCresc = totalVfAnt > 0 ? (totalVfAtual - totalVfAnt) / totalVfAnt * 100 : null
+                const totalResgMeta = metaStores.reduce((s, r) => s + r.resgates, 0)
+                const totalConvMeta = metaStores.reduce((s, r) => s + r.conversoes, 0)
+                const convMedia = totalResgMeta > 0 ? totalConvMeta / totalResgMeta * 100 : 0
+                return (
+                  <tfoot>
+                    <tr className="gap-table-total">
+                      <td colSpan={3} className="gap-total-label">Média ponderada</td>
+                      <td className="col-num">{fInt(totalResgMeta)}</td>
+                      <td className="col-num">{fInt(totalConvMeta)}</td>
+                      <td className="col-num" style={{ color: '#059669', fontWeight: 700 }}>{Math.round(convMedia)}%</td>
+                      <td className="col-num" style={{ color: '#059669', fontWeight: 600 }}>+{fDec(convMedia - TARGET, 1)}pp</td>
+                      <td className="col-num" style={{ color: mediaCresc === null ? undefined : mediaCresc >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>
+                        {mediaCresc === null ? <span className="dash-muted">—</span> : `${mediaCresc >= 0 ? '+' : ''}${fDec(mediaCresc, 1)}%`}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )
+              })()}
             </table>
           </div>
         </div>
@@ -6783,7 +6844,7 @@ function Sidebar() {
             <SideItem to="/app/lojas"              icon={IC.grid}    label="Visão Geral"      requires={['main','fluxo']} />
             <SideItem to="/app/lojas/regioes"      icon={IC.mapPin}  label="Análise Regional" requires={['main','fluxo']} />
             <SideItem to="/app/lojas/ranking"      icon={IC.chart}   label="Ranking de Lojas" requires={['main','fluxo']} />
-            <SideItem to="/app/lojas/detalhe"      icon={IC.store}   label="Detalhe da Loja"  requires={['main','fluxo']} />
+            <SideItem to="/app/lojas/detalhe"      icon={IC.store}   label="Raio-X da Loja"  requires={['main','fluxo']} />
             <SideItem to="/app/lojas/consultores"  icon={IC.users}   label="Consultores"      requires={['main','fluxo']} />
             <SideItem to="/app/lojas/dispersao"        icon={IC.scatter}  label="Dispersão"          requires={['main','fluxo']} />
             <SideItem to="/app/lojas/share-categorias" icon={IC.pieChart} label="Share Categorias"  requires={['share-categorias']} />
@@ -6809,7 +6870,7 @@ function Sidebar() {
             <SideItem to="/app/anual/lojas"    icon={IC.grid}   label="Visão Geral"       requires={['anual-main']} />
             <SideItem to="/app/anual/regioes"  icon={IC.mapPin} label="Análise Regional"  requires={['anual-main']} />
             <SideItem to="/app/anual/ranking"  icon={IC.chart}  label="Ranking de Lojas"  requires={['anual-main']} />
-            <SideItem to="/app/anual/detalhe"  icon={IC.store}  label="Detalhe da Loja"   requires={['anual-main']} />
+            <SideItem to="/app/anual/detalhe"  icon={IC.store}  label="Raio-X da Loja"   requires={['anual-main']} />
             <SideItem to="/app/anual/fluxo"    icon={IC.arrows} label="Ação de Fluxo"     requires={['anual-fluxo']} />
           </div>
           <div className="nav-group">
@@ -7515,7 +7576,7 @@ export default function AppShell() {
             <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas"              requires={['anual-main']} />} />
             <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional"   requires={['anual-main']} />} />
             <Route path="anual/ranking"  element={<WipPage title="Anual — Ranking de Lojas"   requires={['anual-main']} />} />
-            <Route path="anual/detalhe"  element={<WipPage title="Anual — Detalhe da Loja"    requires={['anual-main']} />} />
+            <Route path="anual/detalhe"  element={<WipPage title="Anual — Raio-X da Loja"    requires={['anual-main']} />} />
             <Route path="anual/fluxo"    element={<WipPage title="Anual — Ação de Fluxo"      requires={['anual-fluxo']} />} />
             {/* Anual – IAF */}
             <Route path="anual/iaf"  element={<WipPage title="Anual — Indicadores" requires={['anual-main']} />} />

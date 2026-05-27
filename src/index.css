@@ -1077,7 +1077,7 @@ input, textarea { font-family: inherit; }
   color: #fff;
 }
 
-/* GAP table — Receita deixada na mesa */
+/* GAP table — GAP de Receita */
 .gap-section-header {
   display: flex; align-items: flex-start; justify-content: space-between;
   gap: 16px; margin-bottom: 12px;
@@ -1253,7 +1253,7 @@ input, textarea { font-family: inherit; }
   color: #6ee7b7;
 }
 
-/* ── Detalhe da Loja ─────────────────────────────── */
+/* ── Raio-X da Loja ─────────────────────────────── */
 .detalhe-selector-label {
   font-size: 11px; font-weight: 600; color: var(--text-muted);
   text-transform: uppercase; letter-spacing: .06em; flex-shrink: 0;
