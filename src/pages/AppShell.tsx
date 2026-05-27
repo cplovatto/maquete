@@ -826,6 +826,7 @@ const META_PADRAO = 100_000
 
 const fBRL  = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fBRLR = (v: number) => `R$ ${fBRL(v)}`
+const fBRL2 = (v: number) => `R$ ${fDec(v, 2)}`
 const fInt  = (v: number) => Math.round(v).toLocaleString('pt-BR')
 const fDec  = (v: number, d = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d })
 const fPct  = (v: number) => (v * 100).toFixed(1).replace('.', ',') + '%'
@@ -960,6 +961,7 @@ function StoreTableHead({ sortKey, sortDir, onSort }: { sortKey: SortKey; sortDi
 function VisaoGeralPage() {
   const { mainRows, mainTotal, cpData, fluxoRows, fluxoTotal } = useData()
   const pdvLabel = usePdvLabel()
+
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
@@ -1265,12 +1267,14 @@ function VisaoGeralPage() {
         const hasMetas = Object.keys(metasMensais).length > 0
         const progressoRows = mainRows
           .filter(r => metasMensais[r.pdv] != null)
+          .filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (lojaMap.get(r.pdv)?.labels ?? []).includes(lid)))
           .map(r => ({
             ...r,
             loja: lojaMap.get(r.pdv),
             meta: metasMensais[r.pdv]!.meta,
             realizado: r.vf_atual,
             pct: r.vf_atual / metasMensais[r.pdv]!.meta,
+            falta: Math.max(0, metasMensais[r.pdv]!.meta - r.vf_atual),
           }))
           .sort((a, b) => b.pct - a.pct)
 
@@ -1299,22 +1303,25 @@ function VisaoGeralPage() {
                   <tr>
                     <th className="col-rank">#</th>
                     <th className="col-pdv">PDV</th>
+                    <th>Loja</th>
                     <th>Região</th>
                     <th className="col-num">Realizado</th>
                     <th className="col-num">Meta</th>
+                    <th className="col-num">Falta</th>
                     <th className="impact-bar-th">Progresso</th>
                     <th className="col-num">%</th>
                   </tr>
                 </thead>
                 <tbody>
                   {progressoRows.map((r, i) => {
-                    const pct     = r.pct
-                    const barW    = Math.min(pct, 1) * 100
-                    const color   = pct >= 1 ? '#059669' : pct >= 0.7 ? '#f59e0b' : '#dc2626'
+                    const pct   = r.pct
+                    const barW  = Math.min(pct, 1) * 100
+                    const color = pct >= 1 ? '#059669' : pct >= 0.7 ? '#f59e0b' : '#dc2626'
                     return (
                       <tr key={r.pdv}>
                         <td className="col-rank">{i + 1}</td>
-                        <td className="col-pdv">{r.pdv}</td>
+                        <td className="col-pdv">{pdvLabel(r.pdv)}</td>
+                        <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
                         <td>
                           <div className="label-chips-group">
                             {(r.loja?.labels ?? []).map(lid => {
@@ -1325,6 +1332,9 @@ function VisaoGeralPage() {
                         </td>
                         <td className="col-num">{fBRLR(r.realizado)}</td>
                         <td className="col-num col-muted-val">{fBRLR(r.meta)}</td>
+                        <td className="col-num" style={{ color: r.falta > 0 ? '#dc2626' : '#059669', fontWeight: 600 }}>
+                          {r.falta > 0 ? `-${fBRLR(r.falta)}` : '✓'}
+                        </td>
                         <td className="impact-bar-cell">
                           <div className="impact-bar-track">
                             <div className="impact-bar-fill" style={{ width: `${barW}%`, background: color }} />
@@ -1339,11 +1349,14 @@ function VisaoGeralPage() {
                 </tbody>
                 <tfoot>
                   <tr className="gap-table-total">
-                    <td colSpan={3} className="gap-total-label" style={{ textAlign: 'left', paddingLeft: 12 }}>
-                      Total do grupo
+                    <td colSpan={4} className="gap-total-label" style={{ textAlign: 'left', paddingLeft: 12 }}>
+                      Total do grupo{selectedLabels.length > 0 ? ' · filtrado' : ''}
                     </td>
                     <td className="col-num">{fBRLR(totalRealizado)}</td>
                     <td className="col-num col-muted-val">{fBRLR(totalMeta)}</td>
+                    <td className="col-num" style={{ fontWeight: 600, color: totalPct >= 1 ? '#059669' : '#dc2626' }}>
+                      {totalPct >= 1 ? '✓' : `-${fBRLR(totalMeta - totalRealizado)}`}
+                    </td>
                     <td className="impact-bar-cell">
                       <div className="impact-bar-track">
                         <div className="impact-bar-fill" style={{
@@ -5899,6 +5912,604 @@ function BoletoPromocionalPage() {
   )
 }
 
+/* ── Meta do Dia ────────────────────────────────────── */
+function MetaDiaPage() {
+  const { metaDiaRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const pdvLabel = usePdvLabel()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+
+  const [metasMensais] = useState<Record<string, { meta: number; crescimento: number }>>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-metas-mensais') ?? '{}') } catch { return {} }
+  })
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  if (metaDiaRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <div className="page-empty-title">Planilha de Meta do Dia não carregada</div>
+      <div className="page-empty-desc">Importe a planilha com as vendas do mesmo dia da semana no ano passado. A meta de cada loja será calculada automaticamente.</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Meta do dia <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  const allRows = metaDiaRows.map(r => {
+    const m = metasMensais[r.pdv]
+    const crescimento = m?.crescimento ?? null
+    const meta_dia = crescimento !== null ? r.venda_ly * (1 + crescimento / 100) : null
+    return {
+      pdv: r.pdv,
+      loja: lojaMap.get(r.pdv),
+      venda_ly: r.venda_ly,
+      crescimento,
+      meta_dia,
+      semMeta: crescimento === null,
+    }
+  }).sort((a, b) => (b.meta_dia ?? 0) - (a.meta_dia ?? 0))
+
+  const rows = selectedLabels.length === 0
+    ? allRows
+    : allRows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+
+  const totalLY  = rows.reduce((s, r) => s + r.venda_ly, 0)
+  const totalMeta = rows.filter(r => r.meta_dia !== null).reduce((s, r) => s + r.meta_dia!, 0)
+  const semMeta  = rows.filter(r => r.semMeta).length
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Meta do Dia</h2>
+          <p className="page-subtitle">{rows.length} loja{rows.length !== 1 ? 's' : ''}{selectedLabels.length > 0 ? ' · filtrado por região' : ' · baseado nas vendas do mesmo dia da semana no ano passado'}</p>
+        </div>
+      </div>
+
+      <div className="region-filter-bar">
+        <button
+          className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`}
+          onClick={() => setSelectedLabels([])}
+        >Todas</button>
+        {labels.map(lb => (
+          <button
+            key={lb.id}
+            className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+            style={selectedLabels.includes(lb.id) ? { '--chip-color': lb.color, background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+            onClick={() => setSelectedLabels(prev =>
+              prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id]
+            )}
+          >{lb.name}</button>
+        ))}
+      </div>
+
+      {semMeta > 0 && (
+        <div className="missing-files-banner" style={{ marginBottom: 16 }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>{semMeta} loja{semMeta !== 1 ? 's' : ''} sem crescimento configurado — acesse <strong>Metas do Mês</strong> para definir.</span>
+        </div>
+      )}
+
+      <div className="kpi-row">
+        <div className="kpi-card">
+          <div className="kpi-label">Meta Total do Dia</div>
+          <div className="kpi-value">{totalMeta > 0 ? fBRLR(totalMeta) : '—'}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">Base Ano Passado</div>
+          <div className="kpi-value">{fBRLR(totalLY)}</div>
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Venda LY</th>
+                <th className="col-num">Crescimento</th>
+                <th className="col-num">Meta do Dia</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={r.pdv}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td className="col-pdv">{pdvLabel(r.pdv)}</td>
+                  <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                  <td>
+                    <div className="label-chips-group">
+                      {(r.loja?.labels ?? []).map(lid => {
+                        const lb = labels.find(x => x.id === lid)
+                        return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                      })}
+                    </div>
+                  </td>
+                  <td className="col-num col-muted-val">{fBRLR(r.venda_ly)}</td>
+                  <td className="col-num" style={{ color: '#7c3aed', fontWeight: 600 }}>
+                    {r.crescimento !== null ? `+${fDec(r.crescimento, 1)}%` : <span className="dash-muted">—</span>}
+                  </td>
+                  <td className="col-num" style={{ fontWeight: 700, color: r.meta_dia !== null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                    {r.meta_dia !== null ? fBRLR(r.meta_dia) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="gap-table-total">
+                <td colSpan={4} className="gap-total-label" style={{ textAlign: 'left', paddingLeft: 12 }}>Total</td>
+                <td className="col-num col-muted-val">{fBRLR(totalLY)}</td>
+                <td className="col-num" />
+                <td className="col-num" style={{ fontWeight: 700 }}>{totalMeta > 0 ? fBRLR(totalMeta) : '—'}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Parcial do Dia ─────────────────────────────────── */
+type Expediente = { open: number; close: number }
+
+function ExpedienteModal({ value, onChange, onClose }: { value: Expediente; onChange: (v: Expediente) => void; onClose: () => void }) {
+  const [open, setOpen] = useState(String(value.open))
+  const [close, setClose] = useState(String(value.close))
+  const save = () => {
+    const o = Math.max(0, Math.min(23, parseInt(open) || 10))
+    const c = Math.max(o + 1, Math.min(24, parseInt(close) || 22))
+    onChange({ open: o, close: c })
+    onClose()
+  }
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">Horário de Expediente</span>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '20px 24px 24px' }}>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+            Define o horário de funcionamento das lojas para calcular o pace esperado do dia.
+          </p>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+            <label style={{ fontSize: 13, fontWeight: 500, minWidth: 60 }}>Abertura</label>
+            <input
+              type="number" min={0} max={23} value={open}
+              onChange={e => setOpen(e.target.value)}
+              style={{ width: 64, padding: '6px 10px', border: '1px solid var(--bg-border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: 14, textAlign: 'center' }}
+            />
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>h</span>
+            <label style={{ fontSize: 13, fontWeight: 500, minWidth: 60 }}>Fechamento</label>
+            <input
+              type="number" min={1} max={24} value={close}
+              onChange={e => setClose(e.target.value)}
+              style={{ width: 64, padding: '6px 10px', border: '1px solid var(--bg-border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: 14, textAlign: 'center' }}
+            />
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>h</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--bg-border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancelar</button>
+            <button onClick={save} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--brand-primary)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Salvar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ParcialDiaPage() {
+  const { parcialRows, metaDiaRows, parcialSkinRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const pdvLabel = usePdvLabel()
+
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [showExpConfig, setShowExpConfig] = useState(false)
+  const [now, setNow] = useState(new Date())
+  const [copiedSkin, setCopiedSkin] = useState(false)
+  const [expediente, setExpediente] = useState<Expediente>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-expediente') ?? 'null') ?? { open: 10, close: 22 } }
+    catch { return { open: 10, close: 22 } }
+  })
+
+  const [metasMensais] = useState<Record<string, { meta: number; crescimento: number }>>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-metas-mensais') ?? '{}') } catch { return {} }
+  })
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    try { localStorage.setItem('prisma-prefs-expediente', JSON.stringify(expediente)) } catch {}
+  }, [expediente])
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const paceExpected = useMemo(() => {
+    const { open, close } = expediente
+    const total = close - open
+    if (total <= 0) return 0
+    const cur = now.getHours() + now.getMinutes() / 60
+    return Math.max(0, Math.min(1, (cur - open) / total))
+  }, [now, expediente])
+
+  const metaDiaMap = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const r of metaDiaRows) {
+      const m = metasMensais[r.pdv]
+      if (m?.crescimento != null) map.set(r.pdv, r.venda_ly * (1 + m.crescimento / 100))
+    }
+    return map
+  }, [metaDiaRows, metasMensais])
+
+  const parcialMap = useMemo(() => new Map(parcialRows.map(r => [r.pdv, r])), [parcialRows])
+
+  const allRows = useMemo(() => {
+    const pdvs = new Set([...parcialMap.keys(), ...metaDiaMap.keys()])
+    return Array.from(pdvs).map(pdv => {
+      const loja = lojaMap.get(pdv)
+      const venda_parcial = parcialMap.get(pdv)?.venda_parcial ?? 0
+      const meta_dia = metaDiaMap.get(pdv) ?? null
+      const pctAtingido = meta_dia && meta_dia > 0 ? venda_parcial / meta_dia : null
+      const paceRatio = paceExpected > 0 && pctAtingido !== null ? pctAtingido / paceExpected : null
+      const projecao = paceExpected > 0 ? venda_parcial / paceExpected : null
+      const falta = meta_dia !== null ? Math.max(0, meta_dia - venda_parcial) : null
+      const status: 'ok' | 'warn' | 'danger' | 'neutral' =
+        paceRatio === null ? 'neutral' :
+        paceRatio >= 0.9 ? 'ok' :
+        paceRatio >= 0.7 ? 'warn' : 'danger'
+      return { pdv, loja, venda_parcial, meta_dia, pctAtingido, paceRatio, projecao, falta, status }
+    }).sort((a, b) => {
+      if (a.paceRatio === null && b.paceRatio === null) return 0
+      if (a.paceRatio === null) return 1
+      if (b.paceRatio === null) return -1
+      return a.paceRatio - b.paceRatio
+    })
+  }, [parcialMap, metaDiaMap, lojaMap, paceExpected])
+
+  const rows = selectedLabels.length === 0
+    ? allRows
+    : allRows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+
+  const totalParcial = rows.reduce((s, r) => s + r.venda_parcial, 0)
+  const totalMeta = rows.filter(r => r.meta_dia !== null).reduce((s, r) => s + r.meta_dia!, 0)
+  const pctGlobal = totalMeta > 0 ? totalParcial / totalMeta : null
+  const noRitmo = rows.filter(r => r.status === 'ok').length
+  const emRisco = rows.filter(r => r.status === 'danger').length
+
+  const totalQB = rows.reduce((s, r) => s + (parcialMap.get(r.pdv)?.qb_atual ?? 0), 0)
+  const totalBM = totalQB > 0 ? totalParcial / totalQB : 0
+  const totalIV = totalQB > 0
+    ? rows.reduce((s, r) => {
+        const pr = parcialMap.get(r.pdv)
+        return s + (pr?.iv_atual ?? 0) * (pr?.qb_atual ?? 0)
+      }, 0) / totalQB
+    : 0
+
+  const statusColor = (s: string) => s === 'ok' ? '#059669' : s === 'warn' ? '#d97706' : s === 'danger' ? '#dc2626' : 'var(--text-muted)'
+
+  if (parcialRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <div className="page-empty-title">Parcial do Dia não carregado</div>
+      <div className="page-empty-desc">Importe a planilha com as vendas parciais do dia. Atualize a cada hora para acompanhar o progresso em tempo real.</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Parcial do dia <span className="import-format-badge format-csv">CSV</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Parcial do Dia</h2>
+          <p className="page-subtitle">
+            {now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · expediente {expediente.open}h–{expediente.close}h · pace esperado {fInt(paceExpected * 100)}%{selectedLabels.length > 0 ? ' · filtrado por região' : ''}
+          </p>
+        </div>
+        <button
+          onClick={() => setShowExpConfig(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--bg-border)', background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+          Expediente
+        </button>
+      </div>
+
+      <div className="region-filter-bar">
+        <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+        {labels.map(lb => (
+          <button
+            key={lb.id}
+            className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+            style={selectedLabels.includes(lb.id) ? { '--chip-color': lb.color, background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+            onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+          >{lb.name}</button>
+        ))}
+      </div>
+
+      <div className="kpi-row">
+        <div className="kpi-card parcial-hero-card">
+          <div className="parcial-hero-group">
+            {selectedLabels.length === 1
+              ? (labels.find(l => l.id === selectedLabels[0])?.name ?? 'Grupo')
+              : selectedLabels.length > 1
+              ? selectedLabels.map(id => labels.find(l => l.id === id)?.name).filter(Boolean).join(' · ')
+              : 'GRUPO LOVATTO'}
+          </div>
+          <div className="parcial-hero-pct" style={{ color: pctGlobal !== null ? statusColor(pctGlobal >= paceExpected * 0.9 ? 'ok' : pctGlobal >= paceExpected * 0.7 ? 'warn' : 'danger') : 'var(--text-primary)' }}>
+            {pctGlobal !== null ? `${fDec(pctGlobal * 100, 1)}%` : '—'}
+          </div>
+          <div className="parcial-hero-valores">
+            {fBRL2(totalParcial)} / {fBRL2(totalMeta || 0)}
+          </div>
+          <div className="parcial-hero-falta">
+            {totalMeta > totalParcial ? `Falta ${fBRL2(totalMeta - totalParcial)}` : <span style={{ color: '#059669' }}>Meta atingida ✓</span>}
+          </div>
+          {totalQB > 0 && (
+            <div className="parcial-hero-kpis">
+              BM: {fBRL2(totalBM)} · IV: {fDec(totalIV, 2)}
+            </div>
+          )}
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">% Atingido</div>
+          <div className="kpi-value" style={{ color: pctGlobal !== null ? statusColor(pctGlobal >= paceExpected * 0.9 ? 'ok' : pctGlobal >= paceExpected * 0.7 ? 'warn' : 'danger') : 'var(--text-primary)' }}>
+            {pctGlobal !== null ? `${fInt(pctGlobal * 100)}%` : '—'}
+          </div>
+          {paceExpected > 0 && <div className="kpi-var">esperado {fInt(paceExpected * 100)}%</div>}
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">No ritmo</div>
+          <div className="kpi-value" style={{ color: noRitmo > 0 ? '#059669' : 'var(--text-primary)' }}>
+            {noRitmo}<span style={{ fontSize: 15, color: 'var(--text-muted)', fontWeight: 400 }}>/{rows.filter(r => r.meta_dia !== null).length}</span>
+          </div>
+          {emRisco > 0 && <div className="kpi-var" style={{ color: '#dc2626' }}>{emRisco} em risco</div>}
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Meta</th>
+                <th className="col-num">Parcial</th>
+                <th style={{ minWidth: 100 }}>Progresso</th>
+                <th className="col-num">Ating. / Esp.</th>
+                <th className="col-num">Falta</th>
+                <th className="col-num">Projeção</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={r.pdv}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td className="col-pdv">{pdvLabel(r.pdv)}</td>
+                  <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                  <td>
+                    <div className="label-chips-group">
+                      {(r.loja?.labels ?? []).map(lid => {
+                        const lb = labels.find(x => x.id === lid)
+                        return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                      })}
+                    </div>
+                  </td>
+                  <td className="col-num col-muted-val">{r.meta_dia !== null ? fBRLR(r.meta_dia) : <span className="dash-muted">—</span>}</td>
+                  <td className="col-num" style={{ fontWeight: 600 }}>{fBRLR(r.venda_parcial)}</td>
+                  <td>
+                    <div className="pace-bar-wrap">
+                      <div className="pace-bar-track">
+                        <div className="pace-bar-fill" style={{ width: `${Math.min(100, (r.pctAtingido ?? 0) * 100)}%`, background: statusColor(r.status) }} />
+                        {paceExpected > 0 && <div className="pace-bar-expected" style={{ left: `${Math.min(100, paceExpected * 100)}%` }} />}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="col-num" style={{ whiteSpace: 'nowrap' }}>
+                    <span style={{ fontWeight: 700, color: statusColor(r.status) }}>
+                      {r.pctAtingido !== null ? `${fDec(r.pctAtingido * 100, 1)}%` : '—'}
+                    </span>
+                    {paceExpected > 0 && (
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
+                        {' / '}{fInt(paceExpected * 100)}%
+                      </span>
+                    )}
+                  </td>
+                  <td className="col-num" style={{ color: r.falta ? '#dc2626' : 'var(--text-muted)' }}>
+                    {r.falta !== null ? (r.falta > 0 ? fBRLR(r.falta) : <span style={{ color: '#059669' }}>✓</span>) : <span className="dash-muted">—</span>}
+                  </td>
+                  <td className="col-num" style={{ fontWeight: 600, color: r.projecao && r.meta_dia && r.projecao >= r.meta_dia ? '#059669' : 'var(--text-primary)' }}>
+                    {r.projecao !== null && r.venda_parcial > 0 ? fBRLR(r.projecao) : <span className="dash-muted">—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="gap-table-total">
+                <td colSpan={4} className="gap-total-label" style={{ textAlign: 'left', paddingLeft: 12 }}>Total</td>
+                <td className="col-num col-muted-val">{totalMeta > 0 ? fBRLR(totalMeta) : '—'}</td>
+                <td className="col-num" style={{ fontWeight: 700 }}>{fBRLR(totalParcial)}</td>
+                <td />
+                <td className="col-num" style={{ fontWeight: 700, color: statusColor(pctGlobal !== null ? (pctGlobal >= paceExpected * 0.9 ? 'ok' : pctGlobal >= paceExpected * 0.7 ? 'warn' : 'danger') : 'neutral') }}>
+                  {pctGlobal !== null ? `${fInt(pctGlobal * 100)}%` : '—'}
+                </td>
+                <td className="col-num" style={{ color: '#dc2626', fontWeight: 700 }}>
+                  {totalMeta > totalParcial ? fBRLR(totalMeta - totalParcial) : <span style={{ color: '#059669' }}>✓</span>}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {parcialSkinRows.length > 0 && (() => {
+        const META_SKIN = 0.06
+        const skinFiltered = parcialSkinRows
+          .map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+          .filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+          .sort((a, b) => b.share - a.share)
+
+        const totalSkinReceita = skinFiltered.reduce((s, r) => s + r.receita, 0)
+        const totalGMVFiltrado = rows.reduce((s, r) => s + r.venda_parcial, 0)
+        const shareGrupo = totalGMVFiltrado > 0 ? totalSkinReceita / totalGMVFiltrado : null
+
+        // Resumo por label (sempre todos os labels, independente do filtro)
+        const labelSkinSummary = labels.map(lb => {
+          const lbSkin = parcialSkinRows.filter(r => (lojaMap.get(r.pdv)?.labels ?? []).includes(lb.id))
+          const lbGMV  = allRows.filter(r => (r.loja?.labels ?? []).includes(lb.id))
+          const skinRec = lbSkin.reduce((s, r) => s + r.receita, 0)
+          const gmv     = lbGMV.reduce((s, r) => s + r.venda_parcial, 0)
+          const share   = gmv > 0 ? skinRec / gmv : null
+          return { lb, share }
+        }).filter(x => x.share !== null)
+        const grupoLabel = selectedLabels.length === 1
+          ? (labels.find(l => l.id === selectedLabels[0])?.name ?? 'Grupo')
+          : selectedLabels.length > 1
+          ? selectedLabels.map(id => labels.find(l => l.id === id)?.name).filter(Boolean).join(' · ')
+          : 'GRUPO LOVATTO'
+
+        return (
+          <div style={{ marginTop: 32 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
+              <h3 className="page-section-title">
+                Parcial Skin <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>meta: 6%</span>
+              </h3>
+              {shareGrupo !== null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 10, padding: '8px 14px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--brand-primary)' }}>{grupoLabel}</span>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: shareGrupo >= META_SKIN ? '#059669' : '#dc2626' }}>
+                    {fDec(shareGrupo * 100, 1)}%
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 6%</span>
+                </div>
+              )}
+            </div>
+
+            <div className="region-filter-bar" style={{ marginBottom: 16 }}>
+              <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+              {labels.map(lb => (
+                <button
+                  key={lb.id}
+                  className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+                  style={selectedLabels.includes(lb.id) ? { '--chip-color': lb.color, background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+                  onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+                >{lb.name}</button>
+              ))}
+            </div>
+            {labelSkinSummary.length > 0 && (
+              <div className="card" style={{ padding: '14px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                {labelSkinSummary.map(({ lb, share }) => (
+                  <div key={lb.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: lb.color, background: lb.color + '22', border: `1px solid ${lb.color}55`, borderRadius: 20, padding: '2px 8px' }}>{lb.name}</span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: share! >= META_SKIN ? '#059669' : '#dc2626' }}>{fDec(share! * 100, 1)}%</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 6%</span>
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    const hoje = new Date().toLocaleDateString('pt-BR')
+                    const lines = [`📊 *Parcial Skin — ${hoje}*`, `Meta: 6%`, '']
+                    labelSkinSummary.forEach(({ lb, share }) => {
+                      const ok = share! >= META_SKIN
+                      lines.push(`${ok ? '✅' : '❌'} *${lb.name}:* ${fDec(share! * 100, 1)}%`)
+                    })
+                    if (shareGrupo !== null) {
+                      lines.push('')
+                      lines.push(`📦 *Grupo:* ${fDec(shareGrupo * 100, 1)}%`)
+                    }
+                    navigator.clipboard.writeText(lines.join('\n'))
+                    setCopiedSkin(true)
+                    setTimeout(() => setCopiedSkin(false), 2500)
+                  }}
+                  style={{
+                    marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '5px 12px', borderRadius: 6, border: '1px solid var(--bg-border)',
+                    background: copiedSkin ? '#f0fdf4' : 'var(--bg-surface)',
+                    color: copiedSkin ? '#16a34a' : 'var(--text-secondary)',
+                    fontSize: 12, fontWeight: 500, cursor: 'pointer', transition: 'all .2s',
+                  }}
+                >
+                  {copiedSkin
+                    ? <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> Copiado!</>
+                    : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copiar para WhatsApp</>
+                  }
+                </button>
+              </div>
+            )}
+
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+                <table className="dash-table">
+                  <thead>
+                    <tr>
+                      <th className="col-rank">#</th>
+                      <th className="col-pdv">PDV</th>
+                      <th>Loja</th>
+                      <th>Região</th>
+                      <th className="col-num">Share Skin</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {skinFiltered.map((r, i) => {
+                      const ok = r.share >= META_SKIN
+                      return (
+                        <tr key={r.pdv}>
+                          <td className="col-rank">{i + 1}</td>
+                          <td className="col-pdv">{pdvLabel(r.pdv)}</td>
+                          <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                          <td>
+                            <div className="label-chips-group">
+                              {(r.loja?.labels ?? []).map(lid => {
+                                const lb = labels.find(x => x.id === lid)
+                                return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                              })}
+                            </div>
+                          </td>
+                          <td className="col-num" style={{ fontWeight: 700, color: ok ? '#059669' : '#dc2626' }}>
+                            {fDec(r.share * 100, 1)}%
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {showExpConfig && (
+        <ExpedienteModal
+          value={expediente}
+          onChange={v => setExpediente(v)}
+          onClose={() => setShowExpConfig(false)}
+        />
+      )}
+    </div>
+  )
+}
+
 /* ── Metas do Mês ───────────────────────────────────── */
 type MetaMensal = { meta: number; crescimento: number }
 
@@ -6127,9 +6738,11 @@ function WipPage({ title, requires }: { title: string; requires?: string[] }) {
 
   return (
     <div className="placeholder-page">
-      <div className="page-header">
-        <div className="page-title">{title}</div>
-        <div className="page-subtitle">Em construção</div>
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">{title}</h2>
+          <p className="page-subtitle">Em construção</p>
+        </div>
       </div>
       <div className="wip-banner">
         <span style={{ fontSize: 20 }}>🏗️</span>
@@ -6327,13 +6940,15 @@ function IafIndicadoresPage() {
         })
         const idAvg = idAtend > 0 ? idWeighted / idAtend * 100 : null
 
-        // Serviços: ponderado por servicos_totais
-        let servComp = 0, servTot = 0
+        // Serviços: completos vs meta configurada (ou totais como fallback)
+        let servComp = 0, servMeta = 0
         lbPdvs.forEach(pdv => {
           const r = servMap.get(pdv)
-          if (r) { servComp += r.servicos_completos; servTot += r.servicos_totais }
+          if (r) servComp += r.servicos_completos
+          const m = servicosMetas[pdv]
+          if (m) servMeta += m
         })
-        const servAvg = servTot > 0 ? servComp / servTot * 100 : null
+        const servAvg = servMeta > 0 ? servComp / servMeta * 100 : null
 
         const scores = [
           scoreOf(skinAvg, IAF_IND_METAS.skin),
@@ -6343,11 +6958,11 @@ function IafIndicadoresPage() {
           scoreOf(idAvg, IAF_IND_METAS.id),
         ].filter((s): s is number => s !== null)
         const nota = scores.length > 0 ? (scores.reduce((s, x) => s + x, 0) / scores.length) * 5 : null
-        return { label: lb, count: lbPdvs.length, skinAvg, afAvg, bpAvg, resgateAvg, idAvg, servAvg, nota }
+        return { label: lb, count: lbPdvs.length, skinAvg, afAvg, bpAvg, resgateAvg, idAvg, servComp, servMeta, nota }
       })
       .filter((x): x is NonNullable<typeof x> => x !== null)
       .sort((a, b) => (b.nota ?? -1) - (a.nota ?? -1))
-  }, [labels, allPdvs, lojaMap, skinMap, fluxoMap, bpMap, resgateMap, idMap, servMap])
+  }, [labels, allPdvs, lojaMap, skinMap, fluxoMap, bpMap, resgateMap, idMap, servMap, servicosMetas])
 
   if (allPdvs.length === 0) return (
     <div className="page-empty-state">
@@ -6396,7 +7011,7 @@ function IafIndicadoresPage() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-title-row">
         <div>
           <h2 className="page-title">IAF — Indicadores</h2>
           <p className="page-subtitle">Resumo por loja · {rows.length} loja{rows.length !== 1 ? 's' : ''}</p>
@@ -6419,8 +7034,9 @@ function IafIndicadoresPage() {
       )}
 
       {labelSummary.length > 0 && (
-        <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 16 }}>
-          <div className="card-head"><div className="card-title">Resumo por Label</div></div>
+        <div style={{ marginBottom: 16 }}>
+          <h3 className="page-section-title" style={{ marginBottom: 12 }}>Resumo por Label</h3>
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
           <table className="dash-table">
             <thead>
               <tr>
@@ -6451,7 +7067,15 @@ function IafIndicadoresPage() {
                     <ICell v={row.bpAvg}      meta={IAF_IND_METAS.bp} />
                     <ICell v={row.resgateAvg} meta={IAF_IND_METAS.resgate} />
                     <ICell v={row.idAvg}      meta={IAF_IND_METAS.id} />
-                    <ICell v={row.servAvg}    meta={null} />
+                    <td className="col-num">
+                      {row.servMeta > 0
+                        ? <span style={{ fontWeight: 700, color: row.servComp >= row.servMeta ? '#059669' : '#dc2626' }}>
+                            {row.servComp}/{row.servMeta}
+                          </span>
+                        : row.servComp > 0
+                          ? <span style={{ color: 'var(--text-secondary)' }}>{row.servComp}</span>
+                          : <span className="dash-muted">—</span>}
+                    </td>
                     <td className="col-num" style={{ fontWeight: 700, color: notaColor }}>
                       {row.nota !== null ? row.nota.toFixed(1) : '—'}
                     </td>
@@ -6460,6 +7084,7 @@ function IafIndicadoresPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -6501,7 +7126,18 @@ function IafIndicadoresPage() {
                 <ICell v={r.bpPct}      meta={IAF_IND_METAS.bp} />
                 <ICell v={r.resgatePct} meta={IAF_IND_METAS.resgate} />
                 <ICell v={r.idPct}      meta={IAF_IND_METAS.id} />
-                <ICell v={r.servPct}    meta={null} />
+                <td className="col-num">
+                  {(() => {
+                    const serv = servMap.get(r.pdv)
+                    if (!serv) return <span className="dash-muted">—</span>
+                    const meta = servicosMetas[r.pdv]
+                    if (meta) {
+                      const ok = serv.servicos_completos >= meta
+                      return <span style={{ fontWeight: 700, color: ok ? '#059669' : '#dc2626' }}>{serv.servicos_completos}/{meta}</span>
+                    }
+                    return <span style={{ color: 'var(--text-secondary)' }}>{serv.servicos_completos}/{serv.servicos_totais}</span>
+                  })()}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -6855,8 +7491,8 @@ export default function AppShell() {
             <Route index element={<Navigate to="meta" replace />} />
             {/* Mensal – Gestão Instantânea */}
             <Route path="metas-mes"     element={<MetasMesPage />} />
-            <Route path="meta"          element={<WipPage title="Meta do Dia" />} />
-            <Route path="parcial"       element={<WipPage title="Parcial do Dia"  requires={['parcial']} />} />
+            <Route path="meta"          element={<MetaDiaPage />} />
+            <Route path="parcial"       element={<ParcialDiaPage />} />
             <Route path="dia-anterior"  element={<WipPage title="Dia Anterior"    requires={['dia-ant','meta-diaant']} />} />
             {/* Mensal – Lojas */}
             <Route path="lojas"               element={<VisaoGeralPage />} />

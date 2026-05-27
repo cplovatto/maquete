@@ -204,6 +204,25 @@ export interface ServicosTotal {
   pct_completos: number
 }
 
+export interface MetaDiaRow {
+  pdv: string
+  venda_ly: number
+}
+
+export interface ParcialRow {
+  pdv: string
+  venda_parcial: number
+  qb_atual: number
+  iv_atual: number
+}
+
+export interface ParcialSkinRow {
+  pdv: string
+  share: number       // participação skin no GMV total (decimal)
+  receita: number     // receita skin hoje
+  receita_ant: number // receita skin mesmo dia LY
+}
+
 export interface ResgatesPdvRow {
   pdv: string
   pct_anterior: number
@@ -288,6 +307,9 @@ interface DataCtxType {
   boletoPromoPdvRows: BoletoPromoPdvRow[]
   boletoPromoTotal: BoletoPromoTotal | null
   boletoPromoConsultorRows: BoletoPromoConsultorRow[]
+  metaDiaRows: MetaDiaRow[]
+  parcialRows: ParcialRow[]
+  parcialSkinRows: ParcialSkinRow[]
   loadFile: (id: string, file: File) => Promise<void>
 }
 
@@ -854,6 +876,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [boletoPromoPdvRows, setBoletoPromoPdvRows]                 = useState<BoletoPromoPdvRow[]>(() => tryParse('prisma-data-boleto-promo', []))
   const [boletoPromoTotal, setBoletoPromoTotal]                     = useState<BoletoPromoTotal | null>(() => tryParse('prisma-data-boleto-promo-total', null))
   const [boletoPromoConsultorRows, setBoletoPromoConsultorRows]     = useState<BoletoPromoConsultorRow[]>(() => tryParse('prisma-data-boleto-promo-consultor', []))
+  const [metaDiaRows, setMetaDiaRows]                               = useState<MetaDiaRow[]>(() => tryParse('prisma-data-meta-dia', []))
+  const [parcialRows, setParcialRows]                               = useState<ParcialRow[]>(() => tryParse('prisma-data-parcial', []))
+  const [parcialSkinRows, setParcialSkinRows]                       = useState<ParcialSkinRow[]>(() => tryParse('prisma-data-parcial-skin', []))
 
   useEffect(() => { try { localStorage.setItem('prisma-data-main', JSON.stringify(mainRows)) } catch {} }, [mainRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-main-total', JSON.stringify(mainTotal)) } catch {} }, [mainTotal])
@@ -877,6 +902,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem('prisma-data-resgates', JSON.stringify(resgatesPdvRows)) } catch {} }, [resgatesPdvRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-resgates-total', JSON.stringify(resgatesTotal)) } catch {} }, [resgatesTotal])
   useEffect(() => { try { localStorage.setItem('prisma-data-resgates-consultor', JSON.stringify(resgatesConsultorRows)) } catch {} }, [resgatesConsultorRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-meta-dia', JSON.stringify(metaDiaRows)) } catch {} }, [metaDiaRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-parcial', JSON.stringify(parcialRows)) } catch {} }, [parcialRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-parcial-skin', JSON.stringify(parcialSkinRows)) } catch {} }, [parcialSkinRows])
 
   async function loadFile(id: string, file: File) {
     if (id === 'main') {
@@ -909,11 +937,75 @@ export function DataProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('prisma-data-boleto-promo', JSON.stringify(rows))
       localStorage.setItem('prisma-data-boleto-promo-total', JSON.stringify(total))
       localStorage.setItem('prisma-data-boleto-promo-consultor', JSON.stringify(consultores))
+    } else if (id === 'parcial') {
+      // Formato: GerencialVendas-DD-MM-YYYY.csv
+      // Separador ponto-e-vírgula, encoding UTF-8 com BOM
+      // Col 0: "12904 - Nome da Loja" → PDV = dígitos antes do " - "
+      // Col 2: GMV parcial do dia (formato BRL: "2.203,43")
+      const text = await file.text()
+      const lines = text.replace(/^﻿/, '').split('\n').map(l => l.trim()).filter(Boolean)
+      const rows: ParcialRow[] = lines
+        .slice(1) // pula cabeçalho
+        .map(line => {
+          const cols = line.split(';')
+          const pdvRaw = String(cols[0] ?? '').trim()
+          const match = pdvRaw.match(/^(\d+)\s*-/)
+          const pdv = match ? match[1] : ''
+          const venda_parcial = parseBRL(cols[2])
+          const qb_atual      = parseBRL(cols[4])
+          const iv_atual      = parseBRL(cols[5])
+          return { pdv, venda_parcial, qb_atual, iv_atual }
+        })
+        .filter(r => r.pdv && r.venda_parcial > 0)
+      setParcialRows(rows)
+    } else if (id === 'parcial-skin') {
+      const { read, utils } = await getXLSX()
+      const data = await file.arrayBuffer()
+      const wb = read(data, { type: 'array' })
+      const ws = wb.Sheets['PDV'] ?? wb.Sheets[wb.SheetNames[0]]
+      const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+      // Linhas 0-1: cabeçalhos; linhas 2-3: totais — pular tudo até PDV numérico
+      const rows: ParcialSkinRow[] = raw
+        .filter(r => {
+          const pdv = String((r as unknown[])[0] ?? '').trim()
+          return /^\d{4,6}$/.test(pdv)
+        })
+        .map(r => {
+          const a = r as unknown[]
+          return {
+            pdv:         String(a[0]).trim(),
+            share:       toNum(a[1]),      // (%) receita
+            receita:     toNum(a[2]),      // receita atual
+            receita_ant: toNum(a[3]),      // receita LY
+          }
+        })
+      setParcialSkinRows(rows)
+    } else if (id === 'meta') {
+      const { read, utils } = await getXLSX()
+      const data = await file.arrayBuffer()
+      const wb = read(data, { type: 'array' })
+      // Usa aba PDV se existir, senão primeira aba
+      const ws = wb.Sheets['PDV'] ?? wb.Sheets[wb.SheetNames[0]]
+      const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+      const rows: MetaDiaRow[] = raw
+        .filter(r => {
+          const a = r as unknown[]
+          const pdv = String(a[0] ?? '').trim()
+          // Pula cabeçalhos e total
+          return pdv && !isNaN(Number(pdv.replace(/\D/g, ''))) && pdv.toUpperCase() !== 'TOTAL'
+        })
+        .map(r => {
+          const a = r as unknown[]
+          // Col 0 = PDV, col 2 = PERÍODO ATUAL (= mesmo dia ano passado)
+          return { pdv: String(a[0]).trim(), venda_ly: parseBRL(a[2]) }
+        })
+        .filter(r => r.venda_ly > 0)
+      setMetaDiaRows(rows)
     }
   }
 
   return (
-    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, shareCatRows, shareCatCP, servicosRows, servicosTotal, resgatesPdvRows, resgatesTotal, resgatesConsultorRows, boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, loadFile }}>
+    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, shareCatRows, shareCatCP, servicosRows, servicosTotal, resgatesPdvRows, resgatesTotal, resgatesConsultorRows, boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, metaDiaRows, parcialRows, parcialSkinRows, loadFile }}>
       {children}
     </DataCtx.Provider>
   )
