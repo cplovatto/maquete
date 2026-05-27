@@ -6019,6 +6019,20 @@ function IafIndicadoresPage() {
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [selectedPdvCard, setSelectedPdvCard] = useState<string>('')
+  const [pdvCardOpen, setPdvCardOpen] = useState(false)
+  const pdvCardRef = useRef<HTMLDivElement>(null)
+  const [servicosMetas] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-servicos-metas') ?? '{}') } catch { return {} }
+  })
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pdvCardRef.current && !pdvCardRef.current.contains(e.target as Node)) setPdvCardOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
 
   const lojaMap    = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
   const skinMap    = useMemo(() => new Map(skinRows.map(r => [r.pdv, r])), [skinRows])
@@ -6061,6 +6075,78 @@ function IafIndicadoresPage() {
       })
       .filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
   , [allPdvs, lojaMap, skinMap, fluxoMap, idMap, servMap, resgateMap, bpMap, selectedLabels])
+
+  const labelSummary = useMemo(() => {
+    if (labels.length === 0) return []
+    const scoreOf = (v: number | null, meta: number): number | null =>
+      v !== null ? (v >= meta ? 1 : 0) : null
+
+    return labels
+      .map(lb => {
+        const lbPdvs = allPdvs.filter(pdv => (lojaMap.get(pdv)?.labels ?? []).includes(lb.id))
+        if (lbPdvs.length === 0) return null
+
+        // SKIN: ponderado por receita total da loja (vf = receita_atual / share)
+        let skinRec = 0, skinVf = 0
+        lbPdvs.forEach(pdv => {
+          const r = skinMap.get(pdv)
+          if (r && r.share > 0) { skinRec += r.receita_atual; skinVf += r.receita_atual / r.share }
+        })
+        const skinAvg = skinVf > 0 ? skinRec / skinVf * 100 : null
+
+        // AF: ponderado por resgates (clientes no fluxo)
+        let afConv = 0, afResg = 0
+        lbPdvs.forEach(pdv => {
+          const r = fluxoMap.get(pdv)
+          if (r) { afConv += r.conversoes; afResg += r.resgates }
+        })
+        const afAvg = afResg > 0 ? afConv / afResg * 100 : null
+
+        // BP: ponderado por elegíveis
+        let bpConv = 0, bpElig = 0
+        lbPdvs.forEach(pdv => {
+          const r = bpMap.get(pdv)
+          if (r) { bpConv += r.convertidos_qtd; bpElig += r.elegiveis_qtd }
+        })
+        const bpAvg = bpElig > 0 ? bpConv / bpElig * 100 : null
+
+        // Resgate: ponderado por qtd_boletos_atual
+        let resgQtd = 0, resgBol = 0
+        lbPdvs.forEach(pdv => {
+          const r = resgateMap.get(pdv)
+          if (r) { resgQtd += r.qtd_resgate_atual; resgBol += r.qtd_boletos_atual }
+        })
+        const resgateAvg = resgBol > 0 ? resgQtd / resgBol * 100 : null
+
+        // ID Cliente: ponderado por atend_id_atual (igual à aba ID Cliente)
+        let idWeighted = 0, idAtend = 0
+        lbPdvs.forEach(pdv => {
+          const r = idMap.get(pdv)
+          if (r) { idWeighted += r.pct_cpf_atual * r.atend_id_atual; idAtend += r.atend_id_atual }
+        })
+        const idAvg = idAtend > 0 ? idWeighted / idAtend * 100 : null
+
+        // Serviços: ponderado por servicos_totais
+        let servComp = 0, servTot = 0
+        lbPdvs.forEach(pdv => {
+          const r = servMap.get(pdv)
+          if (r) { servComp += r.servicos_completos; servTot += r.servicos_totais }
+        })
+        const servAvg = servTot > 0 ? servComp / servTot * 100 : null
+
+        const scores = [
+          scoreOf(skinAvg, IAF_IND_METAS.skin),
+          scoreOf(afAvg, IAF_IND_METAS.af),
+          scoreOf(bpAvg, IAF_IND_METAS.bp),
+          scoreOf(resgateAvg, IAF_IND_METAS.resgate),
+          scoreOf(idAvg, IAF_IND_METAS.id),
+        ].filter((s): s is number => s !== null)
+        const nota = scores.length > 0 ? (scores.reduce((s, x) => s + x, 0) / scores.length) * 5 : null
+        return { label: lb, count: lbPdvs.length, skinAvg, afAvg, bpAvg, resgateAvg, idAvg, servAvg, nota }
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => (b.nota ?? -1) - (a.nota ?? -1))
+  }, [labels, allPdvs, lojaMap, skinMap, fluxoMap, bpMap, resgateMap, idMap, servMap])
 
   if (allPdvs.length === 0) return (
     <div className="page-empty-state">
@@ -6131,6 +6217,51 @@ function IafIndicadoresPage() {
         </div>
       )}
 
+      {labelSummary.length > 0 && (
+        <div className="card" style={{ padding: 0, overflowX: 'auto', marginBottom: 16 }}>
+          <div className="card-head"><div className="card-title">Resumo por Label</div></div>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th className="col-num">Lojas</th>
+                <ColHead label="SKIN"    meta={IAF_IND_METAS.skin} />
+                <ColHead label="AF"      meta={IAF_IND_METAS.af} />
+                <ColHead label="BP"      meta={IAF_IND_METAS.bp} />
+                <ColHead label="Resgate" meta={IAF_IND_METAS.resgate} />
+                <ColHead label="ID"      meta={IAF_IND_METAS.id} />
+                <ColHead label="Serviços" />
+                <th className="col-num">Nota</th>
+              </tr>
+            </thead>
+            <tbody>
+              {labelSummary.map(row => {
+                const notaColor = row.nota === null ? 'var(--text-muted)' : row.nota >= 4 ? '#059669' : row.nota >= 3 ? '#d97706' : '#dc2626'
+                return (
+                  <tr key={row.label.id}>
+                    <td>
+                      <span className="label-chip label-chip--xs" style={{ background: row.label.color + '22', color: row.label.color, borderColor: row.label.color + '55' }}>
+                        {row.label.name}
+                      </span>
+                    </td>
+                    <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{row.count}</td>
+                    <ICell v={row.skinAvg}    meta={IAF_IND_METAS.skin} />
+                    <ICell v={row.afAvg}      meta={IAF_IND_METAS.af} />
+                    <ICell v={row.bpAvg}      meta={IAF_IND_METAS.bp} />
+                    <ICell v={row.resgateAvg} meta={IAF_IND_METAS.resgate} />
+                    <ICell v={row.idAvg}      meta={IAF_IND_METAS.id} />
+                    <ICell v={row.servAvg}    meta={null} />
+                    <td className="col-num" style={{ fontWeight: 700, color: notaColor }}>
+                      {row.nota !== null ? row.nota.toFixed(1) : '—'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
         <table className="dash-table">
           <thead>
@@ -6186,6 +6317,111 @@ function IafIndicadoresPage() {
           </tfoot>
         </table>
       </div>
+
+      {/* ── Card de loja para print/envio ── */}
+      {(() => {
+        const activePdv = selectedPdvCard || rows[0]?.pdv || ''
+        if (!activePdv) return null
+        const loja = lojaMap.get(activePdv)
+        const skin  = skinMap.get(activePdv)
+        const fl    = fluxoMap.get(activePdv)
+        const bp    = bpMap.get(activePdv)
+        const res   = resgateMap.get(activePdv)
+        const id    = idMap.get(activePdv)
+        const serv  = servMap.get(activePdv)
+
+        const skinPct    = skin ? skin.share * 100 : null
+        const afPct      = fl   ? (fl.conv_pct < 1 ? fl.conv_pct * 100 : fl.conv_pct) : null
+        const bpPct      = bp   ? bp.convertidos_pct * 100 : null
+        const resgatePct = res  ? res.pct_atual * 100 : null
+        const idPct      = id   ? id.pct_cpf_atual * 100 : null
+        const servMetaLoja = servicosMetas[activePdv] ?? null
+        const servPct    = serv && servMetaLoja ? (serv.servicos_completos / servMetaLoja) * 100 : null
+
+        function Block({ label, value, meta }: { label: string; value: number | null; meta: number | null }) {
+          const ok = value !== null && meta !== null ? value >= meta : null
+          const bg      = ok === true ? '#d1fae5' : ok === false ? '#fee2e2' : 'var(--bg-surface-2)'
+          const txtMain = ok === true ? '#059669' : ok === false ? '#dc2626' : 'var(--text-primary)'
+          const txtSub  = ok === true ? '#065f46' : ok === false ? '#991b1b' : 'var(--text-muted)'
+          return (
+            <div style={{ background: bg, borderRadius: 12, padding: '20px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: txtSub, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
+              <div style={{ fontSize: 30, fontWeight: 700, color: txtMain, lineHeight: 1.1 }}>
+                {value !== null ? `${fDec(value, 2)}%` : '—'}
+              </div>
+              {meta !== null && (
+                <div style={{ fontSize: 11, color: txtSub }}>meta {fDec(meta, 2)}%</div>
+              )}
+            </div>
+          )
+        }
+
+        return (
+          <div className="card" style={{ marginTop: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {loja?.apelido || activePdv}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>PDV {activePdv}</div>
+              </div>
+              <div className="store-picker" ref={pdvCardRef} style={{ marginLeft: 'auto' }}>
+                <button className="store-picker-btn" onClick={() => setPdvCardOpen(p => !p)}>
+                  <span style={{ fontSize: 13 }}>{loja?.apelido || activePdv}</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                {pdvCardOpen && (
+                  <div className="store-picker-dropdown" style={{ maxHeight: 280, overflowY: 'auto' }}>
+                    {rows.map(r => (
+                      <button
+                        key={r.pdv}
+                        className={`store-picker-option${r.pdv === activePdv ? ' selected' : ''}`}
+                        onClick={() => { setSelectedPdvCard(r.pdv); setPdvCardOpen(false) }}
+                      >
+                        <span style={{ fontWeight: 500 }}>{r.pdv}</span>
+                        {lojaMap.get(r.pdv)?.apelido && (
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 6 }}>{lojaMap.get(r.pdv)!.apelido}</span>
+                        )}
+                        {r.pdv === activePdv && (
+                          <svg style={{ marginLeft: 'auto' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              <Block label="SKIN"             value={skinPct}    meta={IAF_IND_METAS.skin} />
+              <Block label="AF"               value={afPct}      meta={IAF_IND_METAS.af} />
+              <Block label="Boleto Promo"     value={bpPct}      meta={IAF_IND_METAS.bp} />
+              <Block label="Resgate"          value={resgatePct} meta={IAF_IND_METAS.resgate} />
+              <Block label="ID Cliente"       value={idPct}      meta={IAF_IND_METAS.id} />
+              {(() => {
+                const ok = servPct !== null ? servPct >= 100 : null
+                const bg      = ok === true ? '#d1fae5' : ok === false ? '#fee2e2' : 'var(--bg-surface-2)'
+                const txtMain = ok === true ? '#059669' : ok === false ? '#dc2626' : 'var(--text-primary)'
+                const txtSub  = ok === true ? '#065f46' : ok === false ? '#991b1b' : 'var(--text-muted)'
+                return (
+                  <div style={{ background: bg, borderRadius: 12, padding: '20px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: txtSub, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Serviços</div>
+                    {serv && servMetaLoja != null ? (
+                      <>
+                        <div style={{ fontSize: 26, fontWeight: 700, color: txtMain, lineHeight: 1.15 }}>
+                          {fDec(serv.servicos_completos, 1)} / {fDec(servMetaLoja, 1)}
+                        </div>
+                        <div style={{ fontSize: 11, color: txtSub }}>{fDec(servPct!, 2)}% atingido</div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 30, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>—</div>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
