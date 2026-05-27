@@ -24,9 +24,18 @@ interface FileStatusCtxType {
   alertActive: boolean
   toastVisible: boolean
   setToastVisible: Dispatch<SetStateAction<boolean>>
+  showApelido: boolean
+  setShowApelido: Dispatch<SetStateAction<boolean>>
 }
 const FileStatusCtx = createContext<FileStatusCtxType | null>(null)
 function useFileStatus() { return useContext(FileStatusCtx)! }
+
+function usePdvLabel() {
+  const { showApelido } = useFileStatus()
+  const { lojas } = useLojas()
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  return (pdv: string) => showApelido ? (lojaMap.get(pdv)?.apelido || pdv) : pdv
+}
 
 /* ── Fake data ──────────────────────────────────────── */
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -601,17 +610,28 @@ const ALERT_INTERVALS = [
 ]
 
 function AlertSettingsModal({ onClose }: { onClose: () => void }) {
-  const { alertEnabled, setAlertEnabled, alertIntervalMinutes, setAlertIntervalMinutes, lastParcialUpload } = useFileStatus()
+  const { alertEnabled, setAlertEnabled, alertIntervalMinutes, setAlertIntervalMinutes, lastParcialUpload, showApelido, setShowApelido } = useFileStatus()
   const minutesSince = lastParcialUpload ? Math.floor((Date.now() - lastParcialUpload.getTime()) / 60000) : null
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <span className="modal-title">Configurações de alerta</span>
+          <span className="modal-title">Configurações</span>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="alert-settings-body">
+          <div className="alert-setting-row">
+            <div>
+              <div className="alert-setting-name">Exibir apelido da loja</div>
+              <div className="alert-setting-desc">Mostra o apelido cadastrado no lugar do código PDV nas tabelas</div>
+            </div>
+            <label className="toggle-switch">
+              <input type="checkbox" checked={showApelido} onChange={e => setShowApelido(e.target.checked)} />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+          <div style={{ height: 1, background: 'var(--bg-border)', margin: '4px 0' }} />
           <div className="alert-setting-row">
             <div>
               <div className="alert-setting-name">Alerta — Parcial do Dia</div>
@@ -877,10 +897,11 @@ function StoreRow({ rank, main, loja, fluxo, labels: allLabels }: {
   fluxo: FluxoRow | undefined
   labels: ReturnType<typeof useLabels>['labels']
 }) {
+  const pdvLabel = usePdvLabel()
   return (
     <tr>
       <td className="col-rank">{rank}</td>
-      <td className="col-pdv">{main.pdv}</td>
+      <td className="col-pdv">{pdvLabel(main.pdv)}</td>
       <td>
         <div className="label-chips-group">
           {(loja?.labels ?? []).map(lid => {
@@ -938,6 +959,7 @@ function StoreTableHead({ sortKey, sortDir, onSort }: { sortKey: SortKey; sortDi
 /* ── Lojas — Visão Geral ─────────────────────────────── */
 function VisaoGeralPage() {
   const { mainRows, mainTotal, cpData, fluxoRows, fluxoTotal } = useData()
+  const pdvLabel = usePdvLabel()
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
@@ -1071,7 +1093,7 @@ function VisaoGeralPage() {
             {gapRows.map((r, i) => (
               <tr key={r.pdv}>
                 <td className="col-rank">{i + 1}</td>
-                <td className="col-pdv">{r.pdv}</td>
+                <td className="col-pdv">{pdvLabel(r.pdv)}</td>
                 <td>
                   <div className="label-chips-group">
                     {(r.loja?.labels ?? []).map(lid => {
@@ -1387,6 +1409,7 @@ function IndicadoresRef() {
 
 function RankingPage() {
   const { mainRows, fluxoRows } = useData()
+  const pdvLabel = usePdvLabel()
   const [sortKey, setSortKey] = useState<SortKey>('vf_atual')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [chartMetric, setChartMetric] = useState<ChartMetric>('vf_var')
@@ -1476,7 +1499,7 @@ function RankingPage() {
               const color  = isPos ? '#059669' : '#dc2626'
               return (
                 <div key={pdv} className="ranking-chart-row">
-                  <span className="ranking-chart-pdv">{pdv}</span>
+                  <span className="ranking-chart-pdv">{pdvLabel(pdv)}</span>
                   <div className="ranking-chart-bar-wrap">
                     <div className="ranking-chart-zero-line" />
                     <div className="ranking-chart-bar ranking-chart-bar--diverging" style={{
@@ -1496,7 +1519,7 @@ function RankingPage() {
               const isAbove = value >= avg
               return (
                 <div key={pdv} className="ranking-chart-row">
-                  <span className="ranking-chart-pdv">{pdv}</span>
+                  <span className="ranking-chart-pdv">{pdvLabel(pdv)}</span>
                   <div className="ranking-chart-bar-wrap">
                     <div className="ranking-chart-bar" style={{
                       width: `${barW}%`,
@@ -1998,10 +2021,11 @@ function RegioesPage() {
 
 /* ── Lojas — Detalhe da Loja ─────────────────────────── */
 function DetalhePage() {
-  const { mainRows, fluxoRows, consultorRows, fluxoConsultorRows } = useData()
+  const { mainRows, fluxoRows, consultorRows, fluxoConsultorRows, cpData } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const [selectedPdv, setSelectedPdv] = useState<string>('')
+  const [copiedConsideracoes, setCopiedConsideracoes] = useState(false)
 
   if (mainRows.length === 0) return <LojasEmptyState />
 
@@ -2128,20 +2152,26 @@ function DetalhePage() {
                 </tr>
               </thead>
               <tbody>
-                {storeCons.map((c, i) => (
-                  <tr key={c.consultor}>
-                    <td className="col-rank">{i + 1}</td>
-                    <td className="col-consultor">{c.consultor}</td>
-                    <td className="col-num">{fBRLR(c.vf_atual)}</td>
-                    <td className="col-num">{fInt(c.qb_atual)}</td>
-                    <td className="col-num">{fBRLR(c.bm_atual)}</td>
-                    <td className="col-num">{fDec(c.iv_atual)}</td>
-                    <td className="col-num">{fBRLR(c.pm_atual)}</td>
-                    <td className="col-num">
-                      {c.fluxo ? fPct(c.fluxo.conv_pct) : <span className="dash-muted">—</span>}
-                    </td>
-                  </tr>
-                ))}
+                {storeCons.map((c, i) => {
+                  const belowBM   = cpData && c.bm_atual < cpData.bm_valor
+                  const belowIV   = cpData && c.iv_atual < cpData.iv_valor
+                  const belowPM   = cpData && c.pm_atual < cpData.pm_valor
+                  const belowConv = c.fluxo && c.fluxo.conv_pct < 0.28
+                  return (
+                    <tr key={c.consultor}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-num">{fBRLR(c.vf_atual)}</td>
+                      <td className="col-num">{fInt(c.qb_atual)}</td>
+                      <td className="col-num" style={belowBM ? { color: '#dc2626' } : undefined}>{fBRLR(c.bm_atual)}</td>
+                      <td className="col-num" style={belowIV ? { color: '#dc2626' } : undefined}>{fDec(c.iv_atual)}</td>
+                      <td className="col-num" style={belowPM ? { color: '#dc2626' } : undefined}>{fBRLR(c.pm_atual)}</td>
+                      <td className="col-num" style={belowConv ? { color: '#dc2626' } : undefined}>
+                        {c.fluxo ? fPct(c.fluxo.conv_pct) : <span className="dash-muted">—</span>}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -2168,30 +2198,33 @@ function DetalhePage() {
               return ins
             }
 
-            // GAP BM
-            storeCons
-              .filter(c => c.bm_atual < storeBM && c.qb_atual > 0)
-              .map(c => ({ ...c, gap: (storeBM - c.bm_atual) * c.qb_atual }))
+            // GAP BM (referência: média do grupo)
+            const refBM = cpData?.bm_valor ?? storeBM
+            const gapBMList = storeCons
+              .filter(c => c.bm_atual < refBM && c.qb_atual > 0)
+              .map(c => ({ ...c, gap: (refBM - c.bm_atual) * c.qb_atual }))
               .sort((a, b) => b.gap - a.gap)
-              .forEach(c => {
-                getOrCreate(c.consultor, 'warn').points.push(
-                  `BM de ${fBRLR(c.bm_atual)} vs ${fBRLR(storeBM)} da loja — receita deixada na mesa: ${fBRLR(c.gap)}`
-                )
-              })
+            const totalGapBM = gapBMList.reduce((s, c) => s + c.gap, 0)
+            gapBMList.forEach(c => {
+              getOrCreate(c.consultor, 'warn').points.push(
+                `BM de ${fBRLR(c.bm_atual)} vs ${fBRLR(refBM)} do grupo — receita deixada na mesa: ${fBRLR(c.gap)}`
+              )
+            })
 
-            // GAP Fluxo
-            storeCons
+            // GAP Fluxo (AF)
+            const gapAFList = storeCons
               .filter(c => c.fluxo && c.fluxo.conv_pct < META_CONV && c.fluxo.resgates > 0)
               .map(c => {
                 const faltou = c.fluxo!.resgates * META_CONV - c.fluxo!.conversoes
                 return { ...c, faltou, gap: faltou * BM_FLUXO }
               })
               .sort((a, b) => b.gap - a.gap)
-              .forEach(c => {
-                getOrCreate(c.consultor, 'warn').points.push(
-                  `Conversão de ${fPct(c.fluxo!.conv_pct)} (meta: ${(META_CONV*100).toFixed(0)}%) — faltaram ${Math.round(c.faltou)} clientes convertidos, potencial: ${fBRLR(c.gap)}`
-                )
-              })
+            const totalGapAF = gapAFList.reduce((s, c) => s + c.gap, 0)
+            gapAFList.forEach(c => {
+              getOrCreate(c.consultor, 'warn').points.push(
+                `Conversão de ${fPct(c.fluxo!.conv_pct)} (meta: ${(META_CONV*100).toFixed(0)}%) — faltaram ${Math.round(c.faltou)} clientes convertidos, potencial: ${fBRLR(c.gap)}`
+              )
+            })
 
             // IV abaixo da média da loja
             const avgIV = totalQBCons > 0 ? storeCons.reduce((s, c) => s + c.iv_atual * c.qb_atual, 0) / totalQBCons : 0
@@ -2228,7 +2261,9 @@ function DetalhePage() {
               )
             }
 
+            const severityOrder = { danger: 0, warn: 1, positive: 2 }
             const insights = Array.from(byConsultor.values())
+              .sort((a, b) => severityOrder[a.type] - severityOrder[b.type])
 
             if (insights.length === 0) return null
 
@@ -2238,9 +2273,55 @@ function DetalhePage() {
               positive: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>,
             }
 
+            const emojiMap = { warn: '⚠️', danger: '🚨', positive: '✅' }
+
+            function handleCopyConsideracoes() {
+              const lojaLabel = activePdv + (storeLoja?.apelido ? ` — ${storeLoja.apelido}` : '')
+              const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+              const lines: string[] = [`*Considerações — ${lojaLabel} · ${hoje}*`, '']
+              if (storeMain) {
+                lines.push(
+                  `Receita: *${fBRLR(storeMain.vf_atual)}* · QB: *${fInt(storeMain.qb_atual)}* · BM: *${fBRLR(storeMain.bm_atual)}* · IV: *${fDec(storeMain.iv_atual)}* · PM: *${fBRLR(storeMain.pm_atual)}*` +
+                  (storeFluxo ? ` · Conv.: *${fPct(storeFluxo.conv_pct)}*` : '')
+                )
+                lines.push('')
+              }
+              insights.forEach(ins => {
+                lines.push(`${emojiMap[ins.type]} *${ins.consultor}*`)
+                ins.points.forEach(p => lines.push(`• ${p}`))
+                lines.push('')
+              })
+              if (totalGapBM > 0 || totalGapAF > 0) {
+                lines.push('💰 *Potencial não realizado*')
+                if (totalGapBM > 0) lines.push(`• Gap Boleto Médio: *${fBRLR(totalGapBM)}*`)
+                if (totalGapAF > 0) lines.push(`• Gap Ação de Fluxo: *${fBRLR(totalGapAF)}*`)
+                lines.push(`• Total: *${fBRLR(totalGapBM + totalGapAF)}*`)
+              }
+              navigator.clipboard.writeText(lines.join('\n').trimEnd())
+              setCopiedConsideracoes(true)
+              setTimeout(() => setCopiedConsideracoes(false), 2500)
+            }
+
             return (
               <div className="consideracoes-section">
-                <h3 className="consideracoes-title">Considerações</h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <h3 className="consideracoes-title" style={{ margin: 0 }}>Considerações</h3>
+                  <button
+                    onClick={handleCopyConsideracoes}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '5px 12px', borderRadius: 6, border: '1px solid var(--bg-border)',
+                      background: copiedConsideracoes ? '#f0fdf4' : 'var(--bg-surface)',
+                      color: copiedConsideracoes ? '#16a34a' : 'var(--text-secondary)',
+                      fontSize: 12, fontWeight: 500, cursor: 'pointer', transition: 'all .2s',
+                    }}
+                  >
+                    {copiedConsideracoes
+                      ? <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> Copiado!</>
+                      : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copiar para WhatsApp</>
+                    }
+                  </button>
+                </div>
                 <div className="consideracoes-list">
                   {insights.map((ins, i) => (
                     <div key={i} className={`consideracao-card consideracao-card--${ins.type}`}>
@@ -2253,6 +2334,28 @@ function DetalhePage() {
                       </div>
                     </div>
                   ))}
+                  {(totalGapBM > 0 || totalGapAF > 0) && (
+                    <div style={{
+                      marginTop: 8, padding: '12px 16px', borderRadius: 8,
+                      background: 'rgba(220,38,38,.06)', border: '1px solid rgba(220,38,38,.2)',
+                      display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+                    }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#dc2626' }}>💰 Potencial não realizado</span>
+                      {totalGapBM > 0 && (
+                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                          Gap BM: <strong style={{ color: '#dc2626' }}>{fBRLR(totalGapBM)}</strong>
+                        </span>
+                      )}
+                      {totalGapAF > 0 && (
+                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                          Gap AF: <strong style={{ color: '#dc2626' }}>{fBRLR(totalGapAF)}</strong>
+                        </span>
+                      )}
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+                        Total: <strong style={{ fontSize: 15, color: '#dc2626' }}>{fBRLR(totalGapBM + totalGapAF)}</strong>
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -2270,6 +2373,7 @@ function ConsultoresPage() {
   const { labels } = useLabels()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [selectedOppLabels, setSelectedOppLabels] = useState<string[]>([])
+  const [copiedOpp, setCopiedOpp] = useState(false)
 
   if (consultorRows.length === 0) return (
     <div className="page-empty-state">
@@ -2483,6 +2587,52 @@ function ConsultoresPage() {
             <span className="cons-opp-total-label">Consultores em atenção</span>
             <span className="cons-opp-total-value">{oppRows.length}</span>
             <span className="cons-opp-total-sub">de {consultorRows.length} total{selectedOppLabels.length > 0 ? ' · filtrado' : ''}</span>
+            <button
+              onClick={() => {
+                const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                const maxBadRef = groupConv > 0 ? 4 : 3
+                const lines: string[] = [
+                  `*Consultores com Oportunidade · ${hoje}*`,
+                  `Referência: BM ${fBRLR(groupBM)} · IV ${fDec(groupIV)} · PM ${fBRLR(groupPM)}${groupConv > 0 ? ` · AF ${Math.round(groupConv)}%` : ''}`,
+                  '',
+                ]
+                // agrupa por label
+                const labelGroups: { name: string; rows: typeof oppRows }[] = []
+                if (labels.length > 0) {
+                  labels.forEach(lb => {
+                    const rows = oppRows.filter(c => (c.loja?.labels ?? []).includes(lb.id))
+                    if (rows.length > 0) labelGroups.push({ name: lb.name, rows })
+                  })
+                  const semLabel = oppRows.filter(c => (c.loja?.labels ?? []).length === 0)
+                  if (semLabel.length > 0) labelGroups.push({ name: 'Sem região', rows: semLabel })
+                } else {
+                  labelGroups.push({ name: 'Todos', rows: oppRows })
+                }
+                labelGroups.forEach(group => {
+                  lines.push(`📍 *${group.name}* (${group.rows.length} consultor${group.rows.length !== 1 ? 'es' : ''})`)
+                  group.rows.forEach(c => {
+                    const goodCount = maxBadRef - c.badCount
+                    lines.push(`• ${c.consultor} — ${c.pdv} · ${goodCount}/${maxBadRef} · BM: ${fBRLR(c.bm_atual)} · IV: ${fDec(c.iv_atual)} · PM: ${fBRLR(c.pm_atual)}${c.hasConv && c.conv !== null ? ` · AF: ${Math.round(c.conv)}%` : ''}`)
+                  })
+                  lines.push('')
+                })
+                navigator.clipboard.writeText(lines.join('\n').trimEnd())
+                setCopiedOpp(true)
+                setTimeout(() => setCopiedOpp(false), 2500)
+              }}
+              style={{
+                marginTop: 8, display: 'flex', alignItems: 'center', gap: 6,
+                padding: '5px 12px', borderRadius: 6, border: '1px solid var(--bg-border)',
+                background: copiedOpp ? '#f0fdf4' : 'var(--bg-surface)',
+                color: copiedOpp ? '#16a34a' : 'var(--text-secondary)',
+                fontSize: 12, fontWeight: 500, cursor: 'pointer', transition: 'all .2s',
+              }}
+            >
+              {copiedOpp
+                ? <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> Copiado!</>
+                : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copiar para WhatsApp</>
+              }
+            </button>
           </div>
         </div>
 
@@ -2521,8 +2671,9 @@ function ConsultoresPage() {
             </thead>
             <tbody>
               {oppRows.map((c, i) => {
-                const maxBad = c.hasConv ? 4 : 3
-                const badClass = c.badCount >= maxBad ? 'score-badge--4' : c.badCount === maxBad - 1 ? 'score-badge--3' : c.badCount === maxBad - 2 ? 'score-badge--2' : 'score-badge--1'
+                const maxBad   = c.hasConv ? 4 : 3
+                const goodCount = maxBad - c.badCount
+                const badClass  = goodCount === 0 ? 'score-badge--4' : goodCount === 1 ? 'score-badge--3' : goodCount === maxBad ? 'score-badge--1' : 'score-badge--2'
                 return (
                   <tr key={`${c.pdv}-${c.consultor}`}>
                     <td className="col-rank">{i + 1}</td>
@@ -2537,7 +2688,7 @@ function ConsultoresPage() {
                       </div>
                     </td>
                     <td className="col-num">
-                      <span className={`score-badge ${badClass}`}>{c.badCount}/{maxBad}</span>
+                      <span className={`score-badge ${badClass}`}>{goodCount}/{maxBad}</span>
                     </td>
                     <td className="col-num" style={c.bm_atual < groupBM ? { color: '#dc2626', fontWeight: 600 } : { color: '#059669' }}>{fBRLR(c.bm_atual)}</td>
                     <td className="col-num" style={c.iv_atual < groupIV ? { color: '#dc2626', fontWeight: 600 } : { color: '#059669' }}>{fDec(c.iv_atual)}</td>
@@ -4005,11 +4156,11 @@ function IDClientePage() {
 /* ── Lojas — Share das Categorias ───────────────────── */
 type ShareSortKey = 'total_receita' | 'cabelos' | 'pele' | 'gifts' | 'make' | 'perf' | 'outros'
 const CATS: { key: Exclude<ShareSortKey, 'total_receita'>; label: string; color: string }[] = [
-  { key: 'cabelos', label: 'Cabelos',  color: '#a16207' },
-  { key: 'pele',    label: 'Pele',     color: '#0891b2' },
+  { key: 'cabelos', label: 'Cabelos',  color: '#d97706' },
+  { key: 'pele',    label: 'Pele',     color: '#0284c7' },
   { key: 'gifts',   label: 'Gifts',    color: '#7c3aed' },
-  { key: 'make',    label: 'Make',     color: '#db2777' },
-  { key: 'perf',    label: 'Perf.',    color: '#d97706' },
+  { key: 'make',    label: 'Make',     color: '#e11d48' },
+  { key: 'perf',    label: 'Perf.',    color: '#16a34a' },
   { key: 'outros',  label: 'Outros',   color: '#64748b' },
 ]
 
@@ -4081,15 +4232,6 @@ function ShareCategoriasPage() {
           <div className="card-head" style={{ marginBottom: 10 }}>
             <div className="card-title">Média da Rede — CP {shareCatCP.total_receita > 0 ? `· ${fBRLR(shareCatCP.total_receita)}` : ''}</div>
           </div>
-          {/* Barra empilhada */}
-          <div style={{ display: 'flex', height: 20, borderRadius: 6, overflow: 'hidden', marginBottom: 12 }}>
-            {CATS.map(c => {
-              const pct = getPctByCat(shareCatCP, c.key)
-              return pct > 0 ? (
-                <div key={c.key} style={{ width: `${pct}%`, background: c.color }} title={`${c.label}: ${fDec(pct, 2)}%`} />
-              ) : null
-            })}
-          </div>
           {/* Legenda */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px' }}>
             {CATS.map(c => (
@@ -4118,6 +4260,65 @@ function ShareCategoriasPage() {
           ))}
         </div>
       )}
+
+      {/* Pizza de categorias */}
+      {(() => {
+        const totalReceita = storeRows.reduce((s, r) => s + r.total_receita, 0)
+        const pieData = CATS.map(c => {
+          const weightedPct = totalReceita > 0
+            ? storeRows.reduce((s, r) => s + getPctByCat(r, c.key) * r.total_receita, 0) / totalReceita
+            : storeRows.reduce((s, r) => s + getPctByCat(r, c.key), 0) / Math.max(storeRows.length, 1)
+          return { ...c, pct: weightedPct }
+        }).filter(c => c.pct > 0)
+
+        if (pieData.length === 0) return null
+
+        const R = 46, CX = 50, CY = 50
+        let angle = -Math.PI / 2
+        const total = pieData.reduce((s, c) => s + c.pct, 0)
+        const segs = pieData.map(c => {
+          const sweep = (c.pct / total) * 2 * Math.PI
+          const a0 = angle, a1 = angle + sweep
+          angle = a1
+          const x0 = CX + R * Math.cos(a0), y0 = CY + R * Math.sin(a0)
+          const x1 = CX + R * Math.cos(a1), y1 = CY + R * Math.sin(a1)
+          const large = sweep > Math.PI ? 1 : 0
+          const path = c.pct / total >= 1
+            ? `M ${CX} ${CY} m -${R} 0 a ${R} ${R} 0 1 0 ${R*2} 0 a ${R} ${R} 0 1 0 -${R*2} 0`
+            : `M ${CX} ${CY} L ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} Z`
+          return { ...c, path }
+        })
+
+        return (
+          <div className="rev-chart-card" style={{ marginBottom: 16 }}>
+            <div className="rev-chart-title">
+              Share por Categoria{selectedLabels.length > 0 ? ' · filtrado por região' : ''}
+            </div>
+            <div className="rev-chart-layout">
+              <svg viewBox="0 0 100 100" className="pie-svg">
+                {segs.map((s, i) => (
+                  <path key={i} d={s.path} fill={s.color}
+                    stroke="var(--bg-surface)" strokeWidth="1.5" strokeLinejoin="round" />
+                ))}
+              </svg>
+              <div className="pie-legend">
+                {segs.map((s, i) => (
+                  <div key={i} className="pie-legend-row">
+                    <span className="pie-legend-dot" style={{ background: s.color }} />
+                    <span className="pie-legend-name">{s.label}</span>
+                    <span className="pie-legend-pct">{fDec(s.pct, 2)}%</span>
+                    {shareCatCP && selectedLabels.length > 0 && (
+                      <span className="pie-legend-val" style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                        rede: {fDec(getPctByCat(shareCatCP, s.key), 2)}%
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Tabela */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -6489,6 +6690,9 @@ export default function AppShell() {
   })
   const [alertActive, setAlertActive] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
+  const [showApelido, setShowApelido] = useState(() => {
+    try { return localStorage.getItem('prisma-prefs-show-apelido') === 'true' } catch { return false }
+  })
   const loginTime = useRef(new Date())
 
   const onFileLoaded = (id: string, filename: string) => {
@@ -6525,6 +6729,10 @@ export default function AppShell() {
   useEffect(() => {
     try { localStorage.setItem('prisma-prefs-alertInterval', String(alertIntervalMinutes)) } catch {}
   }, [alertIntervalMinutes])
+
+  useEffect(() => {
+    try { localStorage.setItem('prisma-prefs-show-apelido', String(showApelido)) } catch {}
+  }, [showApelido])
 
   useEffect(() => {
     try { localStorage.setItem('prisma-file-statuses', JSON.stringify(fileStatuses)) } catch {}
@@ -6565,6 +6773,7 @@ export default function AppShell() {
       lastLoaded, fileDates, lastParcialUpload, alertEnabled, setAlertEnabled,
       alertIntervalMinutes, setAlertIntervalMinutes,
       alertActive, toastVisible, setToastVisible,
+      showApelido, setShowApelido,
     }}>
     <div className="app-shell">
       {/* Header */}
