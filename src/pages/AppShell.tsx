@@ -24,9 +24,18 @@ interface FileStatusCtxType {
   alertActive: boolean
   toastVisible: boolean
   setToastVisible: Dispatch<SetStateAction<boolean>>
+  showApelido: boolean
+  setShowApelido: Dispatch<SetStateAction<boolean>>
 }
 const FileStatusCtx = createContext<FileStatusCtxType | null>(null)
 function useFileStatus() { return useContext(FileStatusCtx)! }
+
+function usePdvLabel() {
+  const { showApelido } = useFileStatus()
+  const { lojas } = useLojas()
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  return (pdv: string) => showApelido ? (lojaMap.get(pdv)?.apelido || pdv) : pdv
+}
 
 /* ── Fake data ──────────────────────────────────────── */
 const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -300,7 +309,13 @@ const IC = {
   skin:     <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a9 9 0 0 1 9 9c0 4.17-2.84 7.67-6.69 8.69A9 9 0 1 1 12 2z"/><path d="M12 8c-1.5 1.5-2 3-2 4s.5 2.5 2 4"/><path d="M12 8c1.5 1.5 2 3 2 4s-.5 2.5-2 4"/></svg>,
   doc:      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/></svg>,
   dollar:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
-  idCard:   <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="7.5" cy="12" r="2.5"/><path d="M13 10h5M13 14h5"/></svg>,
+  idCard:      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="7.5" cy="12" r="2.5"/><path d="M13 10h5M13 14h5"/></svg>,
+  lojaDigital: <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>,
+  pieChart:    <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>,
+  ticket:      <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M2 9a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v2a2 2 0 0 0 0 4v2a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-2a2 2 0 0 0 0-4z"/><line x1="9" y1="8" x2="9" y2="16"/></svg>,
+  bolt:        <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+  gift:        <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>,
+  sliders:     <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>,
 }
 
 /* ── Lojas ──────────────────────────────────────────── */
@@ -595,17 +610,28 @@ const ALERT_INTERVALS = [
 ]
 
 function AlertSettingsModal({ onClose }: { onClose: () => void }) {
-  const { alertEnabled, setAlertEnabled, alertIntervalMinutes, setAlertIntervalMinutes, lastParcialUpload } = useFileStatus()
+  const { alertEnabled, setAlertEnabled, alertIntervalMinutes, setAlertIntervalMinutes, lastParcialUpload, showApelido, setShowApelido } = useFileStatus()
   const minutesSince = lastParcialUpload ? Math.floor((Date.now() - lastParcialUpload.getTime()) / 60000) : null
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <span className="modal-title">Configurações de alerta</span>
+          <span className="modal-title">Configurações</span>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="alert-settings-body">
+          <div className="alert-setting-row">
+            <div>
+              <div className="alert-setting-name">Exibir apelido da loja</div>
+              <div className="alert-setting-desc">Mostra o apelido cadastrado no lugar do código PDV nas tabelas</div>
+            </div>
+            <label className="toggle-switch">
+              <input type="checkbox" checked={showApelido} onChange={e => setShowApelido(e.target.checked)} />
+              <span className="toggle-slider" />
+            </label>
+          </div>
+          <div style={{ height: 1, background: 'var(--bg-border)', margin: '4px 0' }} />
           <div className="alert-setting-row">
             <div>
               <div className="alert-setting-name">Alerta — Parcial do Dia</div>
@@ -670,13 +696,17 @@ const MENSAL_SOURCES: DataSource[] = [
   { id: 'meta-diaant',  name: 'Meta — Dia anterior',     format: 'XLSX', icon: IC.calendar, defaultStatus: 'pending',  section: 'Gestão Instantânea' },
   { id: 'parcial-skin', name: 'Parcial Skin',            format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'Gestão Instantânea' },
   // Lojas
-  { id: 'main',         name: 'Indicadores principais',  format: 'XLSX', icon: IC.grid,     defaultStatus: 'pending',  section: 'Lojas' },
-  { id: 'fluxo',        name: 'Ação de Fluxo',           format: 'XLSX', icon: IC.arrows,   defaultStatus: 'pending',  section: 'Lojas' },
+  { id: 'main',             name: 'Indicadores principais',  format: 'XLSX', icon: IC.grid,     defaultStatus: 'pending', section: 'Lojas' },
+  { id: 'fluxo',            name: 'Ação de Fluxo',           format: 'XLSX', icon: IC.arrows,   defaultStatus: 'pending', section: 'Lojas' },
+  { id: 'share-categorias', name: 'Share das Categorias',    format: 'XLSX', icon: IC.pieChart, defaultStatus: 'pending', section: 'Lojas' },
   // IAF
   { id: 'iaf',          name: 'Relatório IAF',           format: 'XLSX', icon: IC.check,    defaultStatus: 'embedded', section: 'IAF' },
   { id: 'skin',         name: 'Skin (Cuidados Faciais)', format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'IAF' },
-  { id: 'id-cliente',   name: 'ID do Cliente',           format: 'XLSX', icon: IC.idCard,   defaultStatus: 'pending',  section: 'IAF' },
-  { id: 'servicos',     name: 'Serviços',                format: 'XLSX', icon: IC.doc,      defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'id-cliente',   name: 'ID do Cliente',           format: 'XLSX', icon: IC.idCard,      defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'loja-digital', name: 'Loja Digital',           format: 'XLSX', icon: IC.lojaDigital, defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'servicos',     name: 'Serviços',                format: 'XLSX', icon: IC.doc,         defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'resgates',      name: 'Resgates',               format: 'XLSX', icon: IC.gift,        defaultStatus: 'pending',  section: 'IAF' },
+  { id: 'boleto-promo',  name: 'Boleto Promocional',     format: 'XLSX', icon: IC.ticket,      defaultStatus: 'pending',  section: 'IAF' },
 ]
 
 const ANUAL_SOURCES: DataSource[] = [
@@ -796,6 +826,7 @@ const META_PADRAO = 100_000
 
 const fBRL  = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
 const fBRLR = (v: number) => `R$ ${fBRL(v)}`
+const fBRL2 = (v: number) => `R$ ${fDec(v, 2)}`
 const fInt  = (v: number) => Math.round(v).toLocaleString('pt-BR')
 const fDec  = (v: number, d = 2) => v.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d })
 const fPct  = (v: number) => (v * 100).toFixed(1).replace('.', ',') + '%'
@@ -867,10 +898,11 @@ function StoreRow({ rank, main, loja, fluxo, labels: allLabels }: {
   fluxo: FluxoRow | undefined
   labels: ReturnType<typeof useLabels>['labels']
 }) {
+  const pdvLabel = usePdvLabel()
   return (
     <tr>
       <td className="col-rank">{rank}</td>
-      <td className="col-pdv">{main.pdv}</td>
+      <td className="col-pdv">{pdvLabel(main.pdv)}</td>
       <td>
         <div className="label-chips-group">
           {(loja?.labels ?? []).map(lid => {
@@ -928,10 +960,15 @@ function StoreTableHead({ sortKey, sortDir, onSort }: { sortKey: SortKey; sortDi
 /* ── Lojas — Visão Geral ─────────────────────────────── */
 function VisaoGeralPage() {
   const { mainRows, mainTotal, cpData, fluxoRows, fluxoTotal } = useData()
+  const pdvLabel = usePdvLabel()
+
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [selectedImpactLabels, setSelectedImpactLabels] = useState<string[]>([])
+  const [metasMensais] = useState<Record<string, MetaMensal>>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-metas-mensais') ?? '{}') } catch { return {} }
+  })
 
   if (mainRows.length === 0) return <LojasEmptyState />
 
@@ -1028,14 +1065,14 @@ function VisaoGeralPage() {
 
       <div className="gap-section-header">
         <div>
-          <h3 className="gap-section-title">Receita deixada na mesa — BM abaixo da média do grupo</h3>
+          <h3 className="gap-section-title">GAP de Receita — BM abaixo da média do grupo</h3>
           <p className="gap-section-sub">
             {gapRows.length} loja{gapRows.length !== 1 ? 's' : ''} com BM abaixo de {fBRLR(groupBM)} (média do grupo)
             {selectedLabels.length > 0 && ' · filtrado por região'}
           </p>
         </div>
         <div className="gap-section-total">
-          <span className="gap-section-total-label">Total deixado na mesa</span>
+          <span className="gap-section-total-label">Total GAP de Receita</span>
           <span className="gap-section-total-value">{fBRLR(totalGap)}</span>
         </div>
       </div>
@@ -1058,7 +1095,7 @@ function VisaoGeralPage() {
             {gapRows.map((r, i) => (
               <tr key={r.pdv}>
                 <td className="col-rank">{i + 1}</td>
-                <td className="col-pdv">{r.pdv}</td>
+                <td className="col-pdv">{pdvLabel(r.pdv)}</td>
                 <td>
                   <div className="label-chips-group">
                     {(r.loja?.labels ?? []).map(lid => {
@@ -1077,7 +1114,7 @@ function VisaoGeralPage() {
           </tbody>
           <tfoot>
             <tr className="gap-table-total">
-              <td colSpan={7} className="gap-total-label">Total deixado na mesa</td>
+              <td colSpan={7} className="gap-total-label">Total GAP de Receita</td>
               <td className="col-num col-gap-val">{fBRLR(totalGap)}</td>
             </tr>
           </tfoot>
@@ -1227,16 +1264,17 @@ function VisaoGeralPage() {
 
       {/* ── Progresso do Mês ── */}
       {(() => {
-        // TODO: substituir META_PADRAO pela meta mensal real de cada loja
-        // quando o módulo de metas for implementado.
-        // progressoRows precisará cruzar com a fonte "parcial" do mês corrente.
+        const hasMetas = Object.keys(metasMensais).length > 0
         const progressoRows = mainRows
+          .filter(r => metasMensais[r.pdv] != null)
+          .filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (lojaMap.get(r.pdv)?.labels ?? []).includes(lid)))
           .map(r => ({
             ...r,
             loja: lojaMap.get(r.pdv),
-            meta: META_PADRAO,                          // <- trocar pela meta real
-            realizado: r.vf_atual,                      // <- trocar pelo parcial do mês
-            pct: r.vf_atual / META_PADRAO,
+            meta: metasMensais[r.pdv]!.meta,
+            realizado: r.vf_atual,
+            pct: r.vf_atual / metasMensais[r.pdv]!.meta,
+            falta: Math.max(0, metasMensais[r.pdv]!.meta - r.vf_atual),
           }))
           .sort((a, b) => b.pct - a.pct)
 
@@ -1248,30 +1286,42 @@ function VisaoGeralPage() {
           <div className="impact-table-card">
             <div className="impact-table-header">
               <div className="impact-table-title">Progresso do Mês</div>
-              <span className="progresso-placeholder-badge">Meta provisória · R$ 100k / loja</span>
+              {!hasMetas && (
+                <span style={{ fontSize: 12, color: '#d97706' }}>
+                  Configure as metas em <strong>Gestão → Metas do Mês</strong>
+                </span>
+              )}
             </div>
+            {!hasMetas ? (
+              <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 14 }}>
+                Nenhuma meta configurada. Acesse <strong>Metas do Mês</strong> no sidebar para definir a meta de cada loja.
+              </div>
+            ) :
             <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
               <table className="dash-table">
                 <thead>
                   <tr>
                     <th className="col-rank">#</th>
                     <th className="col-pdv">PDV</th>
+                    <th>Loja</th>
                     <th>Região</th>
                     <th className="col-num">Realizado</th>
                     <th className="col-num">Meta</th>
+                    <th className="col-num">Falta</th>
                     <th className="impact-bar-th">Progresso</th>
                     <th className="col-num">%</th>
                   </tr>
                 </thead>
                 <tbody>
                   {progressoRows.map((r, i) => {
-                    const pct     = r.pct
-                    const barW    = Math.min(pct, 1) * 100
-                    const color   = pct >= 1 ? '#059669' : pct >= 0.7 ? '#f59e0b' : '#dc2626'
+                    const pct   = r.pct
+                    const barW  = Math.min(pct, 1) * 100
+                    const color = pct >= 1 ? '#059669' : pct >= 0.7 ? '#f59e0b' : '#dc2626'
                     return (
                       <tr key={r.pdv}>
                         <td className="col-rank">{i + 1}</td>
-                        <td className="col-pdv">{r.pdv}</td>
+                        <td className="col-pdv">{pdvLabel(r.pdv)}</td>
+                        <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
                         <td>
                           <div className="label-chips-group">
                             {(r.loja?.labels ?? []).map(lid => {
@@ -1282,6 +1332,9 @@ function VisaoGeralPage() {
                         </td>
                         <td className="col-num">{fBRLR(r.realizado)}</td>
                         <td className="col-num col-muted-val">{fBRLR(r.meta)}</td>
+                        <td className="col-num" style={{ color: r.falta > 0 ? '#dc2626' : '#059669', fontWeight: 600 }}>
+                          {r.falta > 0 ? `-${fBRLR(r.falta)}` : '✓'}
+                        </td>
                         <td className="impact-bar-cell">
                           <div className="impact-bar-track">
                             <div className="impact-bar-fill" style={{ width: `${barW}%`, background: color }} />
@@ -1296,11 +1349,14 @@ function VisaoGeralPage() {
                 </tbody>
                 <tfoot>
                   <tr className="gap-table-total">
-                    <td colSpan={3} className="gap-total-label" style={{ textAlign: 'left', paddingLeft: 12 }}>
-                      Total do grupo
+                    <td colSpan={4} className="gap-total-label" style={{ textAlign: 'left', paddingLeft: 12 }}>
+                      Total do grupo{selectedLabels.length > 0 ? ' · filtrado' : ''}
                     </td>
                     <td className="col-num">{fBRLR(totalRealizado)}</td>
                     <td className="col-num col-muted-val">{fBRLR(totalMeta)}</td>
+                    <td className="col-num" style={{ fontWeight: 600, color: totalPct >= 1 ? '#059669' : '#dc2626' }}>
+                      {totalPct >= 1 ? '✓' : `-${fBRLR(totalMeta - totalRealizado)}`}
+                    </td>
                     <td className="impact-bar-cell">
                       <div className="impact-bar-track">
                         <div className="impact-bar-fill" style={{
@@ -1315,7 +1371,7 @@ function VisaoGeralPage() {
                   </tr>
                 </tfoot>
               </table>
-            </div>
+            </div>}
           </div>
         )
       })()}
@@ -1366,6 +1422,7 @@ function IndicadoresRef() {
 
 function RankingPage() {
   const { mainRows, fluxoRows } = useData()
+  const pdvLabel = usePdvLabel()
   const [sortKey, setSortKey] = useState<SortKey>('vf_atual')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [chartMetric, setChartMetric] = useState<ChartMetric>('vf_var')
@@ -1455,7 +1512,7 @@ function RankingPage() {
               const color  = isPos ? '#059669' : '#dc2626'
               return (
                 <div key={pdv} className="ranking-chart-row">
-                  <span className="ranking-chart-pdv">{pdv}</span>
+                  <span className="ranking-chart-pdv">{pdvLabel(pdv)}</span>
                   <div className="ranking-chart-bar-wrap">
                     <div className="ranking-chart-zero-line" />
                     <div className="ranking-chart-bar ranking-chart-bar--diverging" style={{
@@ -1475,7 +1532,7 @@ function RankingPage() {
               const isAbove = value >= avg
               return (
                 <div key={pdv} className="ranking-chart-row">
-                  <span className="ranking-chart-pdv">{pdv}</span>
+                  <span className="ranking-chart-pdv">{pdvLabel(pdv)}</span>
                   <div className="ranking-chart-bar-wrap">
                     <div className="ranking-chart-bar" style={{
                       width: `${barW}%`,
@@ -1975,12 +2032,13 @@ function RegioesPage() {
   )
 }
 
-/* ── Lojas — Detalhe da Loja ─────────────────────────── */
+/* ── Lojas — Raio-X da Loja ─────────────────────────── */
 function DetalhePage() {
-  const { mainRows, fluxoRows, consultorRows, fluxoConsultorRows } = useData()
+  const { mainRows, fluxoRows, consultorRows, fluxoConsultorRows, cpData } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const [selectedPdv, setSelectedPdv] = useState<string>('')
+  const [copiedConsideracoes, setCopiedConsideracoes] = useState(false)
 
   if (mainRows.length === 0) return <LojasEmptyState />
 
@@ -2032,7 +2090,7 @@ function DetalhePage() {
       {/* Header + store picker */}
       <div className="page-title-row" style={{ alignItems: 'flex-start' }}>
         <div>
-          <h2 className="page-title">Detalhe da Loja</h2>
+          <h2 className="page-title">Raio-X da Loja</h2>
           {regionLabels.length > 0 && (
             <div className="label-chips-group" style={{ marginTop: 4 }}>
               {regionLabels.map(lb => (
@@ -2107,20 +2165,26 @@ function DetalhePage() {
                 </tr>
               </thead>
               <tbody>
-                {storeCons.map((c, i) => (
-                  <tr key={c.consultor}>
-                    <td className="col-rank">{i + 1}</td>
-                    <td className="col-consultor">{c.consultor}</td>
-                    <td className="col-num">{fBRLR(c.vf_atual)}</td>
-                    <td className="col-num">{fInt(c.qb_atual)}</td>
-                    <td className="col-num">{fBRLR(c.bm_atual)}</td>
-                    <td className="col-num">{fDec(c.iv_atual)}</td>
-                    <td className="col-num">{fBRLR(c.pm_atual)}</td>
-                    <td className="col-num">
-                      {c.fluxo ? fPct(c.fluxo.conv_pct) : <span className="dash-muted">—</span>}
-                    </td>
-                  </tr>
-                ))}
+                {storeCons.map((c, i) => {
+                  const belowBM   = cpData && c.bm_atual < cpData.bm_valor
+                  const belowIV   = cpData && c.iv_atual < cpData.iv_valor
+                  const belowPM   = cpData && c.pm_atual < cpData.pm_valor
+                  const belowConv = c.fluxo && c.fluxo.conv_pct < 0.28
+                  return (
+                    <tr key={c.consultor}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-num">{fBRLR(c.vf_atual)}</td>
+                      <td className="col-num">{fInt(c.qb_atual)}</td>
+                      <td className="col-num" style={belowBM ? { color: '#dc2626' } : undefined}>{fBRLR(c.bm_atual)}</td>
+                      <td className="col-num" style={belowIV ? { color: '#dc2626' } : undefined}>{fDec(c.iv_atual)}</td>
+                      <td className="col-num" style={belowPM ? { color: '#dc2626' } : undefined}>{fBRLR(c.pm_atual)}</td>
+                      <td className="col-num" style={belowConv ? { color: '#dc2626' } : undefined}>
+                        {c.fluxo ? fPct(c.fluxo.conv_pct) : <span className="dash-muted">—</span>}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -2147,30 +2211,33 @@ function DetalhePage() {
               return ins
             }
 
-            // GAP BM
-            storeCons
-              .filter(c => c.bm_atual < storeBM && c.qb_atual > 0)
-              .map(c => ({ ...c, gap: (storeBM - c.bm_atual) * c.qb_atual }))
+            // GAP BM (referência: média do grupo)
+            const refBM = cpData?.bm_valor ?? storeBM
+            const gapBMList = storeCons
+              .filter(c => c.bm_atual < refBM && c.qb_atual > 0)
+              .map(c => ({ ...c, gap: (refBM - c.bm_atual) * c.qb_atual }))
               .sort((a, b) => b.gap - a.gap)
-              .forEach(c => {
-                getOrCreate(c.consultor, 'warn').points.push(
-                  `BM de ${fBRLR(c.bm_atual)} vs ${fBRLR(storeBM)} da loja — receita deixada na mesa: ${fBRLR(c.gap)}`
-                )
-              })
+            const totalGapBM = gapBMList.reduce((s, c) => s + c.gap, 0)
+            gapBMList.forEach(c => {
+              getOrCreate(c.consultor, 'warn').points.push(
+                `BM de ${fBRLR(c.bm_atual)} vs ${fBRLR(refBM)} do grupo — GAP de Receita: ${fBRLR(c.gap)}`
+              )
+            })
 
-            // GAP Fluxo
-            storeCons
+            // GAP Fluxo (AF)
+            const gapAFList = storeCons
               .filter(c => c.fluxo && c.fluxo.conv_pct < META_CONV && c.fluxo.resgates > 0)
               .map(c => {
                 const faltou = c.fluxo!.resgates * META_CONV - c.fluxo!.conversoes
                 return { ...c, faltou, gap: faltou * BM_FLUXO }
               })
               .sort((a, b) => b.gap - a.gap)
-              .forEach(c => {
-                getOrCreate(c.consultor, 'warn').points.push(
-                  `Conversão de ${fPct(c.fluxo!.conv_pct)} (meta: ${(META_CONV*100).toFixed(0)}%) — faltaram ${Math.round(c.faltou)} clientes convertidos, potencial: ${fBRLR(c.gap)}`
-                )
-              })
+            const totalGapAF = gapAFList.reduce((s, c) => s + c.gap, 0)
+            gapAFList.forEach(c => {
+              getOrCreate(c.consultor, 'warn').points.push(
+                `Conversão de ${fPct(c.fluxo!.conv_pct)} (meta: ${(META_CONV*100).toFixed(0)}%) — faltaram ${Math.round(c.faltou)} clientes convertidos, potencial: ${fBRLR(c.gap)}`
+              )
+            })
 
             // IV abaixo da média da loja
             const avgIV = totalQBCons > 0 ? storeCons.reduce((s, c) => s + c.iv_atual * c.qb_atual, 0) / totalQBCons : 0
@@ -2207,7 +2274,9 @@ function DetalhePage() {
               )
             }
 
+            const severityOrder = { danger: 0, warn: 1, positive: 2 }
             const insights = Array.from(byConsultor.values())
+              .sort((a, b) => severityOrder[a.type] - severityOrder[b.type])
 
             if (insights.length === 0) return null
 
@@ -2217,9 +2286,55 @@ function DetalhePage() {
               positive: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>,
             }
 
+            const emojiMap = { warn: '⚠️', danger: '🚨', positive: '✅' }
+
+            function handleCopyConsideracoes() {
+              const lojaLabel = activePdv + (storeLoja?.apelido ? ` — ${storeLoja.apelido}` : '')
+              const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+              const lines: string[] = [`*Considerações — ${lojaLabel} · ${hoje}*`, '']
+              if (storeMain) {
+                lines.push(
+                  `Receita: *${fBRLR(storeMain.vf_atual)}* · QB: *${fInt(storeMain.qb_atual)}* · BM: *${fBRLR(storeMain.bm_atual)}* · IV: *${fDec(storeMain.iv_atual)}* · PM: *${fBRLR(storeMain.pm_atual)}*` +
+                  (storeFluxo ? ` · Conv.: *${fPct(storeFluxo.conv_pct)}*` : '')
+                )
+                lines.push('')
+              }
+              insights.forEach(ins => {
+                lines.push(`${emojiMap[ins.type]} *${ins.consultor}*`)
+                ins.points.forEach(p => lines.push(`• ${p}`))
+                lines.push('')
+              })
+              if (totalGapBM > 0 || totalGapAF > 0) {
+                lines.push('💰 *Potencial não realizado*')
+                if (totalGapBM > 0) lines.push(`• Gap Boleto Médio: *${fBRLR(totalGapBM)}*`)
+                if (totalGapAF > 0) lines.push(`• Gap Ação de Fluxo: *${fBRLR(totalGapAF)}*`)
+                lines.push(`• Total: *${fBRLR(totalGapBM + totalGapAF)}*`)
+              }
+              navigator.clipboard.writeText(lines.join('\n').trimEnd())
+              setCopiedConsideracoes(true)
+              setTimeout(() => setCopiedConsideracoes(false), 2500)
+            }
+
             return (
               <div className="consideracoes-section">
-                <h3 className="consideracoes-title">Considerações</h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <h3 className="consideracoes-title" style={{ margin: 0 }}>Considerações</h3>
+                  <button
+                    onClick={handleCopyConsideracoes}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '5px 12px', borderRadius: 6, border: '1px solid var(--bg-border)',
+                      background: copiedConsideracoes ? '#f0fdf4' : 'var(--bg-surface)',
+                      color: copiedConsideracoes ? '#16a34a' : 'var(--text-secondary)',
+                      fontSize: 12, fontWeight: 500, cursor: 'pointer', transition: 'all .2s',
+                    }}
+                  >
+                    {copiedConsideracoes
+                      ? <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> Copiado!</>
+                      : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copiar para WhatsApp</>
+                    }
+                  </button>
+                </div>
                 <div className="consideracoes-list">
                   {insights.map((ins, i) => (
                     <div key={i} className={`consideracao-card consideracao-card--${ins.type}`}>
@@ -2232,6 +2347,28 @@ function DetalhePage() {
                       </div>
                     </div>
                   ))}
+                  {(totalGapBM > 0 || totalGapAF > 0) && (
+                    <div style={{
+                      marginTop: 8, padding: '12px 16px', borderRadius: 8,
+                      background: 'rgba(220,38,38,.06)', border: '1px solid rgba(220,38,38,.2)',
+                      display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+                    }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#dc2626' }}>💰 Potencial não realizado</span>
+                      {totalGapBM > 0 && (
+                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                          Gap BM: <strong style={{ color: '#dc2626' }}>{fBRLR(totalGapBM)}</strong>
+                        </span>
+                      )}
+                      {totalGapAF > 0 && (
+                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                          Gap AF: <strong style={{ color: '#dc2626' }}>{fBRLR(totalGapAF)}</strong>
+                        </span>
+                      )}
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+                        Total: <strong style={{ fontSize: 15, color: '#dc2626' }}>{fBRLR(totalGapBM + totalGapAF)}</strong>
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -2249,6 +2386,7 @@ function ConsultoresPage() {
   const { labels } = useLabels()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [selectedOppLabels, setSelectedOppLabels] = useState<string[]>([])
+  const [copiedOpp, setCopiedOpp] = useState(false)
 
   if (consultorRows.length === 0) return (
     <div className="page-empty-state">
@@ -2387,7 +2525,7 @@ function ConsultoresPage() {
             </p>
           </div>
           <div className="cons-alert-total">
-            <span className="cons-alert-total-label">Receita deixada na mesa</span>
+            <span className="cons-alert-total-label">GAP de Receita</span>
             <span className="cons-alert-total-value">{fBRLR(totalGap)}</span>
             <span className="cons-alert-total-sub">{alertRows.length} consultor{alertRows.length !== 1 ? 'es' : ''}{selectedLabels.length > 0 ? ' · filtrado' : ''}</span>
           </div>
@@ -2436,7 +2574,7 @@ function ConsultoresPage() {
             </tbody>
             <tfoot>
               <tr className="gap-table-total">
-                <td colSpan={10} className="gap-total-label">Total deixado na mesa</td>
+                <td colSpan={10} className="gap-total-label">Total GAP de Receita</td>
                 <td className="col-num col-gap-val">{fBRLR(totalGap)}</td>
               </tr>
             </tfoot>
@@ -2462,6 +2600,52 @@ function ConsultoresPage() {
             <span className="cons-opp-total-label">Consultores em atenção</span>
             <span className="cons-opp-total-value">{oppRows.length}</span>
             <span className="cons-opp-total-sub">de {consultorRows.length} total{selectedOppLabels.length > 0 ? ' · filtrado' : ''}</span>
+            <button
+              onClick={() => {
+                const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                const maxBadRef = groupConv > 0 ? 4 : 3
+                const lines: string[] = [
+                  `*Consultores com Oportunidade · ${hoje}*`,
+                  `Referência: BM ${fBRLR(groupBM)} · IV ${fDec(groupIV)} · PM ${fBRLR(groupPM)}${groupConv > 0 ? ` · AF ${Math.round(groupConv)}%` : ''}`,
+                  '',
+                ]
+                // agrupa por label
+                const labelGroups: { name: string; rows: typeof oppRows }[] = []
+                if (labels.length > 0) {
+                  labels.forEach(lb => {
+                    const rows = oppRows.filter(c => (c.loja?.labels ?? []).includes(lb.id))
+                    if (rows.length > 0) labelGroups.push({ name: lb.name, rows })
+                  })
+                  const semLabel = oppRows.filter(c => (c.loja?.labels ?? []).length === 0)
+                  if (semLabel.length > 0) labelGroups.push({ name: 'Sem região', rows: semLabel })
+                } else {
+                  labelGroups.push({ name: 'Todos', rows: oppRows })
+                }
+                labelGroups.forEach(group => {
+                  lines.push(`📍 *${group.name}* (${group.rows.length} consultor${group.rows.length !== 1 ? 'es' : ''})`)
+                  group.rows.forEach(c => {
+                    const goodCount = maxBadRef - c.badCount
+                    lines.push(`• ${c.consultor} — ${c.pdv} · ${goodCount}/${maxBadRef} · BM: ${fBRLR(c.bm_atual)} · IV: ${fDec(c.iv_atual)} · PM: ${fBRLR(c.pm_atual)}${c.hasConv && c.conv !== null ? ` · AF: ${Math.round(c.conv)}%` : ''}`)
+                  })
+                  lines.push('')
+                })
+                navigator.clipboard.writeText(lines.join('\n').trimEnd())
+                setCopiedOpp(true)
+                setTimeout(() => setCopiedOpp(false), 2500)
+              }}
+              style={{
+                marginTop: 8, display: 'flex', alignItems: 'center', gap: 6,
+                padding: '5px 12px', borderRadius: 6, border: '1px solid var(--bg-border)',
+                background: copiedOpp ? '#f0fdf4' : 'var(--bg-surface)',
+                color: copiedOpp ? '#16a34a' : 'var(--text-secondary)',
+                fontSize: 12, fontWeight: 500, cursor: 'pointer', transition: 'all .2s',
+              }}
+            >
+              {copiedOpp
+                ? <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> Copiado!</>
+                : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copiar para WhatsApp</>
+              }
+            </button>
           </div>
         </div>
 
@@ -2500,8 +2684,9 @@ function ConsultoresPage() {
             </thead>
             <tbody>
               {oppRows.map((c, i) => {
-                const maxBad = c.hasConv ? 4 : 3
-                const badClass = c.badCount >= maxBad ? 'score-badge--4' : c.badCount === maxBad - 1 ? 'score-badge--3' : c.badCount === maxBad - 2 ? 'score-badge--2' : 'score-badge--1'
+                const maxBad   = c.hasConv ? 4 : 3
+                const goodCount = maxBad - c.badCount
+                const badClass  = goodCount === 0 ? 'score-badge--4' : goodCount === 1 ? 'score-badge--3' : goodCount === maxBad ? 'score-badge--1' : 'score-badge--2'
                 return (
                   <tr key={`${c.pdv}-${c.consultor}`}>
                     <td className="col-rank">{i + 1}</td>
@@ -2516,7 +2701,7 @@ function ConsultoresPage() {
                       </div>
                     </td>
                     <td className="col-num">
-                      <span className={`score-badge ${badClass}`}>{c.badCount}/{maxBad}</span>
+                      <span className={`score-badge ${badClass}`}>{goodCount}/{maxBad}</span>
                     </td>
                     <td className="col-num" style={c.bm_atual < groupBM ? { color: '#dc2626', fontWeight: 600 } : { color: '#059669' }}>{fBRLR(c.bm_atual)}</td>
                     <td className="col-num" style={c.iv_atual < groupIV ? { color: '#dc2626', fontWeight: 600 } : { color: '#059669' }}>{fDec(c.iv_atual)}</td>
@@ -2861,7 +3046,7 @@ function DispersaoPage() {
 
 /* ── IAF — Ação de Fluxo ────────────────────────────── */
 function IafFluxoPage() {
-  const { fluxoRows, fluxoConsultorRows, mainTotal, cpData } = useData()
+  const { fluxoRows, fluxoConsultorRows, mainRows, mainTotal, cpData } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
@@ -2877,8 +3062,9 @@ function IafFluxoPage() {
     </div>
   )
 
-  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
-  const groupBM = cpData?.bm_valor ?? mainTotal?.bm_atual ?? 0
+  const lojaMap  = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  const mainMap  = useMemo(() => new Map(mainRows.map(r => [r.pdv, r])), [mainRows])
+  const groupBM  = cpData?.bm_valor ?? mainTotal?.bm_atual ?? 0
   const TARGET = 28
 
   useEffect(() => {
@@ -3021,7 +3207,7 @@ function IafFluxoPage() {
         <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           <div className="fluxo-card-header">
             <h3 className="fluxo-card-title">Resumo por Região</h3>
-            <span className="fluxo-gap-total">{fBRLR(regionGroups.reduce((s, g) => s + g.totGapReceita, 0))} deixados na mesa</span>
+            <span className="fluxo-gap-total">{fBRLR(regionGroups.reduce((s, g) => s + g.totGapReceita, 0))} de GAP de Receita</span>
           </div>
           <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
             <table className="dash-table dash-table--potential">
@@ -3056,7 +3242,7 @@ function IafFluxoPage() {
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         <div className="fluxo-card-header">
           <h3 className="fluxo-card-title">Detalhe por Loja</h3>
-          <span className="fluxo-gap-total">{fBRLR(totalGapRec)} deixados na mesa</span>
+          <span className="fluxo-gap-total">{fBRLR(totalGapRec)} de GAP de Receita</span>
         </div>
         <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
           <table className="dash-table">
@@ -3100,7 +3286,7 @@ function IafFluxoPage() {
             </tbody>
             <tfoot>
               <tr className="gap-table-total">
-                <td colSpan={3} className="gap-total-label">Total</td>
+                <td colSpan={3} className="gap-total-label">Média ponderada</td>
                 <td className="col-num">{fInt(totalResg)}</td>
                 <td className="col-num">{fInt(totalConv)}</td>
                 <td className="col-num" style={{ color: totalConvPct >= TARGET ? '#059669' : '#dc2626', fontWeight: 600 }}>{Math.round(totalConvPct)}%</td>
@@ -3137,10 +3323,15 @@ function IafFluxoPage() {
                   <th>Região</th>
                   <th className="col-num col-gap-head">GAP Receita</th>
                   <th className="col-num">% do Total</th>
+                  <th className="col-num">AF</th>
+                  <th className="col-num">Cresc. Financeiro</th>
                 </tr>
               </thead>
               <tbody>
-                {paretoRows.map((r, i) => (
+                {paretoRows.map((r, i) => {
+                  const main = mainMap.get(r.pdv)
+                  const crescPct = main && main.vf_ant > 0 ? (main.vf_atual - main.vf_ant) / main.vf_ant * 100 : null
+                  return (
                   <tr key={r.pdv}>
                     <td className="col-rank">{i + 1}</td>
                     <td>
@@ -3156,9 +3347,34 @@ function IafFluxoPage() {
                     </td>
                     <td className="col-num col-gap-val">{fBRLR(r.gapReceita)}</td>
                     <td className="col-num">{fDec(totalGapRec > 0 ? r.gapReceita / totalGapRec * 100 : 0, 1)}%</td>
+                    <td className="col-num" style={{ color: '#dc2626', fontWeight: 600 }}>{Math.round(r.conv)}%</td>
+                    <td className="col-num" style={{ color: crescPct === null ? undefined : crescPct >= 0 ? '#059669' : '#dc2626', fontWeight: 600 }}>
+                      {crescPct === null ? <span className="dash-muted">—</span> : `${crescPct >= 0 ? '+' : ''}${fDec(crescPct, 1)}%`}
+                    </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
+              {(() => {
+                const totalVfAnt   = paretoRows.reduce((s, r) => s + (mainMap.get(r.pdv)?.vf_ant  ?? 0), 0)
+                const totalVfAtual = paretoRows.reduce((s, r) => s + (mainMap.get(r.pdv)?.vf_atual ?? 0), 0)
+                const mediaCresc = totalVfAnt > 0 ? (totalVfAtual - totalVfAnt) / totalVfAnt * 100 : null
+                return (
+                  <tfoot>
+                    <tr className="gap-table-total">
+                      <td colSpan={3} className="gap-total-label">Média ponderada</td>
+                      <td className="col-num col-gap-val">{fBRLR(totalGapRec)}</td>
+                      <td className="col-num">100%</td>
+                      <td className="col-num" style={{ color: '#dc2626', fontWeight: 700 }}>
+                        {paretoRows.length > 0 ? `${Math.round(paretoRows.reduce((s, r) => s + r.resgates, 0) > 0 ? paretoRows.reduce((s, r) => s + r.conversoes, 0) / paretoRows.reduce((s, r) => s + r.resgates, 0) * 100 : 0)}%` : '—'}
+                      </td>
+                      <td className="col-num" style={{ color: mediaCresc === null ? undefined : mediaCresc >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>
+                        {mediaCresc === null ? <span className="dash-muted">—</span> : `${mediaCresc >= 0 ? '+' : ''}${fDec(mediaCresc, 1)}%`}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )
+              })()}
             </table>
           </div>
         </div>
@@ -3187,10 +3403,14 @@ function IafFluxoPage() {
                   <th className="col-num">Conversões</th>
                   <th className="col-num">Conv%</th>
                   <th className="col-num">Acima da meta</th>
+                  <th className="col-num">Cresc. Financeiro</th>
                 </tr>
               </thead>
               <tbody>
-                {metaStores.map((r, i) => (
+                {metaStores.map((r, i) => {
+                  const main = mainMap.get(r.pdv)
+                  const crescPct = main && main.vf_ant > 0 ? (main.vf_atual - main.vf_ant) / main.vf_ant * 100 : null
+                  return (
                   <tr key={r.pdv}>
                     <td className="col-rank">{i + 1}</td>
                     <td>
@@ -3208,9 +3428,35 @@ function IafFluxoPage() {
                     <td className="col-num">{fInt(r.conversoes)}</td>
                     <td className="col-num" style={{ color: '#059669', fontWeight: 700 }}>{Math.round(r.conv)}%</td>
                     <td className="col-num" style={{ color: '#059669', fontWeight: 600 }}>+{fDec(r.conv - TARGET, 1)}pp</td>
+                    <td className="col-num" style={{ color: crescPct === null ? undefined : crescPct >= 0 ? '#059669' : '#dc2626', fontWeight: 600 }}>
+                      {crescPct === null ? <span className="dash-muted">—</span> : `${crescPct >= 0 ? '+' : ''}${fDec(crescPct, 1)}%`}
+                    </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
+              {(() => {
+                const totalVfAnt  = metaStores.reduce((s, r) => s + (mainMap.get(r.pdv)?.vf_ant  ?? 0), 0)
+                const totalVfAtual = metaStores.reduce((s, r) => s + (mainMap.get(r.pdv)?.vf_atual ?? 0), 0)
+                const mediaCresc = totalVfAnt > 0 ? (totalVfAtual - totalVfAnt) / totalVfAnt * 100 : null
+                const totalResgMeta = metaStores.reduce((s, r) => s + r.resgates, 0)
+                const totalConvMeta = metaStores.reduce((s, r) => s + r.conversoes, 0)
+                const convMedia = totalResgMeta > 0 ? totalConvMeta / totalResgMeta * 100 : 0
+                return (
+                  <tfoot>
+                    <tr className="gap-table-total">
+                      <td colSpan={3} className="gap-total-label">Média ponderada</td>
+                      <td className="col-num">{fInt(totalResgMeta)}</td>
+                      <td className="col-num">{fInt(totalConvMeta)}</td>
+                      <td className="col-num" style={{ color: '#059669', fontWeight: 700 }}>{Math.round(convMedia)}%</td>
+                      <td className="col-num" style={{ color: '#059669', fontWeight: 600 }}>+{fDec(convMedia - TARGET, 1)}pp</td>
+                      <td className="col-num" style={{ color: mediaCresc === null ? undefined : mediaCresc >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>
+                        {mediaCresc === null ? <span className="dash-muted">—</span> : `${mediaCresc >= 0 ? '+' : ''}${fDec(mediaCresc, 1)}%`}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )
+              })()}
             </table>
           </div>
         </div>
@@ -3334,6 +3580,320 @@ function IafFluxoPage() {
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+/* ── IAF — Serviços ─────────────────────────────────── */
+function ServicosPage() {
+  const { servicosRows, servicosTotal } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+  const [metas, setMetas] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-servicos-metas') ?? '{}') } catch { return {} }
+  })
+  const [editingPdv, setEditingPdv] = useState<string | null>(null)
+  const [metaInput, setMetaInput] = useState('')
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const storeRows = useMemo(() => {
+    const rows = servicosRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+    const filtered = selectedLabels.length === 0
+      ? rows
+      : rows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+    return [...filtered].sort((a, b) =>
+      sortDir === 'desc'
+        ? b.servicos_completos - a.servicos_completos
+        : a.servicos_completos - b.servicos_completos
+    )
+  }, [servicosRows, lojaMap, selectedLabels, sortDir])
+
+  if (servicosRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+      <div className="page-empty-title">Dados de Serviços não carregados</div>
+      <div className="page-empty-desc">Importe a planilha para visualizar este relatório</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Serviços <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  const totalCompletos = servicosTotal?.servicos_completos ?? storeRows.reduce((s, r) => s + r.servicos_completos, 0)
+  const totalTotais    = servicosTotal?.servicos_totais    ?? storeRows.reduce((s, r) => s + r.servicos_totais, 0)
+  const pctGeral       = servicosTotal?.pct_completos      ?? (totalTotais > 0 ? totalCompletos / totalTotais : 0)
+  const avgPorLoja     = storeRows.length > 0 ? storeRows.reduce((s, r) => s + r.servicos_completos, 0) / storeRows.length : 0
+  const totalMeta      = Object.values(metas).reduce((s, v) => s + v, 0)
+  const metasDefinidas = Object.keys(metas).length
+  const atingGeral     = totalMeta > 0 ? (totalCompletos / totalMeta) * 100 : null
+  const atingGeralColor = atingGeral === null ? 'var(--text-primary)'
+    : atingGeral >= 100 ? '#059669'
+    : atingGeral >= 80  ? '#d97706'
+    : '#dc2626'
+
+  function startEdit(pdv: string) {
+    setEditingPdv(pdv)
+    setMetaInput(metas[pdv] != null ? String(metas[pdv]) : '')
+  }
+
+  function saveMeta(pdv: string) {
+    const v = parseFloat(metaInput.replace(',', '.'))
+    if (!isNaN(v) && v > 0) {
+      const next = { ...metas, [pdv]: v }
+      setMetas(next)
+      localStorage.setItem('prisma-prefs-servicos-metas', JSON.stringify(next))
+    }
+    setEditingPdv(null)
+  }
+
+  function clearMeta(pdv: string) {
+    const next = { ...metas }
+    delete next[pdv]
+    setMetas(next)
+    localStorage.setItem('prisma-prefs-servicos-metas', JSON.stringify(next))
+  }
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Serviços</h2>
+          <p className="page-subtitle">{storeRows.length} lojas</p>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="kpi-row">
+        <div className="kpi-card">
+          <div className="kpi-label">Serviços Completos</div>
+          <div className="kpi-value" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {fDec(totalCompletos, 1)}
+            {atingGeral !== null && atingGeral >= 100 && (
+              <span style={{ fontSize: 22, lineHeight: 1 }}>🏆</span>
+            )}
+          </div>
+        </div>
+        <KpiCard label="Serviços Totais"    value={fDec(totalTotais, 1)} />
+        <KpiCard label="% Completos"        value={fDec(pctGeral * 100, 1) + '%'} />
+        <KpiCard label="Média por Loja"     value={fDec(avgPorLoja, 1)} />
+        <div className="kpi-card" style={{ minWidth: 160 }}>
+          <div className="kpi-label">Meta Total</div>
+          {totalMeta > 0 ? (
+            <>
+              <div className="kpi-value">{fDec(totalMeta, 0)}</div>
+              {atingGeral !== null && (
+                <div className="kpi-var" style={{ color: atingGeralColor }}>{fDec(atingGeral, 1)}% atingido</div>
+              )}
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                {metasDefinidas}/{storeRows.length} lojas com meta
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
+              Defina a meta de cada loja na tabela
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Filtro de região */}
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Ranking */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Ranking por Serviços Completos</h3>
+          <button
+            className="btn btn-sm btn-ghost"
+            onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}
+            style={{ fontSize: 12 }}
+          >
+            {sortDir === 'desc' ? '▼ Maior → Menor' : '▲ Menor → Maior'}
+          </button>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Serv. Completos</th>
+                <th className="col-num">Serv. Totais</th>
+                <th className="col-num">% Completos</th>
+                <th className="col-num">Meta</th>
+                <th className="col-num">Ating.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {storeRows.map((r, i) => {
+                const pct = r.pct_completos * 100
+                const metaLoja = metas[r.pdv] ?? null
+                const ating = metaLoja ? (r.servicos_completos / metaLoja) * 100 : null
+                const servColor = ating === null
+                  ? 'var(--text-primary)'
+                  : ating >= 100 ? '#059669'
+                  : ating >= 80  ? '#d97706'
+                  : '#dc2626'
+                const isEditing = editingPdv === r.pdv
+                return (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td className="col-pdv">{r.pdv}</td>
+                    <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(r.loja?.labels ?? []).map(lid => {
+                          const lb = labels.find(x => x.id === lid)
+                          return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                        })}
+                      </div>
+                    </td>
+                    <td className="col-num" style={{ fontWeight: 700 }}>{fDec(r.servicos_completos, 1)}</td>
+                    <td className="col-num">{fDec(r.servicos_totais, 1)}</td>
+                    <td className="col-num" style={{ color: pct >= pctGeral * 100 ? '#059669' : '#d97706', fontWeight: 600 }}>{fDec(pct, 1)}%</td>
+                    <td className="col-num" style={{ minWidth: 110 }}>
+                      {isEditing ? (
+                        <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                          <input
+                            autoFocus
+                            type="number"
+                            className="lojas-input"
+                            style={{ width: 70, fontSize: 13, padding: '2px 4px' }}
+                            value={metaInput}
+                            onChange={e => setMetaInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveMeta(r.pdv); if (e.key === 'Escape') setEditingPdv(null) }}
+                            placeholder="Meta"
+                          />
+                          <button className="lojas-btn-save" style={{ padding: '2px 6px', fontSize: 12 }} onClick={() => saveMeta(r.pdv)}>✓</button>
+                          <button className="lojas-btn-cancel" style={{ padding: '2px 6px', fontSize: 12 }} onClick={() => setEditingPdv(null)}>✕</button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                          <span>{metaLoja != null ? fDec(metaLoja, 0) : <span style={{ color: 'var(--text-muted)' }}>—</span>}</span>
+                          <button
+                            onClick={() => startEdit(r.pdv)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, lineHeight: 1, opacity: 0.7 }}
+                            title="Editar meta"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          </button>
+                          {metaLoja != null && (
+                            <button
+                              onClick={() => clearMeta(r.pdv)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, lineHeight: 1, opacity: 0.5 }}
+                              title="Remover meta"
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                    <td className="col-num" style={{ fontWeight: 600, color: servColor }}>
+                      {ating != null ? fDec(ating, 1) + '%' : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="gap-table-total">
+                <td colSpan={4} className="gap-total-label">Total</td>
+                <td className="col-num" style={{ fontWeight: 700 }}>{fDec(totalCompletos, 1)}</td>
+                <td className="col-num">{fDec(totalTotais, 1)}</td>
+                <td className="col-num" style={{ fontWeight: 700 }}>{fDec(pctGeral * 100, 1)}%</td>
+                <td className="col-num" style={{ fontWeight: 700 }}>{totalMeta > 0 ? fDec(totalMeta, 0) : '—'}</td>
+                <td className="col-num" style={{ fontWeight: 700, color: atingGeralColor }}>{atingGeral != null ? fDec(atingGeral, 1) + '%' : '—'}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* Lojas abaixo da meta */}
+      {(() => {
+        const abaixo = storeRows.filter(r => {
+          const m = metas[r.pdv]
+          return m != null && r.servicos_completos < m
+        })
+        if (abaixo.length === 0) return null
+        return (
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="fluxo-card-header" style={{ background: '#fef2f2' }}>
+              <h3 className="fluxo-card-title" style={{ color: '#dc2626' }}>
+                ⚠️ Lojas abaixo da meta ({abaixo.length})
+              </h3>
+            </div>
+            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th className="col-pdv">PDV</th>
+                    <th>Loja</th>
+                    <th>Região</th>
+                    <th className="col-num">Serv. Completos</th>
+                    <th className="col-num">Meta</th>
+                    <th className="col-num">Ating.</th>
+                    <th className="col-num">Faltam</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {abaixo
+                    .slice()
+                    .sort((a, b) => {
+                      const pA = (metas[a.pdv] ?? 1) > 0 ? a.servicos_completos / (metas[a.pdv] ?? 1) : 0
+                      const pB = (metas[b.pdv] ?? 1) > 0 ? b.servicos_completos / (metas[b.pdv] ?? 1) : 0
+                      return pA - pB
+                    })
+                    .map(r => {
+                      const m = metas[r.pdv]!
+                      const ating = (r.servicos_completos / m) * 100
+                      const faltam = m - r.servicos_completos
+                      return (
+                        <tr key={r.pdv}>
+                          <td className="col-pdv">{r.pdv}</td>
+                          <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                          <td>
+                            <div className="label-chips-group">
+                              {(r.loja?.labels ?? []).map(lid => {
+                                const lb = labels.find(x => x.id === lid)
+                                return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                              })}
+                            </div>
+                          </td>
+                          <td className="col-num" style={{ fontWeight: 700 }}>{fDec(r.servicos_completos, 1)}</td>
+                          <td className="col-num">{fDec(m, 0)}</td>
+                          <td className="col-num" style={{ fontWeight: 600, color: ating >= 80 ? '#d97706' : '#dc2626' }}>{fDec(ating, 1)}%</td>
+                          <td className="col-num" style={{ color: '#dc2626', fontWeight: 700 }}>-{fDec(faltam, 1)}</td>
+                        </tr>
+                      )
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -3662,6 +4222,429 @@ function IDClientePage() {
             </table>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+/* ── Lojas — Share das Categorias ───────────────────── */
+type ShareSortKey = 'total_receita' | 'cabelos' | 'pele' | 'gifts' | 'make' | 'perf' | 'outros'
+const CATS: { key: Exclude<ShareSortKey, 'total_receita'>; label: string; color: string }[] = [
+  { key: 'cabelos', label: 'Cabelos',  color: '#d97706' },
+  { key: 'pele',    label: 'Pele',     color: '#0284c7' },
+  { key: 'gifts',   label: 'Gifts',    color: '#7c3aed' },
+  { key: 'make',    label: 'Make',     color: '#e11d48' },
+  { key: 'perf',    label: 'Perf.',    color: '#16a34a' },
+  { key: 'outros',  label: 'Outros',   color: '#64748b' },
+]
+
+function getPctByCat(r: { cabelos_pct: number; pele_pct: number; gifts_pct: number; make_pct: number; perf_pct: number; outros_pct: number }, key: Exclude<ShareSortKey, 'total_receita'>): number {
+  return { cabelos: r.cabelos_pct, pele: r.pele_pct, gifts: r.gifts_pct, make: r.make_pct, perf: r.perf_pct, outros: r.outros_pct }[key]
+}
+
+function ShareCategoriasPage() {
+  const { shareCatRows, shareCatCP } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const [sortKey, setSortKey] = useState<ShareSortKey>('total_receita')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const storeRows = useMemo(() => {
+    const rows = shareCatRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+    const filtered = selectedLabels.length === 0
+      ? rows
+      : rows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+    return [...filtered].sort((a, b) => {
+      const va = sortKey === 'total_receita' ? a.total_receita : getPctByCat(a, sortKey)
+      const vb = sortKey === 'total_receita' ? b.total_receita : getPctByCat(b, sortKey)
+      return sortDir === 'desc' ? vb - va : va - vb
+    })
+  }, [shareCatRows, lojaMap, selectedLabels, sortKey, sortDir])
+
+  if (shareCatRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>
+      <div className="page-empty-title">Share das Categorias não carregado</div>
+      <div className="page-empty-desc">Importe a planilha para visualizar este relatório</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Share das Categorias <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  function onSort(key: ShareSortKey) {
+    if (key === sortKey) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
+
+  function SortTh({ k, children, right }: { k: ShareSortKey; children: React.ReactNode; right?: boolean }) {
+    const active = sortKey === k
+    return (
+      <th className={`${right ? 'col-num' : ''} sort-th${active ? ' sort-active' : ''}`} onClick={() => onSort(k)}>
+        {children} <span className="sort-arrow">{active ? (sortDir === 'desc' ? '▼' : '▲') : '⇅'}</span>
+      </th>
+    )
+  }
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Share das Categorias</h2>
+          <p className="page-subtitle">{storeRows.length} lojas</p>
+        </div>
+      </div>
+
+      {/* Referência de rede (CP) */}
+      {shareCatCP && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-head" style={{ marginBottom: 10 }}>
+            <div className="card-title">Média da Rede — CP {shareCatCP.total_receita > 0 ? `· ${fBRLR(shareCatCP.total_receita)}` : ''}</div>
+          </div>
+          {/* Legenda */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px' }}>
+            {CATS.map(c => (
+              <div key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: c.color, flexShrink: 0 }} />
+                <span style={{ color: 'var(--text-secondary)' }}>{c.label}</span>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{fDec(getPctByCat(shareCatCP, c.key), 2)}%</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Filtro de região */}
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Pizza de categorias */}
+      {(() => {
+        const totalReceita = storeRows.reduce((s, r) => s + r.total_receita, 0)
+        const pieData = CATS.map(c => {
+          const weightedPct = totalReceita > 0
+            ? storeRows.reduce((s, r) => s + getPctByCat(r, c.key) * r.total_receita, 0) / totalReceita
+            : storeRows.reduce((s, r) => s + getPctByCat(r, c.key), 0) / Math.max(storeRows.length, 1)
+          return { ...c, pct: weightedPct }
+        }).filter(c => c.pct > 0)
+
+        if (pieData.length === 0) return null
+
+        const R = 46, CX = 50, CY = 50
+        let angle = -Math.PI / 2
+        const total = pieData.reduce((s, c) => s + c.pct, 0)
+        const segs = pieData.map(c => {
+          const sweep = (c.pct / total) * 2 * Math.PI
+          const a0 = angle, a1 = angle + sweep
+          angle = a1
+          const x0 = CX + R * Math.cos(a0), y0 = CY + R * Math.sin(a0)
+          const x1 = CX + R * Math.cos(a1), y1 = CY + R * Math.sin(a1)
+          const large = sweep > Math.PI ? 1 : 0
+          const path = c.pct / total >= 1
+            ? `M ${CX} ${CY} m -${R} 0 a ${R} ${R} 0 1 0 ${R*2} 0 a ${R} ${R} 0 1 0 -${R*2} 0`
+            : `M ${CX} ${CY} L ${x0} ${y0} A ${R} ${R} 0 ${large} 1 ${x1} ${y1} Z`
+          return { ...c, path }
+        })
+
+        return (
+          <div className="rev-chart-card" style={{ marginBottom: 16 }}>
+            <div className="rev-chart-title">
+              Share por Categoria{selectedLabels.length > 0 ? ' · filtrado por região' : ''}
+            </div>
+            <div className="rev-chart-layout">
+              <svg viewBox="0 0 100 100" className="pie-svg">
+                {segs.map((s, i) => (
+                  <path key={i} d={s.path} fill={s.color}
+                    stroke="var(--bg-surface)" strokeWidth="1.5" strokeLinejoin="round" />
+                ))}
+              </svg>
+              <div className="pie-legend">
+                {segs.map((s, i) => (
+                  <div key={i} className="pie-legend-row">
+                    <span className="pie-legend-dot" style={{ background: s.color }} />
+                    <span className="pie-legend-name">{s.label}</span>
+                    <span className="pie-legend-pct">{fDec(s.pct, 2)}%</span>
+                    {shareCatCP && selectedLabels.length > 0 && (
+                      <span className="pie-legend-val" style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                        rede: {fDec(getPctByCat(shareCatCP, s.key), 2)}%
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Tabela */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <SortTh k="total_receita" right>Receita</SortTh>
+                {CATS.map(c => <SortTh key={c.key} k={c.key} right>{c.label}</SortTh>)}
+              </tr>
+              {/* Linha de referência CP */}
+              {shareCatCP && (
+                <tr style={{ background: 'var(--bg-surface-2)', fontStyle: 'italic', fontSize: 12 }}>
+                  <td colSpan={3} style={{ color: 'var(--text-muted)', paddingLeft: 12 }}>Média da rede</td>
+                  <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fBRLR(shareCatCP.total_receita)}</td>
+                  {CATS.map(c => (
+                    <td key={c.key} className="col-num" style={{ color: c.color, fontWeight: 600 }}>
+                      {fDec(getPctByCat(shareCatCP, c.key), 2)}%
+                    </td>
+                  ))}
+                </tr>
+              )}
+            </thead>
+            <tbody>
+              {storeRows.map((r, i) => (
+                <tr key={r.pdv}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td className="col-pdv">{r.pdv}</td>
+                  <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                  <td className="col-num">{fBRLR(r.total_receita)}</td>
+                  {CATS.map(c => {
+                    const pct = getPctByCat(r, c.key)
+                    const avg = shareCatCP ? getPctByCat(shareCatCP, c.key) : null
+                    const diff = avg !== null ? pct - avg : 0
+                    const bg = avg !== null
+                      ? diff > 3  ? 'rgba(5,150,105,0.1)'
+                      : diff < -3 ? 'rgba(220,38,38,0.08)'
+                      : undefined
+                      : undefined
+                    return (
+                      <td key={c.key} className="col-num" style={{ background: bg, fontWeight: Math.abs(diff) > 3 ? 600 : 400 }}>
+                        {fDec(pct, 2)}%
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── IAF — Loja Digital ─────────────────────────────── */
+function LojaDigitalPage() {
+  const { lojaDigitalRows, lojaDigitalTotal } = useData()
+  const { lojas } = useLojas()
+  const { openImport } = useFileStatus()
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const storeRows = useMemo(() => {
+    const totalRec = lojaDigitalRows.reduce((s, r) => s + r.receita, 0)
+    return lojaDigitalRows
+      .map(r => ({
+        ...r,
+        loja: lojaMap.get(r.pdv),
+        conv_pct_pct: r.conv_pct * 100,
+        share_receita: totalRec > 0 ? r.receita / totalRec : 0,
+      }))
+      .sort((a, b) => b.receita - a.receita)
+  }, [lojaDigitalRows, lojaMap])
+
+  const semConversao = useMemo(() =>
+    storeRows.filter(r => r.convertidos === 0 && r.clientes_ate > 0),
+  [storeRows])
+
+  if (lojaDigitalRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      <div className="page-empty-title">Dados da Loja Digital não carregados</div>
+      <div className="page-empty-desc">Importe a planilha para visualizar este relatório</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Loja Digital <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  const totalReceita    = lojaDigitalTotal?.receita       ?? storeRows.reduce((s, r) => s + r.receita, 0)
+  const totalAtendidos  = lojaDigitalTotal?.clientes_ate  ?? storeRows.reduce((s, r) => s + r.clientes_ate, 0)
+  const totalConvertidos = lojaDigitalTotal?.convertidos  ?? storeRows.reduce((s, r) => s + r.convertidos, 0)
+  const convPct         = lojaDigitalTotal?.conv_pct      ?? (totalAtendidos > 0 ? totalConvertidos / totalAtendidos : 0)
+  const boletoMedio     = lojaDigitalTotal?.boleto_medio  ?? (totalConvertidos > 0 ? totalReceita / totalConvertidos : 0)
+  const perdidos        = totalAtendidos - totalConvertidos
+
+  const scenarios = [10, 15, 20, 25, 30, 40, 50].map(targetPct => {
+    const convertidosPot = Math.round(totalAtendidos * targetPct / 100)
+    const incremento = Math.max(0, convertidosPot - totalConvertidos)
+    const ganho = incremento * boletoMedio
+    return { pct: targetPct, convertidosPot, incremento, receita: totalReceita + ganho, ganho }
+  })
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Loja Digital</h2>
+          <p className="page-subtitle">WhatsApp · {storeRows.length} lojas participantes</p>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div className="kpi-row">
+        <KpiCard label="Receita Digital"      value={fBRLR(totalReceita)} />
+        <KpiCard label="% Conversão"          value={fDec(convPct * 100, 2) + '%'} />
+        <KpiCard label="Clientes Atendidos"   value={fInt(totalAtendidos)} />
+        <KpiCard label="Clientes Convertidos" value={fInt(totalConvertidos)} />
+        <KpiCard label="Boleto Médio"         value={fBRLR(boletoMedio)} />
+      </div>
+
+      {/* Potencial de conversão */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <div>
+            <h3 className="fluxo-card-title">Potencial de Conversão</h3>
+            <p className="dispersao-cons-sub">
+              {fInt(perdidos)} cliente{perdidos !== 1 ? 's' : ''} atendido{perdidos !== 1 ? 's' : ''} não converteram · boleto médio atual {fBRLR(boletoMedio)}
+            </p>
+          </div>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th>Cenário</th>
+                <th className="col-num">Conversão</th>
+                <th className="col-num">Convertidos</th>
+                <th className="col-num">Incremento</th>
+                <th className="col-num">Receita Potencial</th>
+                <th className="col-num">Ganho vs Atual</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style={{ background: 'var(--bg-surface-2)', fontStyle: 'italic' }}>
+                <td>Atual</td>
+                <td className="col-num">{fDec(convPct * 100, 2)}%</td>
+                <td className="col-num">{fInt(totalConvertidos)}</td>
+                <td className="col-num"><span className="dash-muted">—</span></td>
+                <td className="col-num">{fBRLR(totalReceita)}</td>
+                <td className="col-num"><span className="dash-muted">—</span></td>
+              </tr>
+              {scenarios.map(s => (
+                <tr key={s.pct}>
+                  <td>Meta</td>
+                  <td className="col-num" style={{ fontWeight: 700 }}>{s.pct}%</td>
+                  <td className="col-num">{fInt(s.convertidosPot)}</td>
+                  <td className="col-num" style={{ color: '#059669', fontWeight: 600 }}>+{fInt(s.incremento)}</td>
+                  <td className="col-num" style={{ fontWeight: 600 }}>{fBRLR(s.receita)}</td>
+                  <td className="col-num" style={{ color: '#059669', fontWeight: 700 }}>+{fBRLR(s.ganho)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Lojas sem conversão */}
+      {semConversao.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="skin-alert-header">
+            <div>
+              <h3 className="skin-alert-title">Lojas Sem Conversão</h3>
+              <p className="dispersao-cons-sub">
+                {semConversao.length} loja{semConversao.length !== 1 ? 's' : ''} com clientes atendidos mas zero vendas
+              </p>
+            </div>
+            <span className="skin-alert-badge">{semConversao.length}</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-pdv">PDV</th>
+                  <th>Loja</th>
+                  <th className="col-num">Clientes Atendidos</th>
+                  <th className="col-num">Receita Estimada Perdida</th>
+                </tr>
+              </thead>
+              <tbody>
+                {semConversao.map(r => (
+                  <tr key={r.pdv}>
+                    <td className="col-pdv">{r.pdv}</td>
+                    <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                    <td className="col-num">{fInt(r.clientes_ate)}</td>
+                    <td className="col-num" style={{ color: '#dc2626', fontWeight: 600 }}>
+                      -{fBRLR(Math.round(r.clientes_ate * convPct) * boletoMedio)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Participação por loja */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Participação por Loja</h3>
+          <span className="dispersao-cons-sub">{storeRows.length} lojas · ordenado por receita</span>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th className="col-num">Atendidos</th>
+                <th className="col-num">Convertidos</th>
+                <th className="col-num">% Conv.</th>
+                <th className="col-num">Receita</th>
+                <th className="col-num">% Digital</th>
+                <th className="col-num">Boleto Médio</th>
+              </tr>
+            </thead>
+            <tbody>
+              {storeRows.map((r, i) => {
+                const convColor = r.convertidos === 0 ? '#dc2626' : r.conv_pct >= convPct ? '#059669' : '#d97706'
+                return (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td className="col-pdv">{r.pdv}</td>
+                    <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                    <td className="col-num">{fInt(r.clientes_ate)}</td>
+                    <td className="col-num">{fInt(r.convertidos)}</td>
+                    <td className="col-num" style={{ color: convColor, fontWeight: 600 }}>{fDec(r.conv_pct_pct, 1)}%</td>
+                    <td className="col-num">{r.receita > 0 ? fBRLR(r.receita) : <span className="dash-muted">—</span>}</td>
+                    <td className="col-num">{r.share_receita > 0 ? fDec(r.share_receita * 100, 1) + '%' : <span className="dash-muted">—</span>}</td>
+                    <td className="col-num">{r.boleto_medio > 0 ? fBRLR(r.boleto_medio) : <span className="dash-muted">—</span>}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
@@ -4208,6 +5191,1584 @@ function IafSkinPage() {
   )
 }
 
+/* ── IAF — Resgates ─────────────────────────────────── */
+const RESGATE_META = 0.52
+
+function ResgatesPage() {
+  const { resgatesPdvRows, resgatesTotal, resgatesConsultorRows, consultorRows, fluxoConsultorRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const storeRows = useMemo(() => {
+    const rows = resgatesPdvRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+    const filtered = selectedLabels.length === 0
+      ? rows
+      : rows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+    return [...filtered].sort((a, b) =>
+      sortDir === 'desc' ? b.pct_atual - a.pct_atual : a.pct_atual - b.pct_atual
+    )
+  }, [resgatesPdvRows, lojaMap, selectedLabels, sortDir])
+
+  const regionGroups = useMemo(() => {
+    if (labels.length === 0) return []
+    const allRows = resgatesPdvRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+    return labels
+      .filter(lb => selectedLabels.length === 0 || selectedLabels.includes(lb.id))
+      .map(lb => {
+        const rows = allRows.filter(r => (r.loja?.labels ?? []).includes(lb.id))
+        if (rows.length === 0) return null
+        const totBolAtual = rows.reduce((s, r) => s + r.qtd_boletos_atual, 0)
+        const totBolAnt   = rows.reduce((s, r) => s + r.qtd_boletos_anterior, 0)
+        const totResAtual = rows.reduce((s, r) => s + r.qtd_resgate_atual, 0)
+        const totResAnt   = rows.reduce((s, r) => s + r.qtd_resgate_anterior, 0)
+        const pct_atual    = totBolAtual > 0 ? totResAtual / totBolAtual : 0
+        const pct_anterior = totBolAnt   > 0 ? totResAnt   / totBolAnt   : 0
+        return { label: lb, count: rows.length, pct_atual, pct_anterior, totResAtual, totBolAtual }
+      })
+      .filter(Boolean)
+      .sort((a, b) => b!.pct_atual - a!.pct_atual) as
+        { label: typeof labels[0]; count: number; pct_atual: number; pct_anterior: number; totResAtual: number; totBolAtual: number }[]
+  }, [labels, resgatesPdvRows, lojaMap, selectedLabels])
+
+  const belowTarget = useMemo(() =>
+    [...storeRows].filter(r => r.pct_atual < RESGATE_META).sort((a, b) => a.pct_atual - b.pct_atual)
+  , [storeRows])
+
+  const consultorPdvMap = useMemo(() => {
+    const map = new Map<string, string>()
+    consultorRows.forEach(r => map.set(r.consultor, r.pdv))
+    fluxoConsultorRows.forEach(r => { if (!map.has(r.consultor)) map.set(r.consultor, r.pdv) })
+    return map
+  }, [consultorRows, fluxoConsultorRows])
+
+  // Consultores abaixo da meta agrupados por label, ordenados pelo maior gap
+  const opportunityGroups = useMemo(() => {
+    if (labels.length === 0 || resgatesConsultorRows.length === 0) return []
+    const below = resgatesConsultorRows
+      .filter(c => c.pct_atual < RESGATE_META)
+      .map(c => {
+        const pdv  = consultorPdvMap.get(c.nome) ?? null
+        const loja = pdv ? lojaMap.get(pdv) : undefined
+        return { ...c, pdv, loja }
+      })
+    return labels
+      .filter(lb => selectedLabels.length === 0 || selectedLabels.includes(lb.id))
+      .map(lb => {
+        const rows = below
+          .filter(c => (c.loja?.labels ?? []).includes(lb.id))
+          .sort((a, b) => a.pct_atual - b.pct_atual)
+        return rows.length > 0 ? { label: lb, rows } : null
+      })
+      .filter(Boolean) as { label: typeof labels[0]; rows: typeof below }[]
+  }, [labels, resgatesConsultorRows, consultorPdvMap, lojaMap, selectedLabels])
+
+  if (resgatesPdvRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+      <div className="page-empty-title">Dados de Resgates não carregados</div>
+      <div className="page-empty-desc">Importe a planilha para visualizar este relatório</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Resgates <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  const varPp = resgatesTotal ? (resgatesTotal.pct_atual - resgatesTotal.pct_anterior) * 100 : null
+  const varColor = varPp === null ? 'var(--text-primary)' : varPp >= 0 ? '#059669' : '#dc2626'
+
+  async function exportGroup(g: typeof opportunityGroups[0]) {
+    const mod = await import('xlsx')
+    const { utils, writeFile } = mod
+    const data: (string | number)[][] = [
+      ['Consultor', 'PDV', 'Loja', '% Atual', 'Gap para meta (pp)'],
+      ...g.rows.map(c => [
+        c.nome,
+        c.pdv ?? '',
+        c.loja?.apelido ?? '',
+        +(c.pct_atual * 100).toFixed(1),
+        +((RESGATE_META - c.pct_atual) * 100).toFixed(1),
+      ]),
+    ]
+    const ws = utils.aoa_to_sheet(data)
+    ws['!cols'] = [{ wch: 32 }, { wch: 10 }, { wch: 24 }, { wch: 10 }, { wch: 20 }]
+    const wb = utils.book_new()
+    utils.book_append_sheet(wb, ws, g.label.name.slice(0, 31))
+    const date = new Date().toISOString().slice(0, 10)
+    const slug = g.label.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+    writeFile(wb, `resgates_oportunidade_${slug}_${date}.xlsx`)
+  }
+
+  const pctAtual = resgatesTotal?.pct_atual ?? null
+  const abaixoCount = storeRows.filter(r => r.pct_atual < RESGATE_META).length
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Resgates</h2>
+          <p className="page-subtitle">Meta: {fDec(RESGATE_META * 100, 0)}% · {storeRows.length} lojas</p>
+        </div>
+      </div>
+
+      {/* Banner de resumo */}
+      {pctAtual !== null && (
+        <div className={`skin-summary-card${pctAtual >= RESGATE_META ? ' skin-summary-card--ok' : ' skin-summary-card--alert'}`}>
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct">{fDec(pctAtual * 100, 1)}%</span>
+            <span className="skin-summary-label">
+              {selectedLabels.length > 0
+                ? `% Resgates — ${selectedLabels.map(lid => labels.find(l => l.id === lid)?.name ?? '').join(', ')}`
+                : '% Resgates do grupo'}
+            </span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct skin-summary-pct--target">{fDec(RESGATE_META * 100, 0)}%</span>
+            <span className="skin-summary-label">meta</span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            {pctAtual >= RESGATE_META
+              ? <span className="skin-summary-status skin-summary-status--ok">✓ Meta atingida</span>
+              : <span className="skin-summary-status skin-summary-status--nok">✗ {fDec((RESGATE_META - pctAtual) * 100, 1)}pp abaixo da meta</span>
+            }
+            <span className="skin-summary-label">
+              {varPp !== null ? `${varPp >= 0 ? '+' : ''}${fDec(varPp, 1)}pp vs. anterior` : ''}
+            </span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct" style={{ fontSize: 28 }}>{fInt(resgatesTotal!.qtd_resgate_atual)}</span>
+            <span className="skin-summary-label">resgates · {fInt(resgatesTotal!.qtd_boletos_atual)} boletos</span>
+          </div>
+        </div>
+      )}
+
+      {/* Filtro */}
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Tabela por Região */}
+      {regionGroups.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Por Região</h3>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th>Região</th>
+                  <th className="col-num">Lojas</th>
+                  <th className="col-num">% Anterior</th>
+                  <th className="col-num">% Atual</th>
+                  <th className="col-num">Var (pp)</th>
+                  <th className="col-num">Resgates</th>
+                  <th className="col-num">Boletos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {regionGroups.map(g => {
+                  const pp = (g.pct_atual - g.pct_anterior) * 100
+                  const ppColor = pp >= 0 ? '#059669' : '#dc2626'
+                  const atualColor = g.pct_atual >= RESGATE_META ? '#059669' : '#dc2626'
+                  return (
+                    <tr key={g.label.id}>
+                      <td>
+                        <span className="label-chip" style={{ '--chip-color': g.label.color } as React.CSSProperties}>
+                          {g.label.name}
+                        </span>
+                      </td>
+                      <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{g.count}</td>
+                      <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(g.pct_anterior * 100, 1)}%</td>
+                      <td className="col-num" style={{ fontWeight: 700, color: atualColor }}>{fDec(g.pct_atual * 100, 1)}%</td>
+                      <td className="col-num" style={{ fontWeight: 600, color: ppColor }}>{pp >= 0 ? '+' : ''}{fDec(pp, 1)}</td>
+                      <td className="col-num">{fInt(g.totResAtual)}</td>
+                      <td className="col-num">{fInt(g.totBolAtual)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Lojas abaixo da meta */}
+      {belowTarget.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="skin-alert-header">
+            <div>
+              <h3 className="skin-alert-title">Lojas Abaixo de {fDec(RESGATE_META * 100, 0)}%</h3>
+              <p className="dispersao-cons-sub">{belowTarget.length} loja{belowTarget.length !== 1 ? 's' : ''} abaixo da meta · pior primeiro</p>
+            </div>
+            <span className="skin-alert-badge">{belowTarget.length}</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Loja</th>
+                  <th>Região</th>
+                  <th className="col-num">% Anterior</th>
+                  <th className="col-num">% Atual</th>
+                  <th className="col-num">Gap (pp)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {belowTarget.map((r, i) => {
+                  const gap = (RESGATE_META - r.pct_atual) * 100
+                  return (
+                    <tr key={r.pdv}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td><div className="col-pdv-name"><span className="col-pdv">{r.pdv}</span>{r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}</div></td>
+                      <td>
+                        <div className="label-chips-group">
+                          {(r.loja?.labels ?? []).map(lid => {
+                            const lb = labels.find(x => x.id === lid)
+                            return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                          })}
+                        </div>
+                      </td>
+                      <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(r.pct_anterior * 100, 1)}%</td>
+                      <td className="col-num" style={{ fontWeight: 700, color: '#dc2626' }}>{fDec(r.pct_atual * 100, 1)}%</td>
+                      <td className="col-num" style={{ fontWeight: 600, color: '#dc2626' }}>−{fDec(gap, 1)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tabela PDV */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Ranking por Loja</h3>
+          <button className="btn btn-sm btn-ghost" onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')} style={{ fontSize: 12 }}>
+            {sortDir === 'desc' ? '▼ Maior → Menor' : '▲ Menor → Maior'}
+          </button>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">% Anterior</th>
+                <th className="col-num">% Atual</th>
+                <th className="col-num">Var (pp)</th>
+                <th className="col-num">Resgates</th>
+                <th className="col-num">Boletos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {storeRows.map((r, i) => {
+                const pp = (r.pct_atual - r.pct_anterior) * 100
+                const ppColor = pp >= 0 ? '#059669' : '#dc2626'
+                const atualColor = r.pct_atual >= RESGATE_META ? '#059669' : '#dc2626'
+                return (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td className="col-pdv">{r.pdv}</td>
+                    <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(r.loja?.labels ?? []).map(lid => {
+                          const lb = labels.find(x => x.id === lid)
+                          return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                        })}
+                      </div>
+                    </td>
+                    <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(r.pct_anterior * 100, 1)}%</td>
+                    <td className="col-num" style={{ fontWeight: 700, color: atualColor }}>{fDec(r.pct_atual * 100, 1)}%</td>
+                    <td className="col-num" style={{ fontWeight: 600, color: ppColor }}>{pp >= 0 ? '+' : ''}{fDec(pp, 1)}</td>
+                    <td className="col-num">{fInt(r.qtd_resgate_atual)}</td>
+                    <td className="col-num">{fInt(r.qtd_boletos_atual)}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            {resgatesTotal && (
+              <tfoot>
+                <tr className="gap-table-total">
+                  <td colSpan={4} className="gap-total-label">Total</td>
+                  <td className="col-num">{fDec(resgatesTotal.pct_anterior * 100, 1)}%</td>
+                  <td className="col-num" style={{ fontWeight: 700 }}>{fDec(resgatesTotal.pct_atual * 100, 1)}%</td>
+                  <td className="col-num" style={{ fontWeight: 600, color: varColor }}>
+                    {varPp !== null ? (varPp >= 0 ? '+' : '') + fDec(varPp, 1) : '—'}
+                  </td>
+                  <td className="col-num" style={{ fontWeight: 700 }}>{fInt(resgatesTotal.qtd_resgate_atual)}</td>
+                  <td className="col-num">{fInt(resgatesTotal.qtd_boletos_atual)}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+
+      {/* Tabela de Oportunidade por Região */}
+      {opportunityGroups.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Oportunidade por Região</h3>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>consultores abaixo de {fDec(RESGATE_META * 100, 0)}% · maior gap primeiro</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Consultor</th>
+                  <th className="col-pdv">PDV</th>
+                  <th className="col-num">% Atual</th>
+                  <th className="col-num">Gap (pp)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {opportunityGroups.map(g => (
+                  <>
+                    <tr key={`hdr-${g.label.id}`} style={{ background: g.label.color + '18' }}>
+                      <td colSpan={5} style={{ padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span className="label-chip" style={{ '--chip-color': g.label.color } as React.CSSProperties}>
+                          {g.label.name}
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          {g.rows.length} consultor{g.rows.length !== 1 ? 'es' : ''}
+                        </span>
+                        <button
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => exportGroup(g)}
+                          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          Exportar
+                        </button>
+                      </td>
+                    </tr>
+                    {g.rows.map((c, i) => {
+                      const gap = (RESGATE_META - c.pct_atual) * 100
+                      return (
+                        <tr key={c.nome}>
+                          <td className="col-rank">{i + 1}</td>
+                          <td>{c.nome}</td>
+                          <td className="col-pdv">{c.pdv ?? <span className="dash-muted">—</span>}</td>
+                          <td className="col-num" style={{ fontWeight: 700, color: '#dc2626' }}>{fDec(c.pct_atual * 100, 1)}%</td>
+                          <td className="col-num" style={{ fontWeight: 600, color: '#dc2626' }}>−{fDec(gap, 1)}</td>
+                        </tr>
+                      )
+                    })}
+                  </>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+    </div>
+  )
+}
+
+/* ── IAF — Boleto Promocional ───────────────────────── */
+// Meta a definir — altere este valor quando souber o alvo
+const BOLETO_PROMO_META = 0.33
+
+function BoletoPromocionalPage() {
+  const { boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, consultorRows, fluxoConsultorRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
+  const [selectedPdv, setSelectedPdv] = useState<string>('')
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const pickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const storeRows = useMemo(() => {
+    const rows = boletoPromoPdvRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+    const filtered = selectedLabels.length === 0
+      ? rows
+      : rows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+    return [...filtered].sort((a, b) =>
+      sortDir === 'desc' ? b.convertidos_pct - a.convertidos_pct : a.convertidos_pct - b.convertidos_pct
+    )
+  }, [boletoPromoPdvRows, lojaMap, selectedLabels, sortDir])
+
+  const regionGroups = useMemo(() => {
+    if (labels.length === 0) return []
+    const allRows = boletoPromoPdvRows.map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+    return labels
+      .filter(lb => selectedLabels.length === 0 || selectedLabels.includes(lb.id))
+      .map(lb => {
+        const rows = allRows.filter(r => (r.loja?.labels ?? []).includes(lb.id))
+        if (rows.length === 0) return null
+        const totEleg = rows.reduce((s, r) => s + r.elegiveis_qtd, 0)
+        const totConv = rows.reduce((s, r) => s + r.convertidos_qtd, 0)
+        const convertidos_pct = totEleg > 0 ? totConv / totEleg : 0
+        const belowCount = BOLETO_PROMO_META !== null ? rows.filter(r => r.convertidos_pct < BOLETO_PROMO_META!).length : 0
+        return { label: lb, count: rows.length, convertidos_pct, totConv, totEleg, belowCount }
+      })
+      .filter(Boolean)
+      .sort((a, b) => b!.convertidos_pct - a!.convertidos_pct) as
+        { label: typeof labels[0]; count: number; convertidos_pct: number; totConv: number; totEleg: number; belowCount: number }[]
+  }, [labels, boletoPromoPdvRows, lojaMap, selectedLabels])
+
+  const belowTarget = useMemo(() =>
+    BOLETO_PROMO_META !== null
+      ? [...storeRows].filter(r => r.convertidos_pct < BOLETO_PROMO_META!).sort((a, b) => a.convertidos_pct - b.convertidos_pct)
+      : []
+  , [storeRows])
+
+  const consultorPdvMap = useMemo(() => {
+    const map = new Map<string, string>()
+    consultorRows.forEach(r => map.set(r.consultor, r.pdv))
+    fluxoConsultorRows.forEach(r => { if (!map.has(r.consultor)) map.set(r.consultor, r.pdv) })
+    return map
+  }, [consultorRows, fluxoConsultorRows])
+
+  const activePdv = selectedPdv || boletoPromoPdvRows[0]?.pdv || ''
+
+  const consRows = useMemo(() =>
+    boletoPromoConsultorRows
+      .filter(c => (consultorPdvMap.get(c.nome) ?? '') === activePdv)
+      .sort((a, b) => b.convertidos_pct - a.convertidos_pct)
+  , [boletoPromoConsultorRows, consultorPdvMap, activePdv])
+
+  function StoreOptionContent({ pdv, inline }: { pdv: string; inline?: boolean }) {
+    const loja = lojaMap.get(pdv)
+    const lbs  = (loja?.labels ?? []).map(lid => labels.find(l => l.id === lid)).filter(Boolean) as typeof labels
+    return (
+      <span className={`store-option-content${inline ? ' store-option-content--inline' : ''}`}>
+        <span className="store-option-pdv">{pdv}</span>
+        {loja?.apelido && <span className="store-option-apelido">{loja.apelido}</span>}
+        {lbs.map(lb => <span key={lb.id} className="label-chip label-chip--xs" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span>)}
+      </span>
+    )
+  }
+
+  if (boletoPromoPdvRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 15h.01M11 15h2M16 9h.01M7 9h.01"/></svg>
+      <div className="page-empty-title">Boleto Promocional não carregado</div>
+      <div className="page-empty-desc">Importe a planilha para visualizar este relatório</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Boleto Promocional <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  const pctConv = boletoPromoTotal?.convertidos_pct ?? null
+  const isOk = BOLETO_PROMO_META !== null && pctConv !== null && pctConv >= BOLETO_PROMO_META
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Boleto Promocional</h2>
+          <p className="page-subtitle">% Convertidos · {storeRows.length} lojas</p>
+        </div>
+      </div>
+
+      {/* Banner de resumo */}
+      {pctConv !== null && (
+        <div className={`skin-summary-card${BOLETO_PROMO_META !== null ? (isOk ? ' skin-summary-card--ok' : ' skin-summary-card--alert') : ''}`}>
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct">{fDec(pctConv * 100, 1)}%</span>
+            <span className="skin-summary-label">
+              {selectedLabels.length > 0
+                ? `% Convertidos — ${selectedLabels.map(lid => labels.find(l => l.id === lid)?.name ?? '').join(', ')}`
+                : '% Convertidos do grupo'}
+            </span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct" style={{ fontSize: 28 }}>{fDec(boletoPromoTotal!.elegiveis_pct * 100, 1)}%</span>
+            <span className="skin-summary-label">elegíveis · {fInt(boletoPromoTotal!.elegiveis_qtd)} boletos</span>
+          </div>
+          <div className="skin-summary-divider" />
+          <div className="skin-summary-block">
+            <span className="skin-summary-pct" style={{ fontSize: 28 }}>{fInt(boletoPromoTotal!.convertidos_qtd)}</span>
+            <span className="skin-summary-label">convertidos · {fInt(boletoPromoTotal!.total_boletos)} total</span>
+          </div>
+          {BOLETO_PROMO_META !== null && (
+            <>
+              <div className="skin-summary-divider" />
+              <div className="skin-summary-block">
+                <span className="skin-summary-pct skin-summary-pct--target">{fDec(BOLETO_PROMO_META * 100, 0)}%</span>
+                <span className="skin-summary-label">meta</span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Filtro */}
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Por Região */}
+      {regionGroups.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="fluxo-card-header">
+            <h3 className="fluxo-card-title">Por Região</h3>
+            <span className="dispersao-cons-sub">% Convertidos · elegíveis / total</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th>Região</th>
+                  <th className="col-num">Lojas</th>
+                  <th className="col-num">Elegíveis</th>
+                  <th className="col-num">% Convertidos</th>
+                  <th className="col-num">Convertidos</th>
+                  {BOLETO_PROMO_META !== null && <th className="col-num">Abaixo da meta</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {regionGroups.map(g => {
+                  const color = BOLETO_PROMO_META !== null
+                    ? (g.convertidos_pct >= BOLETO_PROMO_META ? '#059669' : '#dc2626')
+                    : 'var(--text-primary)'
+                  return (
+                    <tr key={g.label.id}>
+                      <td><span className="label-chip" style={{ '--chip-color': g.label.color } as React.CSSProperties}>{g.label.name}</span></td>
+                      <td className="col-num">{g.count}</td>
+                      <td className="col-num">{fInt(g.totEleg)}</td>
+                      <td className="col-num" style={{ fontWeight: 700, color }}>{fDec(g.convertidos_pct * 100, 1)}%</td>
+                      <td className="col-num">{fInt(g.totConv)}</td>
+                      {BOLETO_PROMO_META !== null && (
+                        <td className="col-num" style={{ color: g.belowCount > 0 ? '#dc2626' : '#059669', fontWeight: 600 }}>{g.belowCount}</td>
+                      )}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Lojas abaixo da meta */}
+      {belowTarget.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div className="skin-alert-header">
+            <div>
+              <h3 className="skin-alert-title">Lojas Abaixo de {fDec(BOLETO_PROMO_META! * 100, 0)}%</h3>
+              <p className="dispersao-cons-sub">{belowTarget.length} loja{belowTarget.length !== 1 ? 's' : ''} abaixo da meta · pior primeiro</p>
+            </div>
+            <span className="skin-alert-badge">{belowTarget.length}</span>
+          </div>
+          <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+            <table className="dash-table">
+              <thead>
+                <tr>
+                  <th className="col-rank">#</th>
+                  <th>Loja</th>
+                  <th>Região</th>
+                  <th className="col-num">Elegíveis</th>
+                  <th className="col-num">% Convertidos</th>
+                  <th className="col-num">Gap (pp)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {belowTarget.map((r, i) => (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td><div className="col-pdv-name"><span className="col-pdv">{r.pdv}</span>{r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}</div></td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(r.loja?.labels ?? []).map(lid => { const lb = labels.find(x => x.id === lid); return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null })}
+                      </div>
+                    </td>
+                    <td className="col-num">{fInt(r.elegiveis_qtd)}</td>
+                    <td className="col-num" style={{ fontWeight: 700, color: '#dc2626' }}>{fDec(r.convertidos_pct * 100, 1)}%</td>
+                    <td className="col-num" style={{ fontWeight: 600, color: '#dc2626' }}>−{fDec((BOLETO_PROMO_META! - r.convertidos_pct) * 100, 1)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Ranking por Loja */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Ranking por Loja</h3>
+          <button className="btn btn-sm btn-ghost" onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')} style={{ fontSize: 12 }}>
+            {sortDir === 'desc' ? '▼ Maior → Menor' : '▲ Menor → Maior'}
+          </button>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Total</th>
+                <th className="col-num">Elegíveis</th>
+                <th className="col-num">% Eleg.</th>
+                <th className="col-num">Convertidos</th>
+                <th className="col-num">% Conv.</th>
+                <th className="col-num">Oficiais</th>
+                <th className="col-num">% Of.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {storeRows.map((r, i) => {
+                const convColor = BOLETO_PROMO_META !== null
+                  ? (r.convertidos_pct >= BOLETO_PROMO_META ? '#059669' : '#dc2626')
+                  : 'var(--text-primary)'
+                return (
+                  <tr key={r.pdv}>
+                    <td className="col-rank">{i + 1}</td>
+                    <td className="col-pdv">{r.pdv}</td>
+                    <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(r.loja?.labels ?? []).map(lid => { const lb = labels.find(x => x.id === lid); return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null })}
+                      </div>
+                    </td>
+                    <td className="col-num">{fInt(r.total_boletos)}</td>
+                    <td className="col-num">{fInt(r.elegiveis_qtd)}</td>
+                    <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(r.elegiveis_pct * 100, 1)}%</td>
+                    <td className="col-num">{fInt(r.convertidos_qtd)}</td>
+                    <td className="col-num" style={{ fontWeight: 700, color: convColor }}>{fDec(r.convertidos_pct * 100, 1)}%</td>
+                    <td className="col-num">{fInt(r.oficiais_qtd)}</td>
+                    <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(r.oficiais_pct * 100, 1)}%</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            {boletoPromoTotal && (
+              <tfoot>
+                <tr className="gap-table-total">
+                  <td colSpan={4} className="gap-total-label">Total</td>
+                  <td className="col-num">{fInt(boletoPromoTotal.total_boletos)}</td>
+                  <td className="col-num">{fInt(boletoPromoTotal.elegiveis_qtd)}</td>
+                  <td className="col-num">{fDec(boletoPromoTotal.elegiveis_pct * 100, 1)}%</td>
+                  <td className="col-num">{fInt(boletoPromoTotal.convertidos_qtd)}</td>
+                  <td className="col-num" style={{ fontWeight: 700 }}>{fDec(boletoPromoTotal.convertidos_pct * 100, 1)}%</td>
+                  <td className="col-num">{fInt(boletoPromoTotal.oficiais_qtd)}</td>
+                  <td className="col-num">{fDec(boletoPromoTotal.oficiais_pct * 100, 1)}%</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+
+      {/* Consultores por Loja */}
+      {boletoPromoConsultorRows.length > 0 && (
+        <div className="card" style={{ padding: 0 }}>
+          <div className="fluxo-card-header" style={{ alignItems: 'flex-start', gap: 8 }}>
+            <h3 className="fluxo-card-title">Consultores por Loja</h3>
+            <div className="store-picker" ref={pickerRef}>
+              <button className="store-picker-btn" onClick={() => setPickerOpen(p => !p)}>
+                <StoreOptionContent pdv={activePdv} inline />
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              {pickerOpen && (
+                <div className="store-picker-dropdown">
+                  {boletoPromoPdvRows.map(r => (
+                    <button key={r.pdv} className={`store-picker-option${r.pdv === activePdv ? ' selected' : ''}`}
+                      onClick={() => { setSelectedPdv(r.pdv); setPickerOpen(false) }}>
+                      <StoreOptionContent pdv={r.pdv} />
+                      {r.pdv === activePdv && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand-primary)" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{ overflow: 'hidden', borderRadius: '0 0 16px 16px' }}>
+            {consRows.length === 0 ? (
+              <div style={{ padding: '24px', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum consultor encontrado para esta loja.</div>
+            ) : (
+              <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+                <table className="dash-table">
+                  <thead>
+                    <tr>
+                      <th className="col-rank">#</th>
+                      <th>Consultor</th>
+                      <th className="col-num">Total</th>
+                      <th className="col-num">Elegíveis</th>
+                      <th className="col-num">% Eleg.</th>
+                      <th className="col-num">Convertidos</th>
+                      <th className="col-num">% Conv.</th>
+                      <th className="col-num">% Of.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {consRows.map((c, i) => {
+                      const convColor = c.convertidos_pct >= BOLETO_PROMO_META ? '#059669' : '#dc2626'
+                      return (
+                        <tr key={c.nome}>
+                          <td className="col-rank">{i + 1}</td>
+                          <td className="col-consultor">{c.nome}</td>
+                          <td className="col-num">{fInt(c.total_boletos)}</td>
+                          <td className="col-num">{fInt(c.elegiveis_qtd)}</td>
+                          <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(c.elegiveis_pct * 100, 1)}%</td>
+                          <td className="col-num">{fInt(c.convertidos_qtd)}</td>
+                          <td className="col-num" style={{ fontWeight: 700, color: convColor }}>{fDec(c.convertidos_pct * 100, 1)}%</td>
+                          <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{fDec(c.oficiais_pct * 100, 1)}%</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ── Meta do Dia ────────────────────────────────────── */
+function MetaDiaPage() {
+  const { metaDiaRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const pdvLabel = usePdvLabel()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+
+  const [metasMensais] = useState<Record<string, { meta: number; crescimento: number }>>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-metas-mensais') ?? '{}') } catch { return {} }
+  })
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  if (metaDiaRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <div className="page-empty-title">Planilha de Meta do Dia não carregada</div>
+      <div className="page-empty-desc">Importe a planilha com as vendas do mesmo dia da semana no ano passado. A meta de cada loja será calculada automaticamente.</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Meta do dia <span className="import-format-badge format-xlsx">XLSX</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  const allRows = metaDiaRows.map(r => {
+    const m = metasMensais[r.pdv]
+    const crescimento = m?.crescimento ?? null
+    const meta_dia = crescimento !== null ? r.venda_ly * (1 + crescimento / 100) : null
+    return {
+      pdv: r.pdv,
+      loja: lojaMap.get(r.pdv),
+      venda_ly: r.venda_ly,
+      crescimento,
+      meta_dia,
+      semMeta: crescimento === null,
+    }
+  }).sort((a, b) => (b.meta_dia ?? 0) - (a.meta_dia ?? 0))
+
+  const rows = selectedLabels.length === 0
+    ? allRows
+    : allRows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+
+  const totalLY  = rows.reduce((s, r) => s + r.venda_ly, 0)
+  const totalMeta = rows.filter(r => r.meta_dia !== null).reduce((s, r) => s + r.meta_dia!, 0)
+  const semMeta  = rows.filter(r => r.semMeta).length
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Meta do Dia</h2>
+          <p className="page-subtitle">{rows.length} loja{rows.length !== 1 ? 's' : ''}{selectedLabels.length > 0 ? ' · filtrado por região' : ' · baseado nas vendas do mesmo dia da semana no ano passado'}</p>
+        </div>
+      </div>
+
+      <div className="region-filter-bar">
+        <button
+          className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`}
+          onClick={() => setSelectedLabels([])}
+        >Todas</button>
+        {labels.map(lb => (
+          <button
+            key={lb.id}
+            className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+            style={selectedLabels.includes(lb.id) ? { '--chip-color': lb.color, background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+            onClick={() => setSelectedLabels(prev =>
+              prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id]
+            )}
+          >{lb.name}</button>
+        ))}
+      </div>
+
+      {semMeta > 0 && (
+        <div className="missing-files-banner" style={{ marginBottom: 16 }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span>{semMeta} loja{semMeta !== 1 ? 's' : ''} sem crescimento configurado — acesse <strong>Metas do Mês</strong> para definir.</span>
+        </div>
+      )}
+
+      <div className="kpi-row">
+        <div className="kpi-card">
+          <div className="kpi-label">Meta Total do Dia</div>
+          <div className="kpi-value">{totalMeta > 0 ? fBRLR(totalMeta) : '—'}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">Base Ano Passado</div>
+          <div className="kpi-value">{fBRLR(totalLY)}</div>
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Venda LY</th>
+                <th className="col-num">Crescimento</th>
+                <th className="col-num">Meta do Dia</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={r.pdv}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td className="col-pdv">{pdvLabel(r.pdv)}</td>
+                  <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                  <td>
+                    <div className="label-chips-group">
+                      {(r.loja?.labels ?? []).map(lid => {
+                        const lb = labels.find(x => x.id === lid)
+                        return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                      })}
+                    </div>
+                  </td>
+                  <td className="col-num col-muted-val">{fBRLR(r.venda_ly)}</td>
+                  <td className="col-num" style={{ color: '#7c3aed', fontWeight: 600 }}>
+                    {r.crescimento !== null ? `+${fDec(r.crescimento, 1)}%` : <span className="dash-muted">—</span>}
+                  </td>
+                  <td className="col-num" style={{ fontWeight: 700, color: r.meta_dia !== null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                    {r.meta_dia !== null ? fBRLR(r.meta_dia) : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="gap-table-total">
+                <td colSpan={4} className="gap-total-label" style={{ textAlign: 'left', paddingLeft: 12 }}>Total</td>
+                <td className="col-num col-muted-val">{fBRLR(totalLY)}</td>
+                <td className="col-num" />
+                <td className="col-num" style={{ fontWeight: 700 }}>{totalMeta > 0 ? fBRLR(totalMeta) : '—'}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Parcial do Dia ─────────────────────────────────── */
+type Expediente = { open: number; close: number }
+
+function ExpedienteModal({ value, onChange, onClose }: { value: Expediente; onChange: (v: Expediente) => void; onClose: () => void }) {
+  const [open, setOpen] = useState(String(value.open))
+  const [close, setClose] = useState(String(value.close))
+  const save = () => {
+    const o = Math.max(0, Math.min(23, parseInt(open) || 10))
+    const c = Math.max(o + 1, Math.min(24, parseInt(close) || 22))
+    onChange({ open: o, close: c })
+    onClose()
+  }
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal--sm" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">Horário de Expediente</span>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '20px 24px 24px' }}>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+            Define o horário de funcionamento das lojas para calcular o pace esperado do dia.
+          </p>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+            <label style={{ fontSize: 13, fontWeight: 500, minWidth: 60 }}>Abertura</label>
+            <input
+              type="number" min={0} max={23} value={open}
+              onChange={e => setOpen(e.target.value)}
+              style={{ width: 64, padding: '6px 10px', border: '1px solid var(--bg-border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: 14, textAlign: 'center' }}
+            />
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>h</span>
+            <label style={{ fontSize: 13, fontWeight: 500, minWidth: 60 }}>Fechamento</label>
+            <input
+              type="number" min={1} max={24} value={close}
+              onChange={e => setClose(e.target.value)}
+              style={{ width: 64, padding: '6px 10px', border: '1px solid var(--bg-border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: 14, textAlign: 'center' }}
+            />
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>h</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--bg-border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13 }}>Cancelar</button>
+            <button onClick={save} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--brand-primary)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Salvar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ParcialDiaPage() {
+  const { parcialRows, metaDiaRows, parcialSkinRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const pdvLabel = usePdvLabel()
+
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [showExpConfig, setShowExpConfig] = useState(false)
+  const [now, setNow] = useState(new Date())
+  const [copiedSkin, setCopiedSkin] = useState(false)
+  const [expediente, setExpediente] = useState<Expediente>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-expediente') ?? 'null') ?? { open: 10, close: 22 } }
+    catch { return { open: 10, close: 22 } }
+  })
+
+  const [metasMensais] = useState<Record<string, { meta: number; crescimento: number }>>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-metas-mensais') ?? '{}') } catch { return {} }
+  })
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    try { localStorage.setItem('prisma-prefs-expediente', JSON.stringify(expediente)) } catch {}
+  }, [expediente])
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const paceExpected = useMemo(() => {
+    const { open, close } = expediente
+    const total = close - open
+    if (total <= 0) return 0
+    const cur = now.getHours() + now.getMinutes() / 60
+    return Math.max(0, Math.min(1, (cur - open) / total))
+  }, [now, expediente])
+
+  const metaDiaMap = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const r of metaDiaRows) {
+      const m = metasMensais[r.pdv]
+      if (m?.crescimento != null) map.set(r.pdv, r.venda_ly * (1 + m.crescimento / 100))
+    }
+    return map
+  }, [metaDiaRows, metasMensais])
+
+  const parcialMap = useMemo(() => new Map(parcialRows.map(r => [r.pdv, r])), [parcialRows])
+
+  const allRows = useMemo(() => {
+    const pdvs = new Set([...parcialMap.keys(), ...metaDiaMap.keys()])
+    return Array.from(pdvs).map(pdv => {
+      const loja = lojaMap.get(pdv)
+      const venda_parcial = parcialMap.get(pdv)?.venda_parcial ?? 0
+      const meta_dia = metaDiaMap.get(pdv) ?? null
+      const pctAtingido = meta_dia && meta_dia > 0 ? venda_parcial / meta_dia : null
+      const paceRatio = paceExpected > 0 && pctAtingido !== null ? pctAtingido / paceExpected : null
+      const projecao = paceExpected > 0 ? venda_parcial / paceExpected : null
+      const falta = meta_dia !== null ? Math.max(0, meta_dia - venda_parcial) : null
+      const status: 'ok' | 'warn' | 'danger' | 'neutral' =
+        paceRatio === null ? 'neutral' :
+        paceRatio >= 0.9 ? 'ok' :
+        paceRatio >= 0.7 ? 'warn' : 'danger'
+      return { pdv, loja, venda_parcial, meta_dia, pctAtingido, paceRatio, projecao, falta, status }
+    }).sort((a, b) => {
+      if (a.paceRatio === null && b.paceRatio === null) return 0
+      if (a.paceRatio === null) return 1
+      if (b.paceRatio === null) return -1
+      return a.paceRatio - b.paceRatio
+    })
+  }, [parcialMap, metaDiaMap, lojaMap, paceExpected])
+
+  const rows = selectedLabels.length === 0
+    ? allRows
+    : allRows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+
+  const totalParcial = rows.reduce((s, r) => s + r.venda_parcial, 0)
+  const totalMeta = rows.filter(r => r.meta_dia !== null).reduce((s, r) => s + r.meta_dia!, 0)
+  const pctGlobal = totalMeta > 0 ? totalParcial / totalMeta : null
+  const noRitmo = rows.filter(r => r.status === 'ok').length
+  const emRisco = rows.filter(r => r.status === 'danger').length
+
+  const totalQB = rows.reduce((s, r) => s + (parcialMap.get(r.pdv)?.qb_atual ?? 0), 0)
+  const totalBM = totalQB > 0 ? totalParcial / totalQB : 0
+  const totalIV = totalQB > 0
+    ? rows.reduce((s, r) => {
+        const pr = parcialMap.get(r.pdv)
+        return s + (pr?.iv_atual ?? 0) * (pr?.qb_atual ?? 0)
+      }, 0) / totalQB
+    : 0
+
+  const statusColor = (s: string) => s === 'ok' ? '#059669' : s === 'warn' ? '#d97706' : s === 'danger' ? '#dc2626' : 'var(--text-muted)'
+
+  if (parcialRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <div className="page-empty-title">Parcial do Dia não carregado</div>
+      <div className="page-empty-desc">Importe a planilha com as vendas parciais do dia. Atualize a cada hora para acompanhar o progresso em tempo real.</div>
+      <div className="page-empty-chips">
+        <span className="missing-file-chip">Parcial do dia <span className="import-format-badge format-csv">CSV</span></span>
+      </div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Parcial do Dia</h2>
+          <p className="page-subtitle">
+            {now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · expediente {expediente.open}h–{expediente.close}h · pace esperado {fInt(paceExpected * 100)}%{selectedLabels.length > 0 ? ' · filtrado por região' : ''}
+          </p>
+        </div>
+        <button
+          onClick={() => setShowExpConfig(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: '1px solid var(--bg-border)', background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+          Expediente
+        </button>
+      </div>
+
+      <div className="region-filter-bar">
+        <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+        {labels.map(lb => (
+          <button
+            key={lb.id}
+            className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+            style={selectedLabels.includes(lb.id) ? { '--chip-color': lb.color, background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+            onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+          >{lb.name}</button>
+        ))}
+      </div>
+
+      <div className="kpi-row">
+        <div className="kpi-card parcial-hero-card">
+          <div className="parcial-hero-group">
+            {selectedLabels.length === 1
+              ? (labels.find(l => l.id === selectedLabels[0])?.name ?? 'Grupo')
+              : selectedLabels.length > 1
+              ? selectedLabels.map(id => labels.find(l => l.id === id)?.name).filter(Boolean).join(' · ')
+              : 'GRUPO LOVATTO'}
+          </div>
+          <div className="parcial-hero-pct" style={{ color: pctGlobal !== null ? statusColor(pctGlobal >= paceExpected * 0.9 ? 'ok' : pctGlobal >= paceExpected * 0.7 ? 'warn' : 'danger') : 'var(--text-primary)' }}>
+            {pctGlobal !== null ? `${fDec(pctGlobal * 100, 1)}%` : '—'}
+          </div>
+          <div className="parcial-hero-valores">
+            {fBRL2(totalParcial)} / {fBRL2(totalMeta || 0)}
+          </div>
+          <div className="parcial-hero-falta">
+            {totalMeta > totalParcial ? `Falta ${fBRL2(totalMeta - totalParcial)}` : <span style={{ color: '#059669' }}>Meta atingida ✓</span>}
+          </div>
+          {totalQB > 0 && (
+            <div className="parcial-hero-kpis">
+              BM: {fBRL2(totalBM)} · IV: {fDec(totalIV, 2)}
+            </div>
+          )}
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">% Atingido</div>
+          <div className="kpi-value" style={{ color: pctGlobal !== null ? statusColor(pctGlobal >= paceExpected * 0.9 ? 'ok' : pctGlobal >= paceExpected * 0.7 ? 'warn' : 'danger') : 'var(--text-primary)' }}>
+            {pctGlobal !== null ? `${fInt(pctGlobal * 100)}%` : '—'}
+          </div>
+          {paceExpected > 0 && <div className="kpi-var">esperado {fInt(paceExpected * 100)}%</div>}
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">No ritmo</div>
+          <div className="kpi-value" style={{ color: noRitmo > 0 ? '#059669' : 'var(--text-primary)' }}>
+            {noRitmo}<span style={{ fontSize: 15, color: 'var(--text-muted)', fontWeight: 400 }}>/{rows.filter(r => r.meta_dia !== null).length}</span>
+          </div>
+          {emRisco > 0 && <div className="kpi-var" style={{ color: '#dc2626' }}>{emRisco} em risco</div>}
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-rank">#</th>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Meta</th>
+                <th className="col-num">Parcial</th>
+                <th style={{ minWidth: 100 }}>Progresso</th>
+                <th className="col-num">Ating. / Esp.</th>
+                <th className="col-num">Falta</th>
+                <th className="col-num">Projeção</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={r.pdv}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td className="col-pdv">{pdvLabel(r.pdv)}</td>
+                  <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                  <td>
+                    <div className="label-chips-group">
+                      {(r.loja?.labels ?? []).map(lid => {
+                        const lb = labels.find(x => x.id === lid)
+                        return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                      })}
+                    </div>
+                  </td>
+                  <td className="col-num col-muted-val">{r.meta_dia !== null ? fBRLR(r.meta_dia) : <span className="dash-muted">—</span>}</td>
+                  <td className="col-num" style={{ fontWeight: 600 }}>{fBRLR(r.venda_parcial)}</td>
+                  <td>
+                    <div className="pace-bar-wrap">
+                      <div className="pace-bar-track">
+                        <div className="pace-bar-fill" style={{ width: `${Math.min(100, (r.pctAtingido ?? 0) * 100)}%`, background: statusColor(r.status) }} />
+                        {paceExpected > 0 && <div className="pace-bar-expected" style={{ left: `${Math.min(100, paceExpected * 100)}%` }} />}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="col-num" style={{ whiteSpace: 'nowrap' }}>
+                    <span style={{ fontWeight: 700, color: statusColor(r.status) }}>
+                      {r.pctAtingido !== null ? `${fDec(r.pctAtingido * 100, 1)}%` : '—'}
+                    </span>
+                    {paceExpected > 0 && (
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
+                        {' / '}{fInt(paceExpected * 100)}%
+                      </span>
+                    )}
+                  </td>
+                  <td className="col-num" style={{ color: r.falta ? '#dc2626' : 'var(--text-muted)' }}>
+                    {r.falta !== null ? (r.falta > 0 ? fBRLR(r.falta) : <span style={{ color: '#059669' }}>✓</span>) : <span className="dash-muted">—</span>}
+                  </td>
+                  <td className="col-num" style={{ fontWeight: 600, color: r.projecao && r.meta_dia && r.projecao >= r.meta_dia ? '#059669' : 'var(--text-primary)' }}>
+                    {r.projecao !== null && r.venda_parcial > 0 ? fBRLR(r.projecao) : <span className="dash-muted">—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="gap-table-total">
+                <td colSpan={4} className="gap-total-label" style={{ textAlign: 'left', paddingLeft: 12 }}>Total</td>
+                <td className="col-num col-muted-val">{totalMeta > 0 ? fBRLR(totalMeta) : '—'}</td>
+                <td className="col-num" style={{ fontWeight: 700 }}>{fBRLR(totalParcial)}</td>
+                <td />
+                <td className="col-num" style={{ fontWeight: 700, color: statusColor(pctGlobal !== null ? (pctGlobal >= paceExpected * 0.9 ? 'ok' : pctGlobal >= paceExpected * 0.7 ? 'warn' : 'danger') : 'neutral') }}>
+                  {pctGlobal !== null ? `${fInt(pctGlobal * 100)}%` : '—'}
+                </td>
+                <td className="col-num" style={{ color: '#dc2626', fontWeight: 700 }}>
+                  {totalMeta > totalParcial ? fBRLR(totalMeta - totalParcial) : <span style={{ color: '#059669' }}>✓</span>}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {parcialSkinRows.length > 0 && (() => {
+        const META_SKIN = 0.06
+        const skinFiltered = parcialSkinRows
+          .map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
+          .filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+          .sort((a, b) => b.share - a.share)
+
+        const totalSkinReceita = skinFiltered.reduce((s, r) => s + r.receita, 0)
+        const totalGMVFiltrado = rows.reduce((s, r) => s + r.venda_parcial, 0)
+        const shareGrupo = totalGMVFiltrado > 0 ? totalSkinReceita / totalGMVFiltrado : null
+
+        // Resumo por label (sempre todos os labels, independente do filtro)
+        const labelSkinSummary = labels.map(lb => {
+          const lbSkin = parcialSkinRows.filter(r => (lojaMap.get(r.pdv)?.labels ?? []).includes(lb.id))
+          const lbGMV  = allRows.filter(r => (r.loja?.labels ?? []).includes(lb.id))
+          const skinRec = lbSkin.reduce((s, r) => s + r.receita, 0)
+          const gmv     = lbGMV.reduce((s, r) => s + r.venda_parcial, 0)
+          const share   = gmv > 0 ? skinRec / gmv : null
+          return { lb, share }
+        }).filter(x => x.share !== null)
+        const grupoLabel = selectedLabels.length === 1
+          ? (labels.find(l => l.id === selectedLabels[0])?.name ?? 'Grupo')
+          : selectedLabels.length > 1
+          ? selectedLabels.map(id => labels.find(l => l.id === id)?.name).filter(Boolean).join(' · ')
+          : 'GRUPO LOVATTO'
+
+        return (
+          <div style={{ marginTop: 32 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
+              <h3 className="page-section-title">
+                Parcial Skin <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>meta: 6%</span>
+              </h3>
+              {shareGrupo !== null && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 10, padding: '8px 14px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.07em', textTransform: 'uppercase', color: 'var(--brand-primary)' }}>{grupoLabel}</span>
+                  <span style={{ fontSize: 18, fontWeight: 800, color: shareGrupo >= META_SKIN ? '#059669' : '#dc2626' }}>
+                    {fDec(shareGrupo * 100, 1)}%
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 6%</span>
+                </div>
+              )}
+            </div>
+
+            <div className="region-filter-bar" style={{ marginBottom: 16 }}>
+              <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+              {labels.map(lb => (
+                <button
+                  key={lb.id}
+                  className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+                  style={selectedLabels.includes(lb.id) ? { '--chip-color': lb.color, background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+                  onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+                >{lb.name}</button>
+              ))}
+            </div>
+            {labelSkinSummary.length > 0 && (
+              <div className="card" style={{ padding: '14px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                {labelSkinSummary.map(({ lb, share }) => (
+                  <div key={lb.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: lb.color, background: lb.color + '22', border: `1px solid ${lb.color}55`, borderRadius: 20, padding: '2px 8px' }}>{lb.name}</span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: share! >= META_SKIN ? '#059669' : '#dc2626' }}>{fDec(share! * 100, 1)}%</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 6%</span>
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    const hoje = new Date().toLocaleDateString('pt-BR')
+                    const lines = [`📊 *Parcial Skin — ${hoje}*`, `Meta: 6%`, '']
+                    labelSkinSummary.forEach(({ lb, share }) => {
+                      const ok = share! >= META_SKIN
+                      lines.push(`${ok ? '✅' : '❌'} *${lb.name}:* ${fDec(share! * 100, 1)}%`)
+                    })
+                    if (shareGrupo !== null) {
+                      lines.push('')
+                      lines.push(`📦 *Grupo:* ${fDec(shareGrupo * 100, 1)}%`)
+                    }
+                    navigator.clipboard.writeText(lines.join('\n'))
+                    setCopiedSkin(true)
+                    setTimeout(() => setCopiedSkin(false), 2500)
+                  }}
+                  style={{
+                    marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '5px 12px', borderRadius: 6, border: '1px solid var(--bg-border)',
+                    background: copiedSkin ? '#f0fdf4' : 'var(--bg-surface)',
+                    color: copiedSkin ? '#16a34a' : 'var(--text-secondary)',
+                    fontSize: 12, fontWeight: 500, cursor: 'pointer', transition: 'all .2s',
+                  }}
+                >
+                  {copiedSkin
+                    ? <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> Copiado!</>
+                    : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copiar para WhatsApp</>
+                  }
+                </button>
+              </div>
+            )}
+
+            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+              <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+                <table className="dash-table">
+                  <thead>
+                    <tr>
+                      <th className="col-rank">#</th>
+                      <th className="col-pdv">PDV</th>
+                      <th>Loja</th>
+                      <th>Região</th>
+                      <th className="col-num">Share Skin</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {skinFiltered.map((r, i) => {
+                      const ok = r.share >= META_SKIN
+                      return (
+                        <tr key={r.pdv}>
+                          <td className="col-rank">{i + 1}</td>
+                          <td className="col-pdv">{pdvLabel(r.pdv)}</td>
+                          <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
+                          <td>
+                            <div className="label-chips-group">
+                              {(r.loja?.labels ?? []).map(lid => {
+                                const lb = labels.find(x => x.id === lid)
+                                return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                              })}
+                            </div>
+                          </td>
+                          <td className="col-num" style={{ fontWeight: 700, color: ok ? '#059669' : '#dc2626' }}>
+                            {fDec(r.share * 100, 1)}%
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {showExpConfig && (
+        <ExpedienteModal
+          value={expediente}
+          onChange={v => setExpediente(v)}
+          onClose={() => setShowExpConfig(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ── Metas do Mês ───────────────────────────────────── */
+type MetaMensal = { meta: number; crescimento: number }
+
+function MetasMesPage() {
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const [metas, setMetas] = useState<Record<string, MetaMensal>>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-metas-mensais') ?? '{}') } catch { return {} }
+  })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editMeta, setEditMeta] = useState('')
+  const [editCrescimento, setEditCrescimento] = useState('')
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+
+  function startEdit(id: string) {
+    const m = metas[id]
+    setEditingId(id)
+    setEditMeta(m ? String(m.meta) : '')
+    setEditCrescimento(m ? String(m.crescimento) : '')
+  }
+
+  function save(id: string) {
+    const meta = parseFloat(editMeta.replace(',', '.'))
+    const crescimento = parseFloat(editCrescimento.replace(',', '.').replace('%', ''))
+    if (!isNaN(meta) && meta > 0 && !isNaN(crescimento) && crescimento >= 0) {
+      const next = { ...metas, [id]: { meta, crescimento } }
+      setMetas(next)
+      localStorage.setItem('prisma-prefs-metas-mensais', JSON.stringify(next))
+    }
+    setEditingId(null)
+  }
+
+  function clear(id: string) {
+    const next = { ...metas }
+    delete next[id]
+    setMetas(next)
+    localStorage.setItem('prisma-prefs-metas-mensais', JSON.stringify(next))
+  }
+
+  const filteredLojas = selectedLabels.length === 0
+    ? lojas
+    : lojas.filter(l => selectedLabels.some(lid => (l.labels ?? []).includes(lid)))
+
+  const totalMeta = filteredLojas.reduce((s, l) => s + (metas[l.id]?.meta ?? 0), 0)
+  const lojasComMeta = filteredLojas.filter(l => metas[l.id] != null).length
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Metas do Mês</h2>
+          <p className="page-subtitle">Configure a meta mensal e o crescimento por loja — atualizado 1× por mês</p>
+        </div>
+      </div>
+
+      <div className="kpi-row">
+        <div className="kpi-card">
+          <div className="kpi-label">Total Meta Mensal</div>
+          <div className="kpi-value">{totalMeta > 0 ? fBRLR(totalMeta) : '—'}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">Lojas configuradas</div>
+          <div className="kpi-value">{lojasComMeta}<span style={{ fontSize: 16, color: 'var(--text-muted)', fontWeight: 400 }}>/{filteredLojas.length}</span></div>
+        </div>
+      </div>
+
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="fluxo-card-header">
+          <h3 className="fluxo-card-title">Configuração por Loja</h3>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Clique no lápis para editar</span>
+        </div>
+        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th className="col-pdv">PDV</th>
+                <th>Loja</th>
+                <th>Região</th>
+                <th className="col-num">Meta do Mês (R$)</th>
+                <th className="col-num">Crescimento (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredLojas.map(l => {
+                const m = metas[l.id]
+                const isEditing = editingId === l.id
+                return (
+                  <tr key={l.id}>
+                    <td className="col-pdv">{l.id}</td>
+                    <td>{l.apelido || <span className="dash-muted">—</span>}</td>
+                    <td>
+                      <div className="label-chips-group">
+                        {(l.labels ?? []).map(lid => {
+                          const lb = labels.find(x => x.id === lid)
+                          return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                        })}
+                      </div>
+                    </td>
+                    {isEditing ? (
+                      <>
+                        <td className="col-num">
+                          <input
+                            autoFocus
+                            type="number"
+                            className="lojas-input"
+                            style={{ width: 120, fontSize: 13, padding: '2px 4px' }}
+                            value={editMeta}
+                            onChange={e => setEditMeta(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') save(l.id); if (e.key === 'Escape') setEditingId(null) }}
+                            placeholder="Ex: 110000"
+                          />
+                        </td>
+                        <td className="col-num">
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'flex-end' }}>
+                            <input
+                              type="number"
+                              className="lojas-input"
+                              style={{ width: 70, fontSize: 13, padding: '2px 4px' }}
+                              value={editCrescimento}
+                              onChange={e => setEditCrescimento(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') save(l.id); if (e.key === 'Escape') setEditingId(null) }}
+                              placeholder="Ex: 10"
+                            />
+                            <button className="lojas-btn-save" style={{ padding: '2px 6px', fontSize: 12 }} onClick={() => save(l.id)}>✓</button>
+                            <button className="lojas-btn-cancel" style={{ padding: '2px 6px', fontSize: 12 }} onClick={() => setEditingId(null)}>✕</button>
+                          </div>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="col-num" style={{ fontWeight: m ? 600 : 400 }}>
+                          {m ? fBRLR(m.meta) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                        </td>
+                        <td className="col-num">
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                            {m
+                              ? <span style={{ fontWeight: 600, color: '#7c3aed' }}>{fDec(m.crescimento, 1)}%</span>
+                              : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                            <button
+                              onClick={() => startEdit(l.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, lineHeight: 1, opacity: 0.7 }}
+                              title="Editar"
+                            >
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            {m && (
+                              <button
+                                onClick={() => clear(l.id)}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, lineHeight: 1, opacity: 0.5 }}
+                                title="Remover"
+                              >
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                )
+              })}
+              {filteredLojas.length === 0 && (
+                <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
+                  {lojas.length === 0 ? 'Nenhuma loja cadastrada. Importe as lojas primeiro.' : 'Nenhuma loja nessa região.'}
+                </td></tr>
+              )}
+            </tbody>
+            {lojasComMeta > 0 && (
+              <tfoot>
+                <tr className="gap-table-total">
+                  <td colSpan={3} className="gap-total-label">Total</td>
+                  <td className="col-num" style={{ fontWeight: 700 }}>{fBRLR(totalMeta)}</td>
+                  <td />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Placeholder page ───────────────────────────────── */
 function WipPage({ title, requires }: { title: string; requires?: string[] }) {
   const { statuses, openImport } = useFileStatus()
@@ -4238,9 +6799,11 @@ function WipPage({ title, requires }: { title: string; requires?: string[] }) {
 
   return (
     <div className="placeholder-page">
-      <div className="page-header">
-        <div className="page-title">{title}</div>
-        <div className="page-subtitle">Em construção</div>
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">{title}</h2>
+          <p className="page-subtitle">Em construção</p>
+        </div>
       </div>
       <div className="wip-banner">
         <span style={{ fontSize: 20 }}>🏗️</span>
@@ -4271,6 +6834,7 @@ function Sidebar() {
         <nav className="nav-sections">
           <div className="nav-group">
             <div className="nav-group-title">Gestão Instantânea</div>
+            <SideItem to="/app/metas-mes"     icon={IC.sliders}  label="Metas do Mês" />
             <SideItem to="/app/meta"          icon={IC.target}   label="Meta do Dia" />
             <SideItem to="/app/parcial"       icon={IC.clock}    label="Parcial do Dia"  requires={['parcial']} />
             <SideItem to="/app/dia-anterior"  icon={IC.calendar} label="Dia Anterior"    requires={['dia-ant','meta-diaant']} />
@@ -4280,18 +6844,21 @@ function Sidebar() {
             <SideItem to="/app/lojas"              icon={IC.grid}    label="Visão Geral"      requires={['main','fluxo']} />
             <SideItem to="/app/lojas/regioes"      icon={IC.mapPin}  label="Análise Regional" requires={['main','fluxo']} />
             <SideItem to="/app/lojas/ranking"      icon={IC.chart}   label="Ranking de Lojas" requires={['main','fluxo']} />
-            <SideItem to="/app/lojas/detalhe"      icon={IC.store}   label="Detalhe da Loja"  requires={['main','fluxo']} />
+            <SideItem to="/app/lojas/detalhe"      icon={IC.store}   label="Raio-X da Loja"  requires={['main','fluxo']} />
             <SideItem to="/app/lojas/consultores"  icon={IC.users}   label="Consultores"      requires={['main','fluxo']} />
-            <SideItem to="/app/lojas/dispersao"    icon={IC.scatter} label="Dispersão"        requires={['main','fluxo']} />
+            <SideItem to="/app/lojas/dispersao"        icon={IC.scatter}  label="Dispersão"          requires={['main','fluxo']} />
+            <SideItem to="/app/lojas/share-categorias" icon={IC.pieChart} label="Share Categorias"  requires={['share-categorias']} />
           </div>
           <div className="nav-group">
             <div className="nav-group-title">IAF</div>
             <SideItem to="/app/iaf"            icon={IC.check}   label="Indicadores" />
-            <SideItem to="/app/iaf/detalhe"    icon={IC.search}  label="Detalhe" />
             <SideItem to="/app/iaf/fluxo"      icon={IC.arrows}  label="Ação de Fluxo" />
             <SideItem to="/app/iaf/skin"       icon={IC.skin}    label="Skin"          requires={['skin','parcial-skin']} />
-            <SideItem to="/app/iaf/id-cliente" icon={IC.idCard}  label="ID do Cliente" requires={['id-cliente']} />
-            <SideItem to="/app/iaf/servicos"   icon={IC.doc}     label="Serviços"      requires={['servicos']} />
+            <SideItem to="/app/iaf/id-cliente"    icon={IC.idCard}      label="ID do Cliente" requires={['id-cliente']} />
+            <SideItem to="/app/iaf/loja-digital" icon={IC.lojaDigital} label="Loja Digital"  requires={['loja-digital']} />
+            <SideItem to="/app/iaf/servicos"           icon={IC.doc}    label="Serviços"           requires={['servicos']} />
+            <SideItem to="/app/iaf/boleto-promocional" icon={IC.ticket} label="Boleto Promocional" requires={['boleto-promo']} />
+            <SideItem to="/app/iaf/resgates"           icon={IC.gift}   label="Resgates"           requires={['resgates']} />
           </div>
         </nav>
       )}
@@ -4303,7 +6870,7 @@ function Sidebar() {
             <SideItem to="/app/anual/lojas"    icon={IC.grid}   label="Visão Geral"       requires={['anual-main']} />
             <SideItem to="/app/anual/regioes"  icon={IC.mapPin} label="Análise Regional"  requires={['anual-main']} />
             <SideItem to="/app/anual/ranking"  icon={IC.chart}  label="Ranking de Lojas"  requires={['anual-main']} />
-            <SideItem to="/app/anual/detalhe"  icon={IC.store}  label="Detalhe da Loja"   requires={['anual-main']} />
+            <SideItem to="/app/anual/detalhe"  icon={IC.store}  label="Raio-X da Loja"   requires={['anual-main']} />
             <SideItem to="/app/anual/fluxo"    icon={IC.arrows} label="Ação de Fluxo"     requires={['anual-fluxo']} />
           </div>
           <div className="nav-group">
@@ -4315,6 +6882,445 @@ function Sidebar() {
       )}
 
     </aside>
+  )
+}
+
+/* ── IAF — Indicadores (Resumo por loja) ────────────── */
+const IAF_IND_METAS = { skin: 2.7, af: 28, bp: 33, resgate: 52, id: 115 }
+
+function IafIndicadoresPage() {
+  const { skinRows, fluxoRows, idClienteRows, servicosRows, resgatesPdvRows, boletoPromoPdvRows } = useData()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const { openImport } = useFileStatus()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const [selectedPdvCard, setSelectedPdvCard] = useState<string>('')
+  const [pdvCardOpen, setPdvCardOpen] = useState(false)
+  const pdvCardRef = useRef<HTMLDivElement>(null)
+  const [servicosMetas] = useState<Record<string, number>>(() => {
+    try { return JSON.parse(localStorage.getItem('prisma-prefs-servicos-metas') ?? '{}') } catch { return {} }
+  })
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (pdvCardRef.current && !pdvCardRef.current.contains(e.target as Node)) setPdvCardOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const lojaMap    = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  const skinMap    = useMemo(() => new Map(skinRows.map(r => [r.pdv, r])), [skinRows])
+  const fluxoMap   = useMemo(() => new Map(fluxoRows.map(r => [r.pdv, r])), [fluxoRows])
+  const idMap      = useMemo(() => new Map(idClienteRows.map(r => [r.pdv, r])), [idClienteRows])
+  const servMap    = useMemo(() => new Map(servicosRows.map(r => [r.pdv, r])), [servicosRows])
+  const resgateMap = useMemo(() => new Map(resgatesPdvRows.map(r => [r.pdv, r])), [resgatesPdvRows])
+  const bpMap      = useMemo(() => new Map(boletoPromoPdvRows.map(r => [r.pdv, r])), [boletoPromoPdvRows])
+
+  const allPdvs = useMemo(() => {
+    const set = new Set<string>()
+    skinRows.forEach(r => set.add(r.pdv))
+    fluxoRows.forEach(r => set.add(r.pdv))
+    idClienteRows.forEach(r => set.add(r.pdv))
+    servicosRows.forEach(r => set.add(r.pdv))
+    resgatesPdvRows.forEach(r => set.add(r.pdv))
+    boletoPromoPdvRows.forEach(r => set.add(r.pdv))
+    return [...set].sort()
+  }, [skinRows, fluxoRows, idClienteRows, servicosRows, resgatesPdvRows, boletoPromoPdvRows])
+
+  const rows = useMemo(() =>
+    allPdvs
+      .map(pdv => {
+        const loja   = lojaMap.get(pdv)
+        const skin   = skinMap.get(pdv)
+        const fl     = fluxoMap.get(pdv)
+        const id     = idMap.get(pdv)
+        const serv   = servMap.get(pdv)
+        const res    = resgateMap.get(pdv)
+        const bp     = bpMap.get(pdv)
+        return {
+          pdv, loja,
+          skinPct:    skin != null ? skin.share * 100 : null,
+          afPct:      fl   != null ? (fl.conv_pct < 1 ? fl.conv_pct * 100 : fl.conv_pct) : null,
+          bpPct:      bp   != null ? bp.convertidos_pct * 100 : null,
+          resgatePct: res  != null ? res.pct_atual * 100 : null,
+          idPct:      id   != null ? id.pct_cpf_atual * 100 : null,
+          servPct:    serv != null ? serv.pct_completos * 100 : null,
+        }
+      })
+      .filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
+  , [allPdvs, lojaMap, skinMap, fluxoMap, idMap, servMap, resgateMap, bpMap, selectedLabels])
+
+  const labelSummary = useMemo(() => {
+    if (labels.length === 0) return []
+    const scoreOf = (v: number | null, meta: number): number | null =>
+      v !== null ? (v >= meta ? 1 : 0) : null
+
+    return labels
+      .map(lb => {
+        const lbPdvs = allPdvs.filter(pdv => (lojaMap.get(pdv)?.labels ?? []).includes(lb.id))
+        if (lbPdvs.length === 0) return null
+
+        // SKIN: ponderado por receita total da loja (vf = receita_atual / share)
+        let skinRec = 0, skinVf = 0
+        lbPdvs.forEach(pdv => {
+          const r = skinMap.get(pdv)
+          if (r && r.share > 0) { skinRec += r.receita_atual; skinVf += r.receita_atual / r.share }
+        })
+        const skinAvg = skinVf > 0 ? skinRec / skinVf * 100 : null
+
+        // AF: ponderado por resgates (clientes no fluxo)
+        let afConv = 0, afResg = 0
+        lbPdvs.forEach(pdv => {
+          const r = fluxoMap.get(pdv)
+          if (r) { afConv += r.conversoes; afResg += r.resgates }
+        })
+        const afAvg = afResg > 0 ? afConv / afResg * 100 : null
+
+        // BP: ponderado por elegíveis
+        let bpConv = 0, bpElig = 0
+        lbPdvs.forEach(pdv => {
+          const r = bpMap.get(pdv)
+          if (r) { bpConv += r.convertidos_qtd; bpElig += r.elegiveis_qtd }
+        })
+        const bpAvg = bpElig > 0 ? bpConv / bpElig * 100 : null
+
+        // Resgate: ponderado por qtd_boletos_atual
+        let resgQtd = 0, resgBol = 0
+        lbPdvs.forEach(pdv => {
+          const r = resgateMap.get(pdv)
+          if (r) { resgQtd += r.qtd_resgate_atual; resgBol += r.qtd_boletos_atual }
+        })
+        const resgateAvg = resgBol > 0 ? resgQtd / resgBol * 100 : null
+
+        // ID Cliente: ponderado por atend_id_atual (igual à aba ID Cliente)
+        let idWeighted = 0, idAtend = 0
+        lbPdvs.forEach(pdv => {
+          const r = idMap.get(pdv)
+          if (r) { idWeighted += r.pct_cpf_atual * r.atend_id_atual; idAtend += r.atend_id_atual }
+        })
+        const idAvg = idAtend > 0 ? idWeighted / idAtend * 100 : null
+
+        // Serviços: completos vs meta configurada (ou totais como fallback)
+        let servComp = 0, servMeta = 0
+        lbPdvs.forEach(pdv => {
+          const r = servMap.get(pdv)
+          if (r) servComp += r.servicos_completos
+          const m = servicosMetas[pdv]
+          if (m) servMeta += m
+        })
+        const servAvg = servMeta > 0 ? servComp / servMeta * 100 : null
+
+        const scores = [
+          scoreOf(skinAvg, IAF_IND_METAS.skin),
+          scoreOf(afAvg, IAF_IND_METAS.af),
+          scoreOf(bpAvg, IAF_IND_METAS.bp),
+          scoreOf(resgateAvg, IAF_IND_METAS.resgate),
+          scoreOf(idAvg, IAF_IND_METAS.id),
+        ].filter((s): s is number => s !== null)
+        const nota = scores.length > 0 ? (scores.reduce((s, x) => s + x, 0) / scores.length) * 5 : null
+        return { label: lb, count: lbPdvs.length, skinAvg, afAvg, bpAvg, resgateAvg, idAvg, servComp, servMeta, nota }
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => (b.nota ?? -1) - (a.nota ?? -1))
+  }, [labels, allPdvs, lojaMap, skinMap, fluxoMap, bpMap, resgateMap, idMap, servMap, servicosMetas])
+
+  if (allPdvs.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
+      <div className="page-empty-title">Nenhum dado IAF carregado</div>
+      <div className="page-empty-desc">Importe ao menos uma planilha IAF para ver o resumo consolidado</div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilhas</button>
+    </div>
+  )
+
+  function ICell({ v, meta }: { v: number | null; meta: number | null }) {
+    if (v === null) return <td className="col-num" style={{ color: 'var(--text-muted)' }}>—</td>
+    const ok = meta !== null ? v >= meta : null
+    return (
+      <td className="col-num" style={{ fontWeight: ok === false ? 700 : undefined, color: ok === null ? 'var(--text-secondary)' : ok ? '#059669' : '#dc2626' }}>
+        {fDec(v, 1)}%
+      </td>
+    )
+  }
+
+  const fmt = (n: number) => n % 1 === 0 ? fInt(n) : fDec(n, 1)
+
+  function ColHead({ label, meta }: { label: string; meta?: number }) {
+    return (
+      <th className="col-num">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+          <span>{label}</span>
+          {meta !== undefined && <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>meta {fmt(meta)}%</span>}
+        </div>
+      </th>
+    )
+  }
+
+  const below = {
+    skin:    { n: rows.filter(r => r.skinPct    != null && r.skinPct    < IAF_IND_METAS.skin).length,    has: rows.some(r => r.skinPct    != null) },
+    af:      { n: rows.filter(r => r.afPct      != null && r.afPct      < IAF_IND_METAS.af).length,      has: rows.some(r => r.afPct      != null) },
+    bp:      { n: rows.filter(r => r.bpPct      != null && r.bpPct      < IAF_IND_METAS.bp).length,      has: rows.some(r => r.bpPct      != null) },
+    resgate: { n: rows.filter(r => r.resgatePct != null && r.resgatePct < IAF_IND_METAS.resgate).length, has: rows.some(r => r.resgatePct != null) },
+    id:      { n: rows.filter(r => r.idPct      != null && r.idPct      < IAF_IND_METAS.id).length,      has: rows.some(r => r.idPct      != null) },
+  }
+
+  function BelowCell({ b }: { b: { n: number; has: boolean } }) {
+    if (!b.has) return <td className="col-num" style={{ color: 'var(--text-muted)' }}>—</td>
+    return <td className="col-num" style={{ color: b.n > 0 ? '#dc2626' : '#059669', fontWeight: 700 }}>{b.n} loja{b.n !== 1 ? 's' : ''}</td>
+  }
+
+  return (
+    <div>
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">IAF — Indicadores</h2>
+          <p className="page-subtitle">Resumo por loja · {rows.length} loja{rows.length !== 1 ? 's' : ''}</p>
+        </div>
+      </div>
+
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
+
+      {labelSummary.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <h3 className="page-section-title" style={{ marginBottom: 12 }}>Resumo por Label</h3>
+          <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th className="col-num">Lojas</th>
+                <ColHead label="SKIN"    meta={IAF_IND_METAS.skin} />
+                <ColHead label="AF"      meta={IAF_IND_METAS.af} />
+                <ColHead label="BP"      meta={IAF_IND_METAS.bp} />
+                <ColHead label="Resgate" meta={IAF_IND_METAS.resgate} />
+                <ColHead label="ID"      meta={IAF_IND_METAS.id} />
+                <ColHead label="Serviços" />
+                <th className="col-num">Nota</th>
+              </tr>
+            </thead>
+            <tbody>
+              {labelSummary.map(row => {
+                const notaColor = row.nota === null ? 'var(--text-muted)' : row.nota >= 4 ? '#059669' : row.nota >= 3 ? '#d97706' : '#dc2626'
+                return (
+                  <tr key={row.label.id}>
+                    <td>
+                      <span className="label-chip label-chip--xs" style={{ background: row.label.color + '22', color: row.label.color, borderColor: row.label.color + '55' }}>
+                        {row.label.name}
+                      </span>
+                    </td>
+                    <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{row.count}</td>
+                    <ICell v={row.skinAvg}    meta={IAF_IND_METAS.skin} />
+                    <ICell v={row.afAvg}      meta={IAF_IND_METAS.af} />
+                    <ICell v={row.bpAvg}      meta={IAF_IND_METAS.bp} />
+                    <ICell v={row.resgateAvg} meta={IAF_IND_METAS.resgate} />
+                    <ICell v={row.idAvg}      meta={IAF_IND_METAS.id} />
+                    <td className="col-num">
+                      {row.servMeta > 0
+                        ? <span style={{ fontWeight: 700, color: row.servComp >= row.servMeta ? '#059669' : '#dc2626' }}>
+                            {row.servComp}/{row.servMeta}
+                          </span>
+                        : row.servComp > 0
+                          ? <span style={{ color: 'var(--text-secondary)' }}>{row.servComp}</span>
+                          : <span className="dash-muted">—</span>}
+                    </td>
+                    <td className="col-num" style={{ fontWeight: 700, color: notaColor }}>
+                      {row.nota !== null ? row.nota.toFixed(1) : '—'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+        <table className="dash-table">
+          <thead>
+            <tr>
+              <th className="col-rank">#</th>
+              <th>Loja</th>
+              <th>Região</th>
+              <ColHead label="SKIN"    meta={IAF_IND_METAS.skin} />
+              <ColHead label="AF"      meta={IAF_IND_METAS.af} />
+              <ColHead label="BP"      meta={IAF_IND_METAS.bp} />
+              <ColHead label="Resgate" meta={IAF_IND_METAS.resgate} />
+              <ColHead label="ID"      meta={IAF_IND_METAS.id} />
+              <ColHead label="Serviços" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.pdv}>
+                <td className="col-rank">{i + 1}</td>
+                <td>
+                  <div className="col-pdv-name">
+                    <span className="col-pdv">{r.pdv}</span>
+                    {r.loja?.apelido && <span className="col-apelido">{r.loja.apelido}</span>}
+                  </div>
+                </td>
+                <td>
+                  <div className="label-chips-group">
+                    {(r.loja?.labels ?? []).map(lid => {
+                      const lb = labels.find(x => x.id === lid)
+                      return lb ? <span key={lid} className="label-chip label-chip--xs" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                    })}
+                  </div>
+                </td>
+                <ICell v={r.skinPct}    meta={IAF_IND_METAS.skin} />
+                <ICell v={r.afPct}      meta={IAF_IND_METAS.af} />
+                <ICell v={r.bpPct}      meta={IAF_IND_METAS.bp} />
+                <ICell v={r.resgatePct} meta={IAF_IND_METAS.resgate} />
+                <ICell v={r.idPct}      meta={IAF_IND_METAS.id} />
+                <td className="col-num">
+                  {(() => {
+                    const serv = servMap.get(r.pdv)
+                    if (!serv) return <span className="dash-muted">—</span>
+                    const meta = servicosMetas[r.pdv]
+                    if (meta) {
+                      const ok = serv.servicos_completos >= meta
+                      return <span style={{ fontWeight: 700, color: ok ? '#059669' : '#dc2626' }}>{serv.servicos_completos}/{meta}</span>
+                    }
+                    return <span style={{ color: 'var(--text-secondary)' }}>{serv.servicos_completos}/{serv.servicos_totais}</span>
+                  })()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={3} className="gap-total-label">Abaixo da meta</td>
+              <BelowCell b={below.skin} />
+              <BelowCell b={below.af} />
+              <BelowCell b={below.bp} />
+              <BelowCell b={below.resgate} />
+              <BelowCell b={below.id} />
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      {/* ── Card de loja para print/envio ── */}
+      {(() => {
+        const activePdv = selectedPdvCard || rows[0]?.pdv || ''
+        if (!activePdv) return null
+        const loja = lojaMap.get(activePdv)
+        const skin  = skinMap.get(activePdv)
+        const fl    = fluxoMap.get(activePdv)
+        const bp    = bpMap.get(activePdv)
+        const res   = resgateMap.get(activePdv)
+        const id    = idMap.get(activePdv)
+        const serv  = servMap.get(activePdv)
+
+        const skinPct    = skin ? skin.share * 100 : null
+        const afPct      = fl   ? (fl.conv_pct < 1 ? fl.conv_pct * 100 : fl.conv_pct) : null
+        const bpPct      = bp   ? bp.convertidos_pct * 100 : null
+        const resgatePct = res  ? res.pct_atual * 100 : null
+        const idPct      = id   ? id.pct_cpf_atual * 100 : null
+        const servMetaLoja = servicosMetas[activePdv] ?? null
+        const servPct    = serv && servMetaLoja ? (serv.servicos_completos / servMetaLoja) * 100 : null
+
+        function Block({ label, value, meta }: { label: string; value: number | null; meta: number | null }) {
+          const ok = value !== null && meta !== null ? value >= meta : null
+          const bg      = ok === true ? '#d1fae5' : ok === false ? '#fee2e2' : 'var(--bg-surface-2)'
+          const txtMain = ok === true ? '#059669' : ok === false ? '#dc2626' : 'var(--text-primary)'
+          const txtSub  = ok === true ? '#065f46' : ok === false ? '#991b1b' : 'var(--text-muted)'
+          return (
+            <div style={{ background: bg, borderRadius: 12, padding: '20px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: txtSub, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
+              <div style={{ fontSize: 30, fontWeight: 700, color: txtMain, lineHeight: 1.1 }}>
+                {value !== null ? `${fDec(value, 2)}%` : '—'}
+              </div>
+              {meta !== null && (
+                <div style={{ fontSize: 11, color: txtSub }}>meta {fDec(meta, 2)}%</div>
+              )}
+            </div>
+          )
+        }
+
+        return (
+          <div className="card" style={{ marginTop: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {loja?.apelido || activePdv}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>PDV {activePdv}</div>
+              </div>
+              <div className="store-picker" ref={pdvCardRef} style={{ marginLeft: 'auto' }}>
+                <button className="store-picker-btn" onClick={() => setPdvCardOpen(p => !p)}>
+                  <span style={{ fontSize: 13 }}>{loja?.apelido || activePdv}</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                {pdvCardOpen && (
+                  <div className="store-picker-dropdown" style={{ maxHeight: 280, overflowY: 'auto' }}>
+                    {rows.map(r => (
+                      <button
+                        key={r.pdv}
+                        className={`store-picker-option${r.pdv === activePdv ? ' selected' : ''}`}
+                        onClick={() => { setSelectedPdvCard(r.pdv); setPdvCardOpen(false) }}
+                      >
+                        <span style={{ fontWeight: 500 }}>{r.pdv}</span>
+                        {lojaMap.get(r.pdv)?.apelido && (
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 6 }}>{lojaMap.get(r.pdv)!.apelido}</span>
+                        )}
+                        {r.pdv === activePdv && (
+                          <svg style={{ marginLeft: 'auto' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              <Block label="SKIN"             value={skinPct}    meta={IAF_IND_METAS.skin} />
+              <Block label="AF"               value={afPct}      meta={IAF_IND_METAS.af} />
+              <Block label="Boleto Promo"     value={bpPct}      meta={IAF_IND_METAS.bp} />
+              <Block label="Resgate"          value={resgatePct} meta={IAF_IND_METAS.resgate} />
+              <Block label="ID Cliente"       value={idPct}      meta={IAF_IND_METAS.id} />
+              {(() => {
+                const ok = servPct !== null ? servPct >= 100 : null
+                const bg      = ok === true ? '#d1fae5' : ok === false ? '#fee2e2' : 'var(--bg-surface-2)'
+                const txtMain = ok === true ? '#059669' : ok === false ? '#dc2626' : 'var(--text-primary)'
+                const txtSub  = ok === true ? '#065f46' : ok === false ? '#991b1b' : 'var(--text-muted)'
+                return (
+                  <div style={{ background: bg, borderRadius: 12, padding: '20px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: txtSub, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Serviços</div>
+                    {serv && servMetaLoja != null ? (
+                      <>
+                        <div style={{ fontSize: 26, fontWeight: 700, color: txtMain, lineHeight: 1.15 }}>
+                          {fDec(serv.servicos_completos, 1)} / {fDec(servMetaLoja, 1)}
+                        </div>
+                        <div style={{ fontSize: 11, color: txtSub }}>{fDec(servPct!, 2)}% atingido</div>
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 30, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 }}>—</div>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        )
+      })()}
+    </div>
   )
 }
 
@@ -4381,6 +7387,9 @@ export default function AppShell() {
   })
   const [alertActive, setAlertActive] = useState(false)
   const [toastVisible, setToastVisible] = useState(false)
+  const [showApelido, setShowApelido] = useState(() => {
+    try { return localStorage.getItem('prisma-prefs-show-apelido') === 'true' } catch { return false }
+  })
   const loginTime = useRef(new Date())
 
   const onFileLoaded = (id: string, filename: string) => {
@@ -4417,6 +7426,10 @@ export default function AppShell() {
   useEffect(() => {
     try { localStorage.setItem('prisma-prefs-alertInterval', String(alertIntervalMinutes)) } catch {}
   }, [alertIntervalMinutes])
+
+  useEffect(() => {
+    try { localStorage.setItem('prisma-prefs-show-apelido', String(showApelido)) } catch {}
+  }, [showApelido])
 
   useEffect(() => {
     try { localStorage.setItem('prisma-file-statuses', JSON.stringify(fileStatuses)) } catch {}
@@ -4457,13 +7470,14 @@ export default function AppShell() {
       lastLoaded, fileDates, lastParcialUpload, alertEnabled, setAlertEnabled,
       alertIntervalMinutes, setAlertIntervalMinutes,
       alertActive, toastVisible, setToastVisible,
+      showApelido, setShowApelido,
     }}>
     <div className="app-shell">
       {/* Header */}
       <header className="app-header">
         <NavLink to="/app/dashboard" className="app-header-logo">
           <div className="app-header-logo-icon">💎</div>
-          <span className="app-header-logo-text">Prisma Retail</span>
+          <span className="app-header-logo-text">Velo Retail</span>
         </NavLink>
 
         <div className="app-header-search">
@@ -4537,8 +7551,9 @@ export default function AppShell() {
           <Routes>
             <Route index element={<Navigate to="meta" replace />} />
             {/* Mensal – Gestão Instantânea */}
-            <Route path="meta"          element={<WipPage title="Meta do Dia" />} />
-            <Route path="parcial"       element={<WipPage title="Parcial do Dia"  requires={['parcial']} />} />
+            <Route path="metas-mes"     element={<MetasMesPage />} />
+            <Route path="meta"          element={<MetaDiaPage />} />
+            <Route path="parcial"       element={<ParcialDiaPage />} />
             <Route path="dia-anterior"  element={<WipPage title="Dia Anterior"    requires={['dia-ant','meta-diaant']} />} />
             {/* Mensal – Lojas */}
             <Route path="lojas"               element={<VisaoGeralPage />} />
@@ -4546,19 +7561,22 @@ export default function AppShell() {
             <Route path="lojas/ranking"       element={<RankingPage />} />
             <Route path="lojas/detalhe"       element={<DetalhePage />} />
             <Route path="lojas/consultores"   element={<ConsultoresPage />} />
-            <Route path="lojas/dispersao"     element={<DispersaoPage />} />
+            <Route path="lojas/dispersao"         element={<DispersaoPage />} />
+            <Route path="lojas/share-categorias"  element={<ShareCategoriasPage />} />
             {/* Mensal – IAF */}
-            <Route path="iaf"          element={<WipPage title="IAF — Indicadores" />} />
-            <Route path="iaf/detalhe"  element={<WipPage title="IAF — Detalhe" />} />
+            <Route path="iaf"          element={<IafIndicadoresPage />} />
             <Route path="iaf/fluxo"    element={<IafFluxoPage />} />
             <Route path="iaf/skin"       element={<IafSkinPage />} />
-            <Route path="iaf/id-cliente" element={<IDClientePage />} />
-            <Route path="iaf/servicos"   element={<WipPage title="Serviços" requires={['servicos']} />} />
+            <Route path="iaf/id-cliente"    element={<IDClientePage />} />
+            <Route path="iaf/loja-digital"  element={<LojaDigitalPage />} />
+            <Route path="iaf/servicos"           element={<ServicosPage />} />
+            <Route path="iaf/boleto-promocional" element={<BoletoPromocionalPage />} />
+            <Route path="iaf/resgates"           element={<ResgatesPage />} />
             {/* Anual – Lojas */}
             <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas"              requires={['anual-main']} />} />
             <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional"   requires={['anual-main']} />} />
             <Route path="anual/ranking"  element={<WipPage title="Anual — Ranking de Lojas"   requires={['anual-main']} />} />
-            <Route path="anual/detalhe"  element={<WipPage title="Anual — Detalhe da Loja"    requires={['anual-main']} />} />
+            <Route path="anual/detalhe"  element={<WipPage title="Anual — Raio-X da Loja"    requires={['anual-main']} />} />
             <Route path="anual/fluxo"    element={<WipPage title="Anual — Ação de Fluxo"      requires={['anual-fluxo']} />} />
             {/* Anual – IAF */}
             <Route path="anual/iaf"  element={<WipPage title="Anual — Indicadores" requires={['anual-main']} />} />

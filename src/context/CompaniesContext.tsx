@@ -49,7 +49,7 @@ const SEED: Empresa[] = [
   {
     id: 'empresa-demo',
     razaoSocial: 'Prisma Cosméticos Ltda',
-    fantasia: 'Prisma Retail',
+    fantasia: 'Velo Retail',
     cnpj: '12.345.678/0001-90',
     telefone: '(11) 99999-8888',
     email: 'contato@prismaretail.io',

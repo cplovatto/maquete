@@ -55,7 +55,7 @@ export default function SignIn() {
       <div className="signin-card">
         <div className="signin-logo">
           <div className="signin-logo-icon">💎</div>
-          <span className="signin-logo-text">Prisma Retail</span>
+          <span className="signin-logo-text">Velo Retail</span>
         </div>
 
         <h1 className="signin-title">Bem-vindo de volta</h1>

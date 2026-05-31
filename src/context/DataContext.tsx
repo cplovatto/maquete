@@ -13,6 +13,17 @@ async function getXLSX() {
 
 type XLSX_Utils = typeof utils
 
+/* Deduplica linhas de consultor pelo par (pdv, nome normalizado), mantendo a 1ª ocorrência */
+function dedupConsultores<T>(rows: T[], key: (r: T) => string): T[] {
+  const seen = new Set<string>()
+  return rows.filter(r => {
+    const k = key(r).trim().replace(/\s+/g, ' ').toUpperCase()
+    if (seen.has(k)) return false
+    seen.add(k)
+    return true
+  })
+}
+
 export interface MainRow {
   pdv: string
   vf_ant: number; vf_atual: number; vf_var: number
@@ -138,6 +149,138 @@ export interface IDClienteCP {
   pct_boletos_validos: number
 }
 
+export interface LojaDigitalPdvRow {
+  pdv: string
+  clientes_enc: number
+  clientes_ate: number
+  tme: string
+  convertidos: number
+  conv_pct: number
+  receita: number
+  boleto_medio: number
+}
+
+export interface LojaDigitalTotal {
+  clientes_enc: number
+  clientes_ate: number
+  tme: string
+  convertidos: number
+  conv_pct: number
+  receita: number
+  boleto_medio: number
+}
+
+export interface ShareCategoriasRow {
+  pdv: string
+  total_receita: number
+  cabelos_r: number; cabelos_pct: number
+  pele_r: number;    pele_pct: number
+  gifts_r: number;   gifts_pct: number
+  make_r: number;    make_pct: number
+  perf_r: number;    perf_pct: number
+  outros_r: number;  outros_pct: number
+}
+
+export interface ShareCategoriasCP {
+  total_receita: number
+  cabelos_r: number; cabelos_pct: number
+  pele_r: number;    pele_pct: number
+  gifts_r: number;   gifts_pct: number
+  make_r: number;    make_pct: number
+  perf_r: number;    perf_pct: number
+  outros_r: number;  outros_pct: number
+}
+
+export interface ServicosRow {
+  pdv: string
+  servicos_totais: number
+  servicos_completos: number
+  pct_completos: number
+}
+
+export interface ServicosTotal {
+  servicos_totais: number
+  servicos_completos: number
+  pct_completos: number
+}
+
+export interface MetaDiaRow {
+  pdv: string
+  venda_ly: number
+}
+
+export interface ParcialRow {
+  pdv: string
+  venda_parcial: number
+  qb_atual: number
+  iv_atual: number
+}
+
+export interface ParcialSkinRow {
+  pdv: string
+  share: number       // participação skin no GMV total (decimal)
+  receita: number     // receita skin hoje
+  receita_ant: number // receita skin mesmo dia LY
+}
+
+export interface ResgatesPdvRow {
+  pdv: string
+  pct_anterior: number
+  pct_atual: number
+  qtd_resgate_anterior: number
+  qtd_resgate_atual: number
+  qtd_boletos_anterior: number
+  qtd_boletos_atual: number
+}
+
+export interface ResgatesTotal {
+  pct_anterior: number
+  pct_atual: number
+  qtd_resgate_anterior: number
+  qtd_resgate_atual: number
+  qtd_boletos_anterior: number
+  qtd_boletos_atual: number
+}
+
+export interface ResgatesConsultorRow {
+  nome: string
+  pct_atual: number
+  qtd_resgate_atual: number
+  qtd_boletos_atual: number
+}
+
+export interface BoletoPromoPdvRow {
+  pdv: string
+  total_boletos: number
+  elegiveis_qtd: number
+  elegiveis_pct: number
+  convertidos_qtd: number
+  convertidos_pct: number
+  oficiais_qtd: number
+  oficiais_pct: number
+}
+
+export interface BoletoPromoTotal {
+  total_boletos: number
+  elegiveis_qtd: number
+  elegiveis_pct: number
+  convertidos_qtd: number
+  convertidos_pct: number
+  oficiais_qtd: number
+  oficiais_pct: number
+}
+
+export interface BoletoPromoConsultorRow {
+  nome: string
+  total_boletos: number
+  elegiveis_qtd: number
+  elegiveis_pct: number
+  convertidos_qtd: number
+  convertidos_pct: number
+  oficiais_qtd: number
+  oficiais_pct: number
+}
+
 interface DataCtxType {
   mainRows: MainRow[]
   mainTotal: MainTotal | null
@@ -152,6 +295,21 @@ interface DataCtxType {
   idClienteRows: IDClienteRow[]
   idClienteConsultorRows: IDClienteConsultorRow[]
   idClienteCP: IDClienteCP | null
+  lojaDigitalRows: LojaDigitalPdvRow[]
+  lojaDigitalTotal: LojaDigitalTotal | null
+  shareCatRows: ShareCategoriasRow[]
+  shareCatCP: ShareCategoriasCP | null
+  servicosRows: ServicosRow[]
+  servicosTotal: ServicosTotal | null
+  resgatesPdvRows: ResgatesPdvRow[]
+  resgatesTotal: ResgatesTotal | null
+  resgatesConsultorRows: ResgatesConsultorRow[]
+  boletoPromoPdvRows: BoletoPromoPdvRow[]
+  boletoPromoTotal: BoletoPromoTotal | null
+  boletoPromoConsultorRows: BoletoPromoConsultorRow[]
+  metaDiaRows: MetaDiaRow[]
+  parcialRows: ParcialRow[]
+  parcialSkinRows: ParcialSkinRow[]
   loadFile: (id: string, file: File) => Promise<void>
 }
 
@@ -197,8 +355,8 @@ function toMainRow(a: unknown[]): MainRow {
 function toConsultorRow(a: unknown[]): ConsultorRow {
   // A(0)=PDV, B(1)=Consultor, C(2)=VF, D(3)=QB, E(4)=skip, F(5)=BM, G(6)=skip, H(7)=IV, I(8)=PM
   return {
-    pdv:       String(a[0]),
-    consultor: String(a[1]),
+    pdv:       String(a[0]).trim(),
+    consultor: String(a[1]).trim(),
     vf_atual:  toNum(a[2]),
     qb_atual:  toNum(a[3]),
     bm_atual:  toNum(a[5]),
@@ -247,7 +405,7 @@ function parseConsultorSheet(wb: WorkBook, utils: XLSX_Utils): ConsultorRow[] {
   const ws = wb.Sheets['CONSULTOR']
   if (!ws) return []
   const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
-  return raw
+  const rows = raw
     .filter(r => {
       const a = r as unknown[]
       const pdv = String(a[0] ?? '').trim()
@@ -255,13 +413,14 @@ function parseConsultorSheet(wb: WorkBook, utils: XLSX_Utils): ConsultorRow[] {
       return pdv && con && pdv.toUpperCase() !== 'PDV' && con.toUpperCase() !== 'CONSULTOR' && pdv.toUpperCase() !== 'TOTAL'
     })
     .map(r => toConsultorRow(r as unknown[]))
+  return dedupConsultores(rows, r => `${r.pdv}|${r.consultor}`)
 }
 
 function parseFluxoConsultorSheet(wb: WorkBook, utils: XLSX_Utils): FluxoConsultorRow[] {
   const ws = wb.Sheets['CONSULTOR']
   if (!ws) return []
   const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
-  return raw
+  const rows = raw
     .filter(r => {
       const a = r as unknown[]
       const pdv = String(a[0] ?? '').trim()
@@ -271,13 +430,14 @@ function parseFluxoConsultorSheet(wb: WorkBook, utils: XLSX_Utils): FluxoConsult
     .map(r => {
       const a = r as unknown[]
       return {
-        pdv:       String(a[0]),
-        consultor: String(a[1]),
+        pdv:       String(a[0]).trim(),
+        consultor: String(a[1]).trim(),
         resgates:  toNum(a[2]),
         conversoes: toNum(a[3]),
         conv_pct:  toNum(a[4]),
       }
     })
+  return dedupConsultores(rows, r => `${r.pdv}|${r.consultor}`)
 }
 
 async function parseMainFile(file: File): Promise<{ rows: MainRow[]; total: MainTotal | null; cp: CPData | null; consultorRows: ConsultorRow[] }> {
@@ -329,10 +489,10 @@ async function parseFluxoFile(file: File): Promise<{ rows: FluxoRow[]; total: Fl
   return { rows, total, fluxoConsultorRows }
 }
 
-function parseSkinPdvSheet(wb: XLSX.WorkBook): SkinRow[] {
+function parseSkinPdvSheet(wb: WorkBook, utils: XLSX_Utils): SkinRow[] {
   const ws = wb.Sheets['PDV']
   if (!ws) return []
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   return raw.slice(4).filter(r => {
     const a = r as unknown[]
     const pdv = String(a[0] ?? '').trim()
@@ -349,25 +509,26 @@ function parseSkinPdvSheet(wb: XLSX.WorkBook): SkinRow[] {
   })
 }
 
-function parseSkinConsultorSheet(wb: XLSX.WorkBook): SkinConsultorRow[] {
+function parseSkinConsultorSheet(wb: WorkBook, utils: XLSX_Utils): SkinConsultorRow[] {
   const ws = wb.Sheets['CONSULTOR']
   if (!ws) return []
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
-  return raw.slice(4).filter(r => {
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const rows = raw.slice(4).filter(r => {
     const a = r as unknown[]
     const con = String(a[0] ?? '').trim()
     const pdv = String(a[1] ?? '').trim()
     return con && pdv && con.toUpperCase() !== 'CONSULTOR' && pdv.toUpperCase() !== 'PDV'
   }).map(r => {
     const a = r as unknown[]
-    return { consultor: String(a[0]), pdv: String(a[1]), share: toNum(a[2]), receita_atual: toNum(a[3]), receita_ant: toNum(a[4]) }
+    return { consultor: String(a[0]).trim(), pdv: String(a[1]).trim(), share: toNum(a[2]), receita_atual: toNum(a[3]), receita_ant: toNum(a[4]) }
   })
+  return dedupConsultores(rows, r => `${r.pdv}|${r.consultor}`)
 }
 
-function parseSkinCPSheet(wb: XLSX.WorkBook): SkinCP | null {
+function parseSkinCPSheet(wb: WorkBook, utils: XLSX_Utils): SkinCP | null {
   const ws = wb.Sheets['CP']
   if (!ws) return null
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   // Skin total: "RECEITA CUIDADOS FACIAIS + BOTIK"
   const rowSkin = raw.find(r => { const c = String((r as unknown[])[0] ?? '').toLowerCase(); return c.includes('cuidados') || c.includes('facial') })
   // BOTIK total: row where col A = 'BOTIK' and col B = '' (not a subcategory)
@@ -387,14 +548,15 @@ function parseSkinCPSheet(wb: XLSX.WorkBook): SkinCP | null {
 
 async function parseSkinFile(file: File): Promise<{ rows: SkinRow[]; consultorRows: SkinConsultorRow[]; cp: SkinCP | null }> {
   const buf = await file.arrayBuffer()
-  const wb = XLSX.read(buf)
-  return { rows: parseSkinPdvSheet(wb), consultorRows: parseSkinConsultorSheet(wb), cp: parseSkinCPSheet(wb) }
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
+  return { rows: parseSkinPdvSheet(wb, utils), consultorRows: parseSkinConsultorSheet(wb, utils), cp: parseSkinCPSheet(wb, utils) }
 }
 
-function parseIDClientePdvSheet(wb: XLSX.WorkBook): IDClienteRow[] {
+function parseIDClientePdvSheet(wb: WorkBook, utils: XLSX_Utils): IDClienteRow[] {
   const ws = wb.Sheets['PDV']
   if (!ws) return []
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   return raw.slice(2).filter(r => {
     const a = r as unknown[]
     const pdv = String(a[0] ?? '').trim()
@@ -415,11 +577,11 @@ function parseIDClientePdvSheet(wb: XLSX.WorkBook): IDClienteRow[] {
   })
 }
 
-function parseIDClienteConsultorSheet(wb: XLSX.WorkBook): IDClienteConsultorRow[] {
+function parseIDClienteConsultorSheet(wb: WorkBook, utils: XLSX_Utils): IDClienteConsultorRow[] {
   const ws = wb.Sheets['CONSULTOR']
   if (!ws) return []
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
-  return raw.slice(1).filter(r => {
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const rows = raw.slice(1).filter(r => {
     const a = r as unknown[]
     const pdv = String(a[0] ?? '').trim()
     const con = String(a[1] ?? '').trim()
@@ -427,20 +589,21 @@ function parseIDClienteConsultorSheet(wb: XLSX.WorkBook): IDClienteConsultorRow[
   }).map(r => {
     const a = r as unknown[]
     return {
-      pdv:       String(a[0]),
-      consultor: String(a[1]),
+      pdv:       String(a[0]).trim(),
+      consultor: String(a[1]).trim(),
       atend_id:           toNum(a[2]),
       uso_indevido:       toNum(a[3]),
       pct_cpf:            toNum(a[4]),
       pct_boletos_validos: toNum(a[11]),
     }
   })
+  return dedupConsultores(rows, r => `${r.pdv}|${r.consultor}`)
 }
 
-function parseIDClienteCPSheet(wb: XLSX.WorkBook): IDClienteCP | null {
+function parseIDClienteCPSheet(wb: WorkBook, utils: XLSX_Utils): IDClienteCP | null {
   const ws = wb.Sheets['CP']
   if (!ws) return null
-  const raw = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   const find = (test: (s: string) => boolean) =>
     raw.find(r => test(String((r as unknown[])[0] ?? '').toLowerCase())) as unknown[] | undefined
   const rowAtend    = find(s => s.includes('atend') && !s.includes('%') && !s.includes('cpf'))
@@ -458,8 +621,229 @@ function parseIDClienteCPSheet(wb: XLSX.WorkBook): IDClienteCP | null {
 
 async function parseIDClienteFile(file: File): Promise<{ rows: IDClienteRow[]; consultorRows: IDClienteConsultorRow[]; cp: IDClienteCP | null }> {
   const buf = await file.arrayBuffer()
-  const wb = XLSX.read(buf)
-  return { rows: parseIDClientePdvSheet(wb), consultorRows: parseIDClienteConsultorSheet(wb), cp: parseIDClienteCPSheet(wb) }
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
+  return { rows: parseIDClientePdvSheet(wb, utils), consultorRows: parseIDClienteConsultorSheet(wb, utils), cp: parseIDClienteCPSheet(wb, utils) }
+}
+
+function parseLojaDigitalPdvSheet(wb: WorkBook, utils: XLSX_Utils): { rows: LojaDigitalPdvRow[]; total: LojaDigitalTotal | null } {
+  const ws = wb.Sheets['PDV']
+  if (!ws) return { rows: [], total: null }
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+  const toRow = (a: unknown[]): LojaDigitalPdvRow => ({
+    pdv: String(a[0]),
+    clientes_enc: toNum(a[1]),
+    clientes_ate: toNum(a[2]),
+    tme: String(a[3] ?? ''),
+    convertidos: toNum(a[4]),
+    conv_pct: toNum(a[5]),
+    receita: toNum(a[6]),
+    boleto_medio: toNum(a[7]),
+  })
+  const tr = raw[1] as unknown[]
+  const total: LojaDigitalTotal | null = tr ? {
+    clientes_enc: toNum(tr[1]),
+    clientes_ate: toNum(tr[2]),
+    tme: String(tr[3] ?? ''),
+    convertidos: toNum(tr[4]),
+    conv_pct: toNum(tr[5]),
+    receita: toNum(tr[6]),
+    boleto_medio: toNum(tr[7]),
+  } : null
+  const rows = raw.slice(2).filter(r => (r as unknown[])[0]).map(r => toRow(r as unknown[]))
+  return { rows, total }
+}
+
+async function parseLojaDigitalFile(file: File): Promise<{ rows: LojaDigitalPdvRow[]; total: LojaDigitalTotal | null }> {
+  const buf = await file.arrayBuffer()
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
+  return parseLojaDigitalPdvSheet(wb, utils)
+}
+
+function parseShareCatRow(a: unknown[]): ShareCategoriasRow {
+  return {
+    pdv: String(a[0]),
+    total_receita: toNum(a[1]),
+    cabelos_r: toNum(a[2]),  cabelos_pct: parseBRL(a[3]),
+    pele_r:    toNum(a[4]),  pele_pct:    parseBRL(a[5]),
+    gifts_r:   toNum(a[6]),  gifts_pct:   parseBRL(a[7]),
+    make_r:    toNum(a[8]),  make_pct:    parseBRL(a[9]),
+    perf_r:    toNum(a[10]), perf_pct:    parseBRL(a[11]),
+    outros_r:  toNum(a[12]), outros_pct:  parseBRL(a[13]),
+  }
+}
+
+async function parseShareCategoriasFile(file: File): Promise<{ rows: ShareCategoriasRow[]; cp: ShareCategoriasCP | null }> {
+  const buf = await file.arrayBuffer()
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
+
+  const wsPdv = wb.Sheets['PDV']
+  const rows: ShareCategoriasRow[] = wsPdv
+    ? utils.sheet_to_json<unknown[]>(wsPdv, { header: 1, defval: '' })
+        .slice(2)
+        .filter(r => (r as unknown[])[0])
+        .map(r => parseShareCatRow(r as unknown[]))
+    : []
+
+  const wsCP = wb.Sheets['CP']
+  let cp: ShareCategoriasCP | null = null
+  if (wsCP) {
+    const rawCP = utils.sheet_to_json<unknown[]>(wsCP, { header: 1, defval: '' })
+    const a = rawCP[2] as unknown[] | undefined
+    if (a) cp = { total_receita: toNum(a[1]), cabelos_r: toNum(a[2]), cabelos_pct: parseBRL(a[3]), pele_r: toNum(a[4]), pele_pct: parseBRL(a[5]), gifts_r: toNum(a[6]), gifts_pct: parseBRL(a[7]), make_r: toNum(a[8]), make_pct: parseBRL(a[9]), perf_r: toNum(a[10]), perf_pct: parseBRL(a[11]), outros_r: toNum(a[12]), outros_pct: parseBRL(a[13]) }
+  }
+
+  return { rows, cp }
+}
+
+async function parseServicosFile(file: File): Promise<{ rows: ServicosRow[]; total: ServicosTotal | null }> {
+  const buf = await file.arrayBuffer()
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
+  const ws = wb.Sheets['PDV']
+  if (!ws) return { rows: [], total: null }
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+
+  // linha 1 = Total (valores vêm como strings com aspas: "\"563.5\"")
+  const tr = raw[1] as unknown[] | undefined
+  const parseQ = (v: unknown): number => {
+    if (typeof v === 'number') return v
+    return parseFloat(String(v ?? '').replace(/"/g, '').trim()) || 0
+  }
+  const total: ServicosTotal | null = tr ? {
+    servicos_totais:   parseQ(tr[2]),
+    servicos_completos: parseQ(tr[3]),
+    pct_completos:     toNum(tr[4]),
+  } : null
+
+  const rows: ServicosRow[] = raw.slice(2).filter(r => (r as unknown[])[1]).map(r => {
+    const a = r as unknown[]
+    return {
+      pdv:                String(a[1]),
+      servicos_totais:    toNum(a[2]),
+      servicos_completos: toNum(a[3]),
+      pct_completos:      toNum(a[4]),
+    }
+  })
+
+  return { rows, total }
+}
+
+async function parseBoletoPromoFile(file: File): Promise<{ rows: BoletoPromoPdvRow[]; total: BoletoPromoTotal | null; consultores: BoletoPromoConsultorRow[] }> {
+  const buf = await file.arrayBuffer()
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
+  const toNum = (v: unknown) => { const n = Number(v); return isNaN(n) ? 0 : n }
+  const toPct = (v: unknown) => parseBRL(v) / 100
+
+  function parseSheet<T>(sheetName: string, makeRow: (a: unknown[]) => T | null): T[] {
+    const ws = wb.Sheets[sheetName]
+    if (!ws) return []
+    const data = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+    const result: T[] = []
+    for (let i = 2; i < data.length; i++) {
+      const row = makeRow(data[i] as unknown[])
+      if (row) result.push(row)
+    }
+    return result
+  }
+
+  const makeBoletRow = (a: unknown[]): Omit<BoletoPromoPdvRow, 'pdv'> | null => {
+    const convertidos_qtd = toNum(a[4])
+    if (convertidos_qtd === 0) return null
+    return {
+      total_boletos: toNum(a[1]),
+      elegiveis_qtd: toNum(a[2]),
+      elegiveis_pct: toPct(a[3]),
+      convertidos_qtd,
+      convertidos_pct: toPct(a[5]),
+      oficiais_qtd:  toNum(a[6]),
+      oficiais_pct:  toPct(a[7]),
+    }
+  }
+
+  const rows: BoletoPromoPdvRow[] = parseSheet('PDV', (a) => {
+    const pdv = String(a[0]).trim()
+    if (!pdv) return null
+    const rest = makeBoletRow(a)
+    return rest ? { pdv, ...rest } : null
+  })
+
+  const consultores: BoletoPromoConsultorRow[] = parseSheet('CONSULTOR', (a) => {
+    const nome = String(a[0]).trim()
+    if (!nome) return null
+    const rest = makeBoletRow(a)
+    return rest ? { nome, ...rest } : null
+  })
+
+  let total: BoletoPromoTotal | null = null
+  const cpWs = wb.Sheets['CP']
+  if (cpWs) {
+    const cpData = utils.sheet_to_json<unknown[]>(cpWs, { header: 1, defval: '' })
+    const a = cpData[2] as unknown[]
+    if (a?.[0]) {
+      total = {
+        total_boletos: toNum(a[1]),
+        elegiveis_qtd: toNum(a[2]),
+        elegiveis_pct: toPct(a[3]),
+        convertidos_qtd: toNum(a[4]),
+        convertidos_pct: toPct(a[5]),
+        oficiais_qtd:  toNum(a[6]),
+        oficiais_pct:  toPct(a[7]),
+      }
+    }
+  }
+
+  return { rows, total, consultores }
+}
+
+async function parseResgatesFile(file: File): Promise<{ rows: ResgatesPdvRow[]; total: ResgatesTotal | null; consultores: ResgatesConsultorRow[] }> {
+  const buf = await file.arrayBuffer()
+  const { read, utils } = await getXLSX()
+  const wb = read(buf)
+
+  const rows: ResgatesPdvRow[] = []
+  let total: ResgatesTotal | null = null
+
+  const wsPdv = wb.Sheets['PDV']
+  if (wsPdv) {
+    const raw = utils.sheet_to_json<unknown[]>(wsPdv, { header: 1, defval: 0 })
+    for (let i = 2; i < raw.length; i++) {
+      const a = raw[i] as unknown[]
+      if (a[0] === null || a[0] === undefined || a[0] === '') continue
+      const obj = {
+        pct_anterior:         toNum(a[2]),
+        pct_atual:            toNum(a[3]),
+        qtd_resgate_anterior: toNum(a[5]),
+        qtd_resgate_atual:    toNum(a[6]),
+        qtd_boletos_anterior: toNum(a[8]),
+        qtd_boletos_atual:    toNum(a[9]),
+      }
+      if (String(a[0]) === 'TOTAL') { total = obj } else if (obj.pct_atual > 0) { rows.push({ pdv: String(a[0]), ...obj }) }
+    }
+  }
+
+  const consultores: ResgatesConsultorRow[] = []
+  const wsConsultor = wb.Sheets['CONSULTOR']
+  if (wsConsultor) {
+    const raw = utils.sheet_to_json<unknown[]>(wsConsultor, { header: 1, defval: 0 })
+    for (let i = 3; i < raw.length; i++) {
+      const a = raw[i] as unknown[]
+      if (!a[0] || String(a[0]) === 'TOTAL') continue
+      const pct = toNum(a[2])
+      if (pct === 0) continue
+      consultores.push({
+        nome:              String(a[0]),
+        pct_atual:         pct,
+        qtd_resgate_atual: toNum(a[4]),
+        qtd_boletos_atual: toNum(a[6]),
+      })
+    }
+  }
+
+  return { rows, total, consultores }
 }
 
 function tryParse<T>(key: string, fallback: T): T {
@@ -480,6 +864,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [idClienteRows, setIdClienteRows]                           = useState<IDClienteRow[]>(() => tryParse('prisma-data-idcliente', []))
   const [idClienteConsultorRows, setIdClienteConsultorRows]         = useState<IDClienteConsultorRow[]>(() => tryParse('prisma-data-idcliente-consultor', []))
   const [idClienteCP, setIdClienteCP]                               = useState<IDClienteCP | null>(() => tryParse('prisma-data-idcliente-cp', null))
+  const [lojaDigitalRows, setLojaDigitalRows]                       = useState<LojaDigitalPdvRow[]>(() => tryParse('prisma-data-lojadigital', []))
+  const [lojaDigitalTotal, setLojaDigitalTotal]                     = useState<LojaDigitalTotal | null>(() => tryParse('prisma-data-lojadigital-total', null))
+  const [shareCatRows, setShareCatRows]                             = useState<ShareCategoriasRow[]>(() => tryParse('prisma-data-sharecat', []))
+  const [shareCatCP, setShareCatCP]                                 = useState<ShareCategoriasCP | null>(() => tryParse('prisma-data-sharecat-cp', null))
+  const [servicosRows, setServicosRows]                             = useState<ServicosRow[]>(() => tryParse('prisma-data-servicos', []))
+  const [servicosTotal, setServicosTotal]                           = useState<ServicosTotal | null>(() => tryParse('prisma-data-servicos-total', null))
+  const [resgatesPdvRows, setResgatesPdvRows]                       = useState<ResgatesPdvRow[]>(() => tryParse('prisma-data-resgates', []))
+  const [resgatesTotal, setResgatesTotal]                           = useState<ResgatesTotal | null>(() => tryParse('prisma-data-resgates-total', null))
+  const [resgatesConsultorRows, setResgatesConsultorRows]           = useState<ResgatesConsultorRow[]>(() => tryParse('prisma-data-resgates-consultor', []))
+  const [boletoPromoPdvRows, setBoletoPromoPdvRows]                 = useState<BoletoPromoPdvRow[]>(() => tryParse('prisma-data-boleto-promo', []))
+  const [boletoPromoTotal, setBoletoPromoTotal]                     = useState<BoletoPromoTotal | null>(() => tryParse('prisma-data-boleto-promo-total', null))
+  const [boletoPromoConsultorRows, setBoletoPromoConsultorRows]     = useState<BoletoPromoConsultorRow[]>(() => tryParse('prisma-data-boleto-promo-consultor', []))
+  const [metaDiaRows, setMetaDiaRows]                               = useState<MetaDiaRow[]>(() => tryParse('prisma-data-meta-dia', []))
+  const [parcialRows, setParcialRows]                               = useState<ParcialRow[]>(() => tryParse('prisma-data-parcial', []))
+  const [parcialSkinRows, setParcialSkinRows]                       = useState<ParcialSkinRow[]>(() => tryParse('prisma-data-parcial-skin', []))
 
   useEffect(() => { try { localStorage.setItem('prisma-data-main', JSON.stringify(mainRows)) } catch {} }, [mainRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-main-total', JSON.stringify(mainTotal)) } catch {} }, [mainTotal])
@@ -494,6 +893,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem('prisma-data-idcliente', JSON.stringify(idClienteRows)) } catch {} }, [idClienteRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-idcliente-consultor', JSON.stringify(idClienteConsultorRows)) } catch {} }, [idClienteConsultorRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-idcliente-cp', JSON.stringify(idClienteCP)) } catch {} }, [idClienteCP])
+  useEffect(() => { try { localStorage.setItem('prisma-data-lojadigital', JSON.stringify(lojaDigitalRows)) } catch {} }, [lojaDigitalRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-lojadigital-total', JSON.stringify(lojaDigitalTotal)) } catch {} }, [lojaDigitalTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-sharecat', JSON.stringify(shareCatRows)) } catch {} }, [shareCatRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-sharecat-cp', JSON.stringify(shareCatCP)) } catch {} }, [shareCatCP])
+  useEffect(() => { try { localStorage.setItem('prisma-data-servicos', JSON.stringify(servicosRows)) } catch {} }, [servicosRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-servicos-total', JSON.stringify(servicosTotal)) } catch {} }, [servicosTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-resgates', JSON.stringify(resgatesPdvRows)) } catch {} }, [resgatesPdvRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-resgates-total', JSON.stringify(resgatesTotal)) } catch {} }, [resgatesTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-resgates-consultor', JSON.stringify(resgatesConsultorRows)) } catch {} }, [resgatesConsultorRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-meta-dia', JSON.stringify(metaDiaRows)) } catch {} }, [metaDiaRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-parcial', JSON.stringify(parcialRows)) } catch {} }, [parcialRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-parcial-skin', JSON.stringify(parcialSkinRows)) } catch {} }, [parcialSkinRows])
 
   async function loadFile(id: string, file: File) {
     if (id === 'main') {
@@ -508,11 +919,93 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } else if (id === 'id-cliente') {
       const { rows, consultorRows: cr, cp } = await parseIDClienteFile(file)
       setIdClienteRows(rows); setIdClienteConsultorRows(cr); setIdClienteCP(cp)
+    } else if (id === 'loja-digital') {
+      const { rows, total } = await parseLojaDigitalFile(file)
+      setLojaDigitalRows(rows); setLojaDigitalTotal(total)
+    } else if (id === 'share-categorias') {
+      const { rows, cp } = await parseShareCategoriasFile(file)
+      setShareCatRows(rows); setShareCatCP(cp)
+    } else if (id === 'servicos') {
+      const { rows, total } = await parseServicosFile(file)
+      setServicosRows(rows); setServicosTotal(total)
+    } else if (id === 'resgates') {
+      const { rows, total, consultores } = await parseResgatesFile(file)
+      setResgatesPdvRows(rows); setResgatesTotal(total); setResgatesConsultorRows(consultores)
+    } else if (id === 'boleto-promo') {
+      const { rows, total, consultores } = await parseBoletoPromoFile(file)
+      setBoletoPromoPdvRows(rows); setBoletoPromoTotal(total); setBoletoPromoConsultorRows(consultores)
+      localStorage.setItem('prisma-data-boleto-promo', JSON.stringify(rows))
+      localStorage.setItem('prisma-data-boleto-promo-total', JSON.stringify(total))
+      localStorage.setItem('prisma-data-boleto-promo-consultor', JSON.stringify(consultores))
+    } else if (id === 'parcial') {
+      // Formato: GerencialVendas-DD-MM-YYYY.csv
+      // Separador ponto-e-vírgula, encoding UTF-8 com BOM
+      // Col 0: "12904 - Nome da Loja" → PDV = dígitos antes do " - "
+      // Col 2: GMV parcial do dia (formato BRL: "2.203,43")
+      const text = await file.text()
+      const lines = text.replace(/^﻿/, '').split('\n').map(l => l.trim()).filter(Boolean)
+      const rows: ParcialRow[] = lines
+        .slice(1) // pula cabeçalho
+        .map(line => {
+          const cols = line.split(';')
+          const pdvRaw = String(cols[0] ?? '').trim()
+          const match = pdvRaw.match(/^(\d+)\s*-/)
+          const pdv = match ? match[1] : ''
+          const venda_parcial = parseBRL(cols[2])
+          const qb_atual      = parseBRL(cols[4])
+          const iv_atual      = parseBRL(cols[5])
+          return { pdv, venda_parcial, qb_atual, iv_atual }
+        })
+        .filter(r => r.pdv && r.venda_parcial > 0)
+      setParcialRows(rows)
+    } else if (id === 'parcial-skin') {
+      const { read, utils } = await getXLSX()
+      const data = await file.arrayBuffer()
+      const wb = read(data, { type: 'array' })
+      const ws = wb.Sheets['PDV'] ?? wb.Sheets[wb.SheetNames[0]]
+      const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+      // Linhas 0-1: cabeçalhos; linhas 2-3: totais — pular tudo até PDV numérico
+      const rows: ParcialSkinRow[] = raw
+        .filter(r => {
+          const pdv = String((r as unknown[])[0] ?? '').trim()
+          return /^\d{4,6}$/.test(pdv)
+        })
+        .map(r => {
+          const a = r as unknown[]
+          return {
+            pdv:         String(a[0]).trim(),
+            share:       toNum(a[1]),      // (%) receita
+            receita:     toNum(a[2]),      // receita atual
+            receita_ant: toNum(a[3]),      // receita LY
+          }
+        })
+      setParcialSkinRows(rows)
+    } else if (id === 'meta') {
+      const { read, utils } = await getXLSX()
+      const data = await file.arrayBuffer()
+      const wb = read(data, { type: 'array' })
+      // Usa aba PDV se existir, senão primeira aba
+      const ws = wb.Sheets['PDV'] ?? wb.Sheets[wb.SheetNames[0]]
+      const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
+      const rows: MetaDiaRow[] = raw
+        .filter(r => {
+          const a = r as unknown[]
+          const pdv = String(a[0] ?? '').trim()
+          // Pula cabeçalhos e total
+          return pdv && !isNaN(Number(pdv.replace(/\D/g, ''))) && pdv.toUpperCase() !== 'TOTAL'
+        })
+        .map(r => {
+          const a = r as unknown[]
+          // Col 0 = PDV, col 2 = PERÍODO ATUAL (= mesmo dia ano passado)
+          return { pdv: String(a[0]).trim(), venda_ly: parseBRL(a[2]) }
+        })
+        .filter(r => r.venda_ly > 0)
+      setMetaDiaRows(rows)
     }
   }
 
   return (
-    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, loadFile }}>
+    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, shareCatRows, shareCatCP, servicosRows, servicosTotal, resgatesPdvRows, resgatesTotal, resgatesConsultorRows, boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, metaDiaRows, parcialRows, parcialSkinRows, loadFile }}>
       {children}
     </DataCtx.Provider>
   )

@@ -1,4 +1,4 @@
-# Prisma Retail — Maquete
+# Velo Retail — Maquete
 
 Protótipo interativo de um console de operações para gestão de redes de franquias de cosméticos. O objetivo é validar fluxos de UX e estrutura de navegação antes da implementação real do produto.
 
