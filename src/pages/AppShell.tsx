@@ -3046,7 +3046,7 @@ function DispersaoPage() {
 
 /* ── IAF — Ação de Fluxo ────────────────────────────── */
 function IafFluxoPage() {
-  const { fluxoRows, fluxoConsultorRows, mainRows, mainTotal, cpData } = useData()
+  const { fluxoRows, fluxoConsultorRows, fluxoTotal, mainRows, mainTotal, cpData } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
@@ -3064,7 +3064,7 @@ function IafFluxoPage() {
 
   const lojaMap  = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
   const mainMap  = useMemo(() => new Map(mainRows.map(r => [r.pdv, r])), [mainRows])
-  const groupBM  = cpData?.bm_valor ?? mainTotal?.bm_atual ?? 0
+  const groupBM  = (fluxoTotal?.bm_atual || cpData?.bm_valor) ?? mainTotal?.bm_atual ?? 0
   const TARGET = 28
 
   useEffect(() => {

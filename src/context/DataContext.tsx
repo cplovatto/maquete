@@ -39,6 +39,7 @@ export interface FluxoRow {
   resgates: number
   conversoes: number
   conv_pct: number
+  bm_atual: number
 }
 
 export interface ConsultorRow {
@@ -72,6 +73,7 @@ export interface FluxoTotal {
   resgates: number
   conversoes: number
   conv_pct: number
+  bm_atual: number
 }
 
 // Valores consolidados da aba CP, coluna B (RESULTADO) e coluna F (EFC)
@@ -478,12 +480,12 @@ async function parseFluxoFile(file: File): Promise<{ rows: FluxoRow[]; total: Fl
   if (!ws) return { rows: [], total: null, fluxoConsultorRows }
   const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   const toRow = (a: unknown[]): FluxoRow => ({
-    pdv: String(a[0]), resgates: toNum(a[1]), conversoes: toNum(a[2]), conv_pct: toNum(a[3]),
+    pdv: String(a[0]), resgates: toNum(a[1]), conversoes: toNum(a[2]), conv_pct: toNum(a[3]), bm_atual: toNum(a[5]),
   })
   let total: FluxoTotal | null = null
   const tr = raw[1] as unknown[]
   if (tr && String(tr[0]).toUpperCase() === 'TOTAL') {
-    const t = toRow(tr); total = { resgates: t.resgates, conversoes: t.conversoes, conv_pct: t.conv_pct }
+    const t = toRow(tr); total = { resgates: t.resgates, conversoes: t.conversoes, conv_pct: t.conv_pct, bm_atual: t.bm_atual }
   }
   const rows = raw.slice(2).filter(r => (r as unknown[])[0]).map(r => toRow(r as unknown[]))
   return { rows, total, fluxoConsultorRows }
