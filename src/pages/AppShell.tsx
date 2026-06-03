@@ -1709,7 +1709,9 @@ function RegioesPage() {
         })}
       </div>
 
-      {groups.map(({ label: lb, rows: groupRows }) => (
+      {groups.map(({ label: lb, rows: groupRows }) => {
+        const s = computeStats(groupRows)
+        return (
         <div key={(lb?.id ?? '__none__') + '-table'} className="region-detail-block">
           <div className="region-detail-header" style={{ borderLeftColor: lb?.color ?? '#94a3b8' }}>
             {lb
@@ -1761,10 +1763,28 @@ function RegioesPage() {
                   )
                 })}
               </tbody>
+              <tfoot>
+                <tr className="tfoot-total">
+                  <td className="col-rank" />
+                  <td className="col-pdv">Total</td>
+                  <td className="col-num">{fBRLR(s.vf_atual)}</td>
+                  <td className="col-var"><VarBadge v={s.vf_var} /></td>
+                  <td className="col-num">{fInt(s.qb_atual)}</td>
+                  <td className="col-var"><VarBadge v={s.qb_var} /></td>
+                  <td className="col-num">{fBRLR(s.bm_atual)}</td>
+                  <td className="col-var"><VarBadge v={s.bm_var} /></td>
+                  <td className="col-num">{fDec(s.iv_atual)}</td>
+                  <td className="col-var"><VarBadge v={s.iv_var} /></td>
+                  <td className="col-num">{fBRLR(s.pm_atual)}</td>
+                  <td className="col-var"><VarBadge v={s.pm_var} /></td>
+                  <td className="col-num">{s.conv_pct !== null ? fPct(s.conv_pct) : <span className="dash-muted">—</span>}</td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
-      ))}
+        )
+      })}
 
       {/* ── Potencial por Região ── */}
       {(() => {
@@ -2151,42 +2171,52 @@ function DetalhePage() {
       ) : (
         <>
           <div className="dash-table-wrap">
-            <table className="dash-table">
-              <thead>
-                <tr>
-                  <th className="col-rank">#</th>
-                  <th>Consultor</th>
-                  <th className="col-num">Receita</th>
-                  <th className="col-num">QB</th>
-                  <th className="col-num">BM</th>
-                  <th className="col-num">IV</th>
-                  <th className="col-num">PM</th>
-                  <th className="col-num">Conv.%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {storeCons.map((c, i) => {
-                  const belowBM   = cpData && c.bm_atual < cpData.bm_valor
-                  const belowIV   = cpData && c.iv_atual < cpData.iv_valor
-                  const belowPM   = cpData && c.pm_atual < cpData.pm_valor
-                  const belowConv = c.fluxo && c.fluxo.conv_pct < 0.28
-                  return (
-                    <tr key={c.consultor}>
-                      <td className="col-rank">{i + 1}</td>
-                      <td className="col-consultor">{c.consultor}</td>
-                      <td className="col-num">{fBRLR(c.vf_atual)}</td>
-                      <td className="col-num">{fInt(c.qb_atual)}</td>
-                      <td className="col-num" style={belowBM ? { color: '#dc2626' } : undefined}>{fBRLR(c.bm_atual)}</td>
-                      <td className="col-num" style={belowIV ? { color: '#dc2626' } : undefined}>{fDec(c.iv_atual)}</td>
-                      <td className="col-num" style={belowPM ? { color: '#dc2626' } : undefined}>{fBRLR(c.pm_atual)}</td>
-                      <td className="col-num" style={belowConv ? { color: '#dc2626' } : undefined}>
-                        {c.fluxo ? fPct(c.fluxo.conv_pct) : <span className="dash-muted">—</span>}
-                      </td>
+            {(() => {
+              const totalVFLoja = storeCons.reduce((s, c) => s + c.vf_atual, 0)
+              return (
+                <table className="dash-table">
+                  <thead>
+                    <tr>
+                      <th className="col-rank">#</th>
+                      <th>Consultor</th>
+                      <th className="col-num">Receita</th>
+                      <th className="col-num">% Loja</th>
+                      <th className="col-num">QB</th>
+                      <th className="col-num">BM</th>
+                      <th className="col-num">IV</th>
+                      <th className="col-num">PM</th>
+                      <th className="col-num">Conv.%</th>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {storeCons.map((c, i) => {
+                      const belowBM   = cpData && c.bm_atual < cpData.bm_valor
+                      const belowIV   = cpData && c.iv_atual < cpData.iv_valor
+                      const belowPM   = cpData && c.pm_atual < cpData.pm_valor
+                      const belowConv = c.fluxo && c.fluxo.conv_pct < 0.28
+                      const shareLoja = totalVFLoja > 0 ? c.vf_atual / totalVFLoja * 100 : null
+                      return (
+                        <tr key={c.consultor}>
+                          <td className="col-rank">{i + 1}</td>
+                          <td className="col-consultor">{c.consultor}</td>
+                          <td className="col-num">{fBRLR(c.vf_atual)}</td>
+                          <td className="col-num" style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+                            {shareLoja !== null ? `${fDec(shareLoja, 1)}%` : <span className="dash-muted">—</span>}
+                          </td>
+                          <td className="col-num">{fInt(c.qb_atual)}</td>
+                          <td className="col-num" style={belowBM ? { color: '#dc2626' } : undefined}>{fBRLR(c.bm_atual)}</td>
+                          <td className="col-num" style={belowIV ? { color: '#dc2626' } : undefined}>{fDec(c.iv_atual)}</td>
+                          <td className="col-num" style={belowPM ? { color: '#dc2626' } : undefined}>{fBRLR(c.pm_atual)}</td>
+                          <td className="col-num" style={belowConv ? { color: '#dc2626' } : undefined}>
+                            {c.fluxo ? fPct(c.fluxo.conv_pct) : <span className="dash-muted">—</span>}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )
+            })()}
           </div>
 
           {/* Considerações automáticas */}
@@ -2304,11 +2334,9 @@ function DetalhePage() {
                 ins.points.forEach(p => lines.push(`• ${p}`))
                 lines.push('')
               })
-              if (totalGapBM > 0 || totalGapAF > 0) {
+              if (totalGapAF > 0) {
                 lines.push('💰 *Potencial não realizado*')
-                if (totalGapBM > 0) lines.push(`• Gap Boleto Médio: *${fBRLR(totalGapBM)}*`)
-                if (totalGapAF > 0) lines.push(`• Gap Ação de Fluxo: *${fBRLR(totalGapAF)}*`)
-                lines.push(`• Total: *${fBRLR(totalGapBM + totalGapAF)}*`)
+                lines.push(`• Gap Ação de Fluxo: *${fBRLR(totalGapAF)}*`)
               }
               navigator.clipboard.writeText(lines.join('\n').trimEnd())
               setCopiedConsideracoes(true)
@@ -2347,25 +2375,18 @@ function DetalhePage() {
                       </div>
                     </div>
                   ))}
-                  {(totalGapBM > 0 || totalGapAF > 0) && (
+                  {totalGapAF > 0 && (
                     <div style={{
                       marginTop: 8, padding: '12px 16px', borderRadius: 8,
                       background: 'rgba(220,38,38,.06)', border: '1px solid rgba(220,38,38,.2)',
                       display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
                     }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#dc2626' }}>💰 Potencial não realizado</span>
-                      {totalGapBM > 0 && (
-                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                          Gap BM: <strong style={{ color: '#dc2626' }}>{fBRLR(totalGapBM)}</strong>
-                        </span>
-                      )}
-                      {totalGapAF > 0 && (
-                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                          Gap AF: <strong style={{ color: '#dc2626' }}>{fBRLR(totalGapAF)}</strong>
-                        </span>
-                      )}
+                      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                        Gap AF: <strong style={{ color: '#dc2626' }}>{fBRLR(totalGapAF)}</strong>
+                      </span>
                       <span style={{ fontSize: 13, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
-                        Total: <strong style={{ fontSize: 15, color: '#dc2626' }}>{fBRLR(totalGapBM + totalGapAF)}</strong>
+                        Total: <strong style={{ fontSize: 15, color: '#dc2626' }}>{fBRLR(totalGapAF)}</strong>
                       </span>
                     </div>
                   )}
@@ -2373,6 +2394,7 @@ function DetalhePage() {
               </div>
             )
           })()}
+
         </>
       )}
     </div>
@@ -2718,6 +2740,94 @@ function ConsultoresPage() {
           </table>
         </div>
       </div>
+
+      {/* ── Menor participação na receita ── */}
+      {(() => {
+        // Para cada loja, calcula o total VF e a média esperada
+        const vfPorLoja = new Map<string, number>()
+        const qtdPorLoja = new Map<string, number>()
+        consultorRows.forEach(c => {
+          vfPorLoja.set(c.pdv, (vfPorLoja.get(c.pdv) ?? 0) + c.vf_atual)
+          qtdPorLoja.set(c.pdv, (qtdPorLoja.get(c.pdv) ?? 0) + 1)
+        })
+
+        const abaixo = consultorRows
+          .filter(c => {
+            const loja = lojaMap.get(c.pdv)
+            if (selectedLabels.length > 0 && !selectedLabels.some(lid => (loja?.labels ?? []).includes(lid))) return false
+            const totalLoja = vfPorLoja.get(c.pdv) ?? 0
+            const qtd = qtdPorLoja.get(c.pdv) ?? 1
+            if (totalLoja === 0 || qtd < 2) return false
+            const share = c.vf_atual / totalLoja * 100
+            const avg = 100 / qtd
+            return share < avg
+          })
+          .map(c => {
+            const totalLoja = vfPorLoja.get(c.pdv) ?? 0
+            const qtd = qtdPorLoja.get(c.pdv) ?? 1
+            const share = totalLoja > 0 ? c.vf_atual / totalLoja * 100 : 0
+            const avg = 100 / qtd
+            return { ...c, loja: lojaMap.get(c.pdv), share, avg, diff: avg - share }
+          })
+          .sort((a, b) => a.share - b.share)
+
+        if (abaixo.length === 0) return null
+        return (
+          <div className="cons-alert-card">
+            <div className="cons-alert-header">
+              <div>
+                <h3 className="cons-alert-title">Menor Participação na Receita</h3>
+                <p className="cons-alert-desc">
+                  Consultores abaixo da participação média dos colegas na mesma loja.
+                  {selectedLabels.length > 0 ? ' · filtrado por região' : ''}
+                </p>
+              </div>
+              <div className="cons-alert-total">
+                <span className="cons-alert-total-label">Consultores</span>
+                <span className="cons-alert-total-value">{abaixo.length}</span>
+                <span className="cons-alert-total-sub">abaixo da média</span>
+              </div>
+            </div>
+            <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th className="col-rank">#</th>
+                    <th>Consultor</th>
+                    <th className="col-pdv">PDV</th>
+                    <th>Região</th>
+                    <th className="col-num">Receita</th>
+                    <th className="col-num">% Loja</th>
+                    <th className="col-num">Média esperada</th>
+                    <th className="col-num">Diferença</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {abaixo.map((c, i) => (
+                    <tr key={`${c.pdv}-${c.consultor}`}>
+                      <td className="col-rank">{i + 1}</td>
+                      <td className="col-consultor">{c.consultor}</td>
+                      <td className="col-pdv">{c.pdv}</td>
+                      <td>
+                        <div className="label-chips-group">
+                          {(c.loja?.labels ?? []).map(lid => {
+                            const lb = labels.find(x => x.id === lid)
+                            return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
+                          })}
+                        </div>
+                      </td>
+                      <td className="col-num">{fBRLR(c.vf_atual)}</td>
+                      <td className="col-num" style={{ color: '#dc2626', fontWeight: 700 }}>{fDec(c.share, 1)}%</td>
+                      <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fDec(c.avg, 1)}%</td>
+                      <td className="col-num" style={{ color: '#dc2626', fontWeight: 600 }}>−{fDec(c.diff, 1)}pp</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -3046,9 +3156,10 @@ function DispersaoPage() {
 
 /* ── IAF — Ação de Fluxo ────────────────────────────── */
 function IafFluxoPage() {
-  const { fluxoRows, fluxoConsultorRows, fluxoTotal, mainRows, mainTotal, cpData } = useData()
+  const { fluxoRows, fluxoConsultorRows, fluxoTotal, mainRows, mainTotal, cpData, consultorRows } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
+  const { metas: iafMetas, updateMeta: updateIafMeta } = useIafMetas()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [selectedPdv, setSelectedPdv] = useState<string>('')
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -3062,10 +3173,12 @@ function IafFluxoPage() {
     </div>
   )
 
-  const lojaMap  = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
-  const mainMap  = useMemo(() => new Map(mainRows.map(r => [r.pdv, r])), [mainRows])
+  const lojaMap      = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  const mainMap      = useMemo(() => new Map(mainRows.map(r => [r.pdv, r])), [mainRows])
+  const norm = (s: string) => s.trim().replace(/\s+/g, ' ').toUpperCase()
+  const activeConsSet = useMemo(() => new Set(consultorRows.map(r => norm(r.consultor))), [consultorRows])
   const groupBM  = (fluxoTotal?.bm_atual || cpData?.bm_valor) ?? mainTotal?.bm_atual ?? 0
-  const TARGET = 28
+  const TARGET = iafMetas.af
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -3135,25 +3248,26 @@ function IafFluxoPage() {
     filteredStores.filter(r => r.conv >= TARGET).sort((a, b) => b.conv - a.conv)
   , [filteredStores])
 
-  // 3. Ranking global de consultores por conv%
+  // 3. Ranking global de consultores por conv% (apenas consultores ativos)
   const consRanking = useMemo(() =>
     fluxoConsultorRows
+      .filter(c => activeConsSet.size === 0 || activeConsSet.has(norm(c.consultor)))
       .map(c => { const loja = lojaMap.get(c.pdv); return { ...c, conv: normConv(c.conv_pct), loja } })
       .filter(c => selectedLabels.length === 0 || selectedLabels.some(lid => (c.loja?.labels ?? []).includes(lid)))
       .sort((a, b) => b.conv - a.conv)
-  , [fluxoConsultorRows, lojaMap, selectedLabels])
+  , [fluxoConsultorRows, activeConsSet, lojaMap, selectedLabels])
 
-  // Consultores da loja selecionada
+  // Consultores da loja selecionada (apenas consultores ativos)
   const consRows = useMemo(() => {
     return fluxoConsultorRows
-      .filter(c => c.pdv === activePdv)
+      .filter(c => c.pdv === activePdv && (activeConsSet.size === 0 || activeConsSet.has(norm(c.consultor))))
       .map(c => {
         const conv = normConv(c.conv_pct)
         const { gapConv, gapReceita } = calcGap(c.resgates, c.conversoes)
         return { ...c, conv, gapConv, gapReceita }
       })
       .sort((a, b) => b.gapReceita - a.gapReceita)
-  }, [fluxoConsultorRows, activePdv, groupBM])
+  }, [fluxoConsultorRows, activePdv, activeConsSet, groupBM])
 
   function StoreOptionContent({ pdv, inline }: { pdv: string; inline?: boolean }) {
     const loja = lojaMap.get(pdv)
@@ -3182,7 +3296,10 @@ function IafFluxoPage() {
       <div className="page-title-row">
         <div>
           <h2 className="page-title">Ação de Fluxo</h2>
-          <p className="page-subtitle">Meta de conversão: {TARGET}% · BM referência: {fBRLR(groupBM)}</p>
+          <p className="page-subtitle">BM referência: {fBRLR(groupBM)}</p>
+          <div style={{ marginTop: 8 }}>
+            <MetaTag label="Meta AF" value={iafMetas.af} defaultValue={IAF_METAS_DEFAULT.af} onSave={v => updateIafMeta('af', v)} />
+          </div>
         </div>
       </div>
       <IndicadoresRef />
@@ -3678,9 +3795,6 @@ function ServicosPage() {
             )}
           </div>
         </div>
-        <KpiCard label="Serviços Totais"    value={fDec(totalTotais, 1)} />
-        <KpiCard label="% Completos"        value={fDec(pctGeral * 100, 1) + '%'} />
-        <KpiCard label="Média por Loja"     value={fDec(avgPorLoja, 1)} />
         <div className="kpi-card" style={{ minWidth: 160 }}>
           <div className="kpi-label">Meta Total</div>
           {totalMeta > 0 ? (
@@ -3738,15 +3852,12 @@ function ServicosPage() {
                 <th>Loja</th>
                 <th>Região</th>
                 <th className="col-num">Serv. Completos</th>
-                <th className="col-num">Serv. Totais</th>
-                <th className="col-num">% Completos</th>
                 <th className="col-num">Meta</th>
                 <th className="col-num">Ating.</th>
               </tr>
             </thead>
             <tbody>
               {storeRows.map((r, i) => {
-                const pct = r.pct_completos * 100
                 const metaLoja = metas[r.pdv] ?? null
                 const ating = metaLoja ? (r.servicos_completos / metaLoja) * 100 : null
                 const servColor = ating === null
@@ -3769,8 +3880,6 @@ function ServicosPage() {
                       </div>
                     </td>
                     <td className="col-num" style={{ fontWeight: 700 }}>{fDec(r.servicos_completos, 1)}</td>
-                    <td className="col-num">{fDec(r.servicos_totais, 1)}</td>
-                    <td className="col-num" style={{ color: pct >= pctGeral * 100 ? '#059669' : '#d97706', fontWeight: 600 }}>{fDec(pct, 1)}%</td>
                     <td className="col-num" style={{ minWidth: 110 }}>
                       {isEditing ? (
                         <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
@@ -3820,8 +3929,6 @@ function ServicosPage() {
               <tr className="gap-table-total">
                 <td colSpan={4} className="gap-total-label">Total</td>
                 <td className="col-num" style={{ fontWeight: 700 }}>{fDec(totalCompletos, 1)}</td>
-                <td className="col-num">{fDec(totalTotais, 1)}</td>
-                <td className="col-num" style={{ fontWeight: 700 }}>{fDec(pctGeral * 100, 1)}%</td>
                 <td className="col-num" style={{ fontWeight: 700 }}>{totalMeta > 0 ? fDec(totalMeta, 0) : '—'}</td>
                 <td className="col-num" style={{ fontWeight: 700, color: atingGeralColor }}>{atingGeral != null ? fDec(atingGeral, 1) + '%' : '—'}</td>
               </tr>
@@ -3903,13 +4010,14 @@ function IDClientePage() {
   const { idClienteRows, idClienteConsultorRows, idClienteCP } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
+  const { metas: iafMetas, updateMeta: updateIafMeta } = useIafMetas()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [selectedPdv, setSelectedPdv] = useState<string>('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
   const { openImport } = useFileStatus()
 
-  const TARGET_CPF = 115
+  const TARGET_CPF = iafMetas.id
 
   // Todos os hooks antes do return condicional (Rules of Hooks)
   const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
@@ -4016,7 +4124,10 @@ function IDClientePage() {
       <div className="page-title-row">
         <div>
           <h2 className="page-title">ID do Cliente</h2>
-          <p className="page-subtitle">Meta IAF: 115% de alcance · {filteredRows.length} lojas</p>
+          <p className="page-subtitle">{filteredRows.length} lojas</p>
+          <div style={{ marginTop: 8 }}>
+            <MetaTag label="Meta ID" value={iafMetas.id} defaultValue={IAF_METAS_DEFAULT.id} onSave={v => updateIafMeta('id', v)} />
+          </div>
         </div>
       </div>
 
@@ -4183,7 +4294,7 @@ function IDClientePage() {
             {pickerOpen && (
               <div className="store-picker-dropdown">
                 {idClienteRows.map(r => (
-                  <button key={r.pdv} className={`store-picker-opt${r.pdv === activePdv ? ' active' : ''}`}
+                  <button key={r.pdv} className={`store-picker-option${r.pdv === activePdv ? ' selected' : ''}`}
                     onClick={() => { setSelectedPdv(r.pdv); setPickerOpen(false) }}>
                     <StoreOptionContent pdv={r.pdv} />
                   </button>
@@ -4652,15 +4763,16 @@ function LojaDigitalPage() {
 
 /* ── IAF — Skin (Cuidados Faciais) ─────────────────── */
 function IafSkinPage() {
-  const { skinRows, skinConsultorRows, skinCP, mainRows } = useData()
+  const { skinRows, skinConsultorRows, skinCP, mainRows, consultorRows } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
+  const { metas: iafMetas, updateMeta: updateIafMeta } = useIafMetas()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [selectedPdv, setSelectedPdv] = useState<string>('')
   const [pickerOpen, setPickerOpen] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
 
-  const TARGET_MIN = 2.7
+  const TARGET_MIN = iafMetas.skin
 
   const { openImport } = useFileStatus()
 
@@ -4673,8 +4785,10 @@ function IafSkinPage() {
     </div>
   )
 
-  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
-  const mainMap = useMemo(() => new Map(mainRows.map(r => [r.pdv, r])), [mainRows])
+  const lojaMap       = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  const mainMap       = useMemo(() => new Map(mainRows.map(r => [r.pdv, r])), [mainRows])
+  const norm = (s: string) => s.trim().replace(/\s+/g, ' ').toUpperCase()
+  const activeConsSet = useMemo(() => new Set(consultorRows.map(r => norm(r.consultor))), [consultorRows])
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -4709,10 +4823,10 @@ function IafSkinPage() {
 
   const consRows = useMemo(() =>
     skinConsultorRows
-      .filter(c => c.pdv === activePdv)
+      .filter(c => c.pdv === activePdv && (activeConsSet.size === 0 || activeConsSet.has(norm(c.consultor))))
       .sort((a, b) => b.share - a.share)
       .map(c => ({ ...c, sharePct: c.share * 100 }))
-  , [skinConsultorRows, activePdv])
+  , [skinConsultorRows, activePdv, activeConsSet])
 
   // Share calculado sobre as lojas filtradas (usa vf_total quando disponível, senão usa skinCP)
   const filteredReceita = filteredRows.reduce((s, r) => s + r.receita_atual, 0)
@@ -4759,11 +4873,12 @@ function IafSkinPage() {
   // 2. Ranking global de consultores por share skin
   const consRanking = useMemo(() =>
     skinConsultorRows
+      .filter(c => activeConsSet.size === 0 || activeConsSet.has(norm(c.consultor)))
       .map(c => { const loja = lojaMap.get(c.pdv); return { ...c, loja, sharePct: c.share * 100 } })
       .filter(c => selectedLabels.length === 0 || selectedLabels.some(lid => (c.loja?.labels ?? []).includes(lid)))
       .filter(c => c.receita_atual > 0)
       .sort((a, b) => b.sharePct - a.sharePct)
-  , [skinConsultorRows, lojaMap, selectedLabels])
+  , [skinConsultorRows, activeConsSet, lojaMap, selectedLabels])
 
   function StoreOptionContent({ pdv, inline }: { pdv: string; inline?: boolean }) {
     const loja = lojaMap.get(pdv)
@@ -4782,7 +4897,10 @@ function IafSkinPage() {
       <div className="page-title-row">
         <div>
           <h2 className="page-title">Skin — Cuidados Faciais</h2>
-          <p className="page-subtitle">Meta mínima: {TARGET_MIN}% de share · {filteredRows.length} lojas</p>
+          <p className="page-subtitle">{filteredRows.length} lojas</p>
+          <div style={{ marginTop: 8 }}>
+            <MetaTag label="Meta Skin" value={iafMetas.skin} defaultValue={IAF_METAS_DEFAULT.skin} onSave={v => updateIafMeta('skin', v)} />
+          </div>
         </div>
       </div>
 
@@ -5192,13 +5310,13 @@ function IafSkinPage() {
 }
 
 /* ── IAF — Resgates ─────────────────────────────────── */
-const RESGATE_META = 0.52
-
 function ResgatesPage() {
   const { resgatesPdvRows, resgatesTotal, resgatesConsultorRows, consultorRows, fluxoConsultorRows } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
+  const { metas: iafMetas, updateMeta: updateIafMeta } = useIafMetas()
+  const RESGATE_META = iafMetas.resgate / 100
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
 
@@ -5312,7 +5430,10 @@ function ResgatesPage() {
       <div className="page-title-row">
         <div>
           <h2 className="page-title">Resgates</h2>
-          <p className="page-subtitle">Meta: {fDec(RESGATE_META * 100, 0)}% · {storeRows.length} lojas</p>
+          <p className="page-subtitle">{storeRows.length} lojas</p>
+          <div style={{ marginTop: 8 }}>
+            <MetaTag label="Meta Resgate" value={iafMetas.resgate} defaultValue={IAF_METAS_DEFAULT.resgate} onSave={v => updateIafMeta('resgate', v)} />
+          </div>
         </div>
       </div>
 
@@ -5592,14 +5713,13 @@ function ResgatesPage() {
 }
 
 /* ── IAF — Boleto Promocional ───────────────────────── */
-// Meta a definir — altere este valor quando souber o alvo
-const BOLETO_PROMO_META = 0.33
-
 function BoletoPromocionalPage() {
   const { boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, consultorRows, fluxoConsultorRows } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
+  const { metas: iafMetas, updateMeta: updateIafMeta } = useIafMetas()
+  const BOLETO_PROMO_META = iafMetas.bp / 100
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [sortDir, setSortDir] = useState<'desc' | 'asc'>('desc')
   const [selectedPdv, setSelectedPdv] = useState<string>('')
@@ -5699,6 +5819,9 @@ function BoletoPromocionalPage() {
         <div>
           <h2 className="page-title">Boleto Promocional</h2>
           <p className="page-subtitle">% Convertidos · {storeRows.length} lojas</p>
+          <div style={{ marginTop: 8 }}>
+            <MetaTag label="Meta BP" value={iafMetas.bp} defaultValue={IAF_METAS_DEFAULT.bp} onSave={v => updateIafMeta('bp', v)} />
+          </div>
         </div>
       </div>
 
@@ -6010,6 +6133,7 @@ function MetaDiaPage() {
       venda_ly: r.venda_ly,
       crescimento,
       meta_dia,
+      meta_skin: meta_dia !== null ? meta_dia * 0.04 : null,
       semMeta: crescimento === null,
     }
   }).sort((a, b) => (b.meta_dia ?? 0) - (a.meta_dia ?? 0))
@@ -6018,9 +6142,10 @@ function MetaDiaPage() {
     ? allRows
     : allRows.filter(r => selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
 
-  const totalLY  = rows.reduce((s, r) => s + r.venda_ly, 0)
-  const totalMeta = rows.filter(r => r.meta_dia !== null).reduce((s, r) => s + r.meta_dia!, 0)
-  const semMeta  = rows.filter(r => r.semMeta).length
+  const totalLY       = rows.reduce((s, r) => s + r.venda_ly, 0)
+  const totalMeta     = rows.filter(r => r.meta_dia !== null).reduce((s, r) => s + r.meta_dia!, 0)
+  const totalMetaSkin = totalMeta * 0.04
+  const semMeta       = rows.filter(r => r.semMeta).length
 
   return (
     <div className="page-content">
@@ -6078,6 +6203,7 @@ function MetaDiaPage() {
                 <th className="col-num">Venda LY</th>
                 <th className="col-num">Crescimento</th>
                 <th className="col-num">Meta do Dia</th>
+                <th className="col-num">Meta Skin</th>
               </tr>
             </thead>
             <tbody>
@@ -6101,6 +6227,9 @@ function MetaDiaPage() {
                   <td className="col-num" style={{ fontWeight: 700, color: r.meta_dia !== null ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                     {r.meta_dia !== null ? fBRLR(r.meta_dia) : '—'}
                   </td>
+                  <td className="col-num" style={{ color: r.meta_skin !== null ? '#0891b2' : 'var(--text-muted)' }}>
+                    {r.meta_skin !== null ? fBRLR(r.meta_skin) : '—'}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -6110,6 +6239,7 @@ function MetaDiaPage() {
                 <td className="col-num col-muted-val">{fBRLR(totalLY)}</td>
                 <td className="col-num" />
                 <td className="col-num" style={{ fontWeight: 700 }}>{totalMeta > 0 ? fBRLR(totalMeta) : '—'}</td>
+                <td className="col-num" style={{ fontWeight: 700, color: '#0891b2' }}>{totalMeta > 0 ? fBRLR(totalMetaSkin) : '—'}</td>
               </tr>
             </tfoot>
           </table>
@@ -6885,14 +7015,64 @@ function Sidebar() {
   )
 }
 
+/* ── Metas IAF configuráveis ────────────────────────── */
+const IAF_METAS_DEFAULT = { skin: 2.7, af: 28, bp: 33, resgate: 52, id: 115 }
+type IafMetasKey = keyof typeof IAF_METAS_DEFAULT
+
+function useIafMetas() {
+  const [metas, setMetas] = useState<typeof IAF_METAS_DEFAULT>(() => {
+    try { return { ...IAF_METAS_DEFAULT, ...JSON.parse(localStorage.getItem('prisma-prefs-iaf-metas') ?? '{}') } }
+    catch { return { ...IAF_METAS_DEFAULT } }
+  })
+  function updateMeta(key: IafMetasKey, value: number) {
+    const next = { ...metas, [key]: value }
+    setMetas(next)
+    localStorage.setItem('prisma-prefs-iaf-metas', JSON.stringify(next))
+  }
+  return { metas, updateMeta }
+}
+
+function MetaTag({ label, value, defaultValue, onSave }: { label: string; value: number; defaultValue: number; onSave: (v: number) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [input, setInput] = useState('')
+  const isCustom = value !== defaultValue
+  function save() {
+    const v = parseFloat(input.replace(',', '.'))
+    if (!isNaN(v) && v > 0) { onSave(v); setEditing(false) }
+  }
+  if (editing) return (
+    <span className="servicos-meta-edit" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+      <input className="servicos-meta-input" value={input} onChange={e => setInput(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false) }}
+        autoFocus placeholder={String(defaultValue)} style={{ width: 64 }} />
+      <button className="servicos-meta-save" onClick={save}>✓</button>
+      <button className="servicos-meta-cancel" onClick={() => setEditing(false)}>✕</button>
+    </span>
+  )
+  return (
+    <span
+      onClick={() => { setInput(String(value)); setEditing(true) }}
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 13,
+        color: isCustom ? 'var(--brand-primary)' : 'var(--text-secondary)',
+        background: isCustom ? 'rgba(124,58,237,.08)' : 'transparent',
+        border: `1px solid ${isCustom ? 'rgba(124,58,237,.25)' : 'var(--bg-border)'}`,
+        borderRadius: 6, padding: '2px 8px', userSelect: 'none' }}
+      title="Clique para editar a meta"
+    >
+      {label}: <strong>{fDec(value, 1)}%</strong>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </span>
+  )
+}
+
 /* ── IAF — Indicadores (Resumo por loja) ────────────── */
-const IAF_IND_METAS = { skin: 2.7, af: 28, bp: 33, resgate: 52, id: 115 }
 
 function IafIndicadoresPage() {
-  const { skinRows, fluxoRows, idClienteRows, servicosRows, resgatesPdvRows, boletoPromoPdvRows } = useData()
+  const { mainRows, skinRows, fluxoRows, idClienteRows, servicosRows, resgatesPdvRows, boletoPromoPdvRows } = useData()
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
+  const { metas: iafMetas, updateMeta: updateIafMeta } = useIafMetas()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const [selectedPdvCard, setSelectedPdvCard] = useState<string>('')
   const [pdvCardOpen, setPdvCardOpen] = useState(false)
@@ -6910,6 +7090,7 @@ function IafIndicadoresPage() {
   }, [])
 
   const lojaMap    = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+  const mainMap    = useMemo(() => new Map(mainRows.map(r => [r.pdv, r])), [mainRows])
   const skinMap    = useMemo(() => new Map(skinRows.map(r => [r.pdv, r])), [skinRows])
   const fluxoMap   = useMemo(() => new Map(fluxoRows.map(r => [r.pdv, r])), [fluxoRows])
   const idMap      = useMemo(() => new Map(idClienteRows.map(r => [r.pdv, r])), [idClienteRows])
@@ -6961,11 +7142,13 @@ function IafIndicadoresPage() {
         const lbPdvs = allPdvs.filter(pdv => (lojaMap.get(pdv)?.labels ?? []).includes(lb.id))
         if (lbPdvs.length === 0) return null
 
-        // SKIN: ponderado por receita total da loja (vf = receita_atual / share)
+        // SKIN: ponderado por vf_atual da loja (mesmo denominador usado em IafSkinPage)
         let skinRec = 0, skinVf = 0
         lbPdvs.forEach(pdv => {
           const r = skinMap.get(pdv)
-          if (r && r.share > 0) { skinRec += r.receita_atual; skinVf += r.receita_atual / r.share }
+          if (!r) return
+          const vf = mainMap.get(pdv)?.vf_atual ?? (r.share > 0 ? r.receita_atual / r.share : 0)
+          if (vf > 0) { skinRec += r.receita_atual; skinVf += vf }
         })
         const skinAvg = skinVf > 0 ? skinRec / skinVf * 100 : null
 
@@ -7012,18 +7195,18 @@ function IafIndicadoresPage() {
         const servAvg = servMeta > 0 ? servComp / servMeta * 100 : null
 
         const scores = [
-          scoreOf(skinAvg, IAF_IND_METAS.skin),
-          scoreOf(afAvg, IAF_IND_METAS.af),
-          scoreOf(bpAvg, IAF_IND_METAS.bp),
-          scoreOf(resgateAvg, IAF_IND_METAS.resgate),
-          scoreOf(idAvg, IAF_IND_METAS.id),
+          scoreOf(skinAvg, iafMetas.skin),
+          scoreOf(afAvg, iafMetas.af),
+          scoreOf(bpAvg, iafMetas.bp),
+          scoreOf(resgateAvg, iafMetas.resgate),
+          scoreOf(idAvg, iafMetas.id),
         ].filter((s): s is number => s !== null)
         const nota = scores.length > 0 ? (scores.reduce((s, x) => s + x, 0) / scores.length) * 5 : null
         return { label: lb, count: lbPdvs.length, skinAvg, afAvg, bpAvg, resgateAvg, idAvg, servComp, servMeta, nota }
       })
       .filter((x): x is NonNullable<typeof x> => x !== null)
       .sort((a, b) => (b.nota ?? -1) - (a.nota ?? -1))
-  }, [labels, allPdvs, lojaMap, skinMap, fluxoMap, bpMap, resgateMap, idMap, servMap, servicosMetas])
+  }, [labels, allPdvs, lojaMap, mainMap, skinMap, fluxoMap, bpMap, resgateMap, idMap, servMap, servicosMetas])
 
   if (allPdvs.length === 0) return (
     <div className="page-empty-state">
@@ -7039,12 +7222,12 @@ function IafIndicadoresPage() {
     const ok = meta !== null ? v >= meta : null
     return (
       <td className="col-num" style={{ fontWeight: ok === false ? 700 : undefined, color: ok === null ? 'var(--text-secondary)' : ok ? '#059669' : '#dc2626' }}>
-        {fDec(v, 1)}%
+        {fDec(v, 2)}%
       </td>
     )
   }
 
-  const fmt = (n: number) => n % 1 === 0 ? fInt(n) : fDec(n, 1)
+  const fmt = (n: number) => n % 1 === 0 ? fInt(n) : fDec(n, 2)
 
   function ColHead({ label, meta }: { label: string; meta?: number }) {
     return (
@@ -7058,11 +7241,11 @@ function IafIndicadoresPage() {
   }
 
   const below = {
-    skin:    { n: rows.filter(r => r.skinPct    != null && r.skinPct    < IAF_IND_METAS.skin).length,    has: rows.some(r => r.skinPct    != null) },
-    af:      { n: rows.filter(r => r.afPct      != null && r.afPct      < IAF_IND_METAS.af).length,      has: rows.some(r => r.afPct      != null) },
-    bp:      { n: rows.filter(r => r.bpPct      != null && r.bpPct      < IAF_IND_METAS.bp).length,      has: rows.some(r => r.bpPct      != null) },
-    resgate: { n: rows.filter(r => r.resgatePct != null && r.resgatePct < IAF_IND_METAS.resgate).length, has: rows.some(r => r.resgatePct != null) },
-    id:      { n: rows.filter(r => r.idPct      != null && r.idPct      < IAF_IND_METAS.id).length,      has: rows.some(r => r.idPct      != null) },
+    skin:    { n: rows.filter(r => r.skinPct    != null && r.skinPct    < iafMetas.skin).length,    has: rows.some(r => r.skinPct    != null) },
+    af:      { n: rows.filter(r => r.afPct      != null && r.afPct      < iafMetas.af).length,      has: rows.some(r => r.afPct      != null) },
+    bp:      { n: rows.filter(r => r.bpPct      != null && r.bpPct      < iafMetas.bp).length,      has: rows.some(r => r.bpPct      != null) },
+    resgate: { n: rows.filter(r => r.resgatePct != null && r.resgatePct < iafMetas.resgate).length, has: rows.some(r => r.resgatePct != null) },
+    id:      { n: rows.filter(r => r.idPct      != null && r.idPct      < iafMetas.id).length,      has: rows.some(r => r.idPct      != null) },
   }
 
   function BelowCell({ b }: { b: { n: number; has: boolean } }) {
@@ -7076,6 +7259,13 @@ function IafIndicadoresPage() {
         <div>
           <h2 className="page-title">IAF — Indicadores</h2>
           <p className="page-subtitle">Resumo por loja · {rows.length} loja{rows.length !== 1 ? 's' : ''}</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+            <MetaTag label="Skin"    value={iafMetas.skin}    defaultValue={IAF_METAS_DEFAULT.skin}    onSave={v => updateIafMeta('skin', v)} />
+            <MetaTag label="AF"      value={iafMetas.af}      defaultValue={IAF_METAS_DEFAULT.af}      onSave={v => updateIafMeta('af', v)} />
+            <MetaTag label="BP"      value={iafMetas.bp}      defaultValue={IAF_METAS_DEFAULT.bp}      onSave={v => updateIafMeta('bp', v)} />
+            <MetaTag label="Resgate" value={iafMetas.resgate} defaultValue={IAF_METAS_DEFAULT.resgate} onSave={v => updateIafMeta('resgate', v)} />
+            <MetaTag label="ID"      value={iafMetas.id}      defaultValue={IAF_METAS_DEFAULT.id}      onSave={v => updateIafMeta('id', v)} />
+          </div>
         </div>
       </div>
 
@@ -7103,11 +7293,11 @@ function IafIndicadoresPage() {
               <tr>
                 <th>Label</th>
                 <th className="col-num">Lojas</th>
-                <ColHead label="SKIN"    meta={IAF_IND_METAS.skin} />
-                <ColHead label="AF"      meta={IAF_IND_METAS.af} />
-                <ColHead label="BP"      meta={IAF_IND_METAS.bp} />
-                <ColHead label="Resgate" meta={IAF_IND_METAS.resgate} />
-                <ColHead label="ID"      meta={IAF_IND_METAS.id} />
+                <ColHead label="SKIN"    meta={iafMetas.skin} />
+                <ColHead label="AF"      meta={iafMetas.af} />
+                <ColHead label="BP"      meta={iafMetas.bp} />
+                <ColHead label="Resgate" meta={iafMetas.resgate} />
+                <ColHead label="ID"      meta={iafMetas.id} />
                 <ColHead label="Serviços" />
                 <th className="col-num">Nota</th>
               </tr>
@@ -7123,11 +7313,11 @@ function IafIndicadoresPage() {
                       </span>
                     </td>
                     <td className="col-num" style={{ color: 'var(--text-secondary)' }}>{row.count}</td>
-                    <ICell v={row.skinAvg}    meta={IAF_IND_METAS.skin} />
-                    <ICell v={row.afAvg}      meta={IAF_IND_METAS.af} />
-                    <ICell v={row.bpAvg}      meta={IAF_IND_METAS.bp} />
-                    <ICell v={row.resgateAvg} meta={IAF_IND_METAS.resgate} />
-                    <ICell v={row.idAvg}      meta={IAF_IND_METAS.id} />
+                    <ICell v={row.skinAvg}    meta={iafMetas.skin} />
+                    <ICell v={row.afAvg}      meta={iafMetas.af} />
+                    <ICell v={row.bpAvg}      meta={iafMetas.bp} />
+                    <ICell v={row.resgateAvg} meta={iafMetas.resgate} />
+                    <ICell v={row.idAvg}      meta={iafMetas.id} />
                     <td className="col-num">
                       {row.servMeta > 0
                         ? <span style={{ fontWeight: 700, color: row.servComp >= row.servMeta ? '#059669' : '#dc2626' }}>
@@ -7156,11 +7346,11 @@ function IafIndicadoresPage() {
               <th className="col-rank">#</th>
               <th>Loja</th>
               <th>Região</th>
-              <ColHead label="SKIN"    meta={IAF_IND_METAS.skin} />
-              <ColHead label="AF"      meta={IAF_IND_METAS.af} />
-              <ColHead label="BP"      meta={IAF_IND_METAS.bp} />
-              <ColHead label="Resgate" meta={IAF_IND_METAS.resgate} />
-              <ColHead label="ID"      meta={IAF_IND_METAS.id} />
+              <ColHead label="SKIN"    meta={iafMetas.skin} />
+              <ColHead label="AF"      meta={iafMetas.af} />
+              <ColHead label="BP"      meta={iafMetas.bp} />
+              <ColHead label="Resgate" meta={iafMetas.resgate} />
+              <ColHead label="ID"      meta={iafMetas.id} />
               <ColHead label="Serviços" />
             </tr>
           </thead>
@@ -7182,11 +7372,11 @@ function IafIndicadoresPage() {
                     })}
                   </div>
                 </td>
-                <ICell v={r.skinPct}    meta={IAF_IND_METAS.skin} />
-                <ICell v={r.afPct}      meta={IAF_IND_METAS.af} />
-                <ICell v={r.bpPct}      meta={IAF_IND_METAS.bp} />
-                <ICell v={r.resgatePct} meta={IAF_IND_METAS.resgate} />
-                <ICell v={r.idPct}      meta={IAF_IND_METAS.id} />
+                <ICell v={r.skinPct}    meta={iafMetas.skin} />
+                <ICell v={r.afPct}      meta={iafMetas.af} />
+                <ICell v={r.bpPct}      meta={iafMetas.bp} />
+                <ICell v={r.resgatePct} meta={iafMetas.resgate} />
+                <ICell v={r.idPct}      meta={iafMetas.id} />
                 <td className="col-num">
                   {(() => {
                     const serv = servMap.get(r.pdv)
@@ -7290,11 +7480,11 @@ function IafIndicadoresPage() {
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-              <Block label="SKIN"             value={skinPct}    meta={IAF_IND_METAS.skin} />
-              <Block label="AF"               value={afPct}      meta={IAF_IND_METAS.af} />
-              <Block label="Boleto Promo"     value={bpPct}      meta={IAF_IND_METAS.bp} />
-              <Block label="Resgate"          value={resgatePct} meta={IAF_IND_METAS.resgate} />
-              <Block label="ID Cliente"       value={idPct}      meta={IAF_IND_METAS.id} />
+              <Block label="SKIN"             value={skinPct}    meta={iafMetas.skin} />
+              <Block label="AF"               value={afPct}      meta={iafMetas.af} />
+              <Block label="Boleto Promo"     value={bpPct}      meta={iafMetas.bp} />
+              <Block label="Resgate"          value={resgatePct} meta={iafMetas.resgate} />
+              <Block label="ID Cliente"       value={idPct}      meta={iafMetas.id} />
               {(() => {
                 const ok = servPct !== null ? servPct >= 100 : null
                 const bg      = ok === true ? '#d1fae5' : ok === false ? '#fee2e2' : 'var(--bg-surface-2)'

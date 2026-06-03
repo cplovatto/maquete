@@ -566,7 +566,7 @@ function parseIDClientePdvSheet(wb: WorkBook, utils: XLSX_Utils): IDClienteRow[]
   }).map(r => {
     const a = r as unknown[]
     return {
-      pdv: String(a[0]),
+      pdv: String(a[0]).trim(),
       atend_id_ant:              toNum(a[1]),  atend_id_atual:              toNum(a[2]),
       atend_cpf_atual:           toNum(a[5]),
       pct_cpf_ant:               toNum(a[10]), pct_cpf_atual:               toNum(a[11]),

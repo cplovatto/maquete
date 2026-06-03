@@ -965,6 +965,8 @@ input, textarea { font-family: inherit; }
 .dash-table tbody tr:nth-child(even) { background: var(--bg-surface-2); }
 .dash-table tbody tr:hover { background: var(--bg-surface-hover) !important; }
 .dash-table td { padding: 9px 12px; color: var(--text-primary); vertical-align: middle; }
+.dash-table tfoot tr.tfoot-total { border-top: 2px solid var(--bg-border); background: var(--bg-surface-2); }
+.dash-table tfoot tr.tfoot-total td { font-weight: 700; color: var(--text-primary); padding: 9px 12px; }
 
 /* Tabela com acento de cor (região) */
 .dash-table--accented thead th {
