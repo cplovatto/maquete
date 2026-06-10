@@ -15,8 +15,10 @@ Protótipo interativo de um console de operações para gestão de redes de fran
 npm install
 npm run dev        # dev server em http://localhost:5173
 npm run typecheck  # verifica TypeScript sem compilar
-npm run build      # build para docs/ (deploy estático)
+npm run build      # build local (saída em docs/, gitignored)
 ```
+
+Deploy para GitHub Pages é automático via `.github/workflows/deploy.yml` em cada push na `main` — **não commitar** a pasta `docs/`.
 
 ## Estrutura de arquivos
 
@@ -160,7 +162,7 @@ A **hora** é o momento em que o usuário selecionou o arquivo.
 
 #### Padrões de nome de arquivo suportados
 
-Os arquivos reais do sistema seguem dois padrões principais (baseados em exemplos de `C:\Users\lovat\Downloads`):
+Os arquivos reais do sistema seguem dois padrões principais:
 
 | Padrão | Exemplo | Regex |
 |---|---|---|
@@ -307,4 +309,3 @@ Documentada nos issues:
 ## Referência
 
 - `prototipo01.html` — fonte de verdade para ícones SVG, estrutura de menu e lista de planilhas. Consultar sempre que precisar adicionar novos itens ao sidebar ou ao modal de importação.
-- Exemplos de arquivos reais em `C:\Users\lovat\Downloads` — útil para testar padrões de nome de arquivo.
