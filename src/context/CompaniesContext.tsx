@@ -48,11 +48,11 @@ const CompaniesCtx = createContext<CompaniesCtxType | null>(null)
 const SEED: Empresa[] = [
   {
     id: 'empresa-demo',
-    razaoSocial: 'Prisma Cosméticos Ltda',
+    razaoSocial: 'Velo Cosméticos Ltda',
     fantasia: 'Velo Retail',
     cnpj: '12.345.678/0001-90',
     telefone: '(11) 99999-8888',
-    email: 'contato@prismaretail.io',
+    email: 'contato@veloretail.io',
     plan: 'enterprise',
     locked: false,
     createdAt: '2026-01-15',

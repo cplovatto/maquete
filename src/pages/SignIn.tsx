@@ -26,7 +26,7 @@ export default function SignIn() {
     setTimeout(() => {
       const ok = login('email', creds.username, creds.password)
       if (ok) {
-        navigate(creds.username === 'admin' ? '/admin' : '/app')
+        navigate(creds.username === 'admin' ? '/admin' : '/app/dashboard')
       } else {
         setError('Usuário ou senha incorretos.')
         setLoading(false)
@@ -121,11 +121,6 @@ export default function SignIn() {
             {loading ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
-
-        <p className="signin-footer">
-          Não tem uma conta?{' '}
-          <Link to="/#precos">Criar conta gratuita</Link>
-        </p>
       </div>
     </div>
   )

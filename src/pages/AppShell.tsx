@@ -176,7 +176,7 @@ function LojaPage() {
   return (
     <div className="placeholder-page">
       <div className="page-header">
-        <div className="page-title">Prisma Loja</div>
+        <div className="page-title">Velo Loja</div>
         <div className="page-subtitle">Gestão do ponto de venda e operações da loja</div>
       </div>
       <div className="wip-banner">
@@ -208,7 +208,7 @@ function VDPage() {
   return (
     <div className="placeholder-page">
       <div className="page-header">
-        <div className="page-title">Prisma VD</div>
+        <div className="page-title">Velo VD</div>
         <div className="page-subtitle">Gestão de venda direta e rede de consultoras</div>
       </div>
       <div className="wip-banner">
@@ -316,6 +316,7 @@ const IC = {
   bolt:        <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
   gift:        <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>,
   sliders:     <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>,
+  home:        <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M9 21V12h6v9"/></svg>,
 }
 
 /* ── Lojas ──────────────────────────────────────────── */
@@ -681,6 +682,178 @@ function ParcialAlertToast({ onDismiss, onImport }: { onDismiss: () => void; onI
       </div>
       <button className="parcial-toast-import" onClick={onImport}>Importar agora</button>
       <button className="parcial-toast-dismiss" onClick={onDismiss}>✕</button>
+    </div>
+  )
+}
+
+/* ── Help modal ─────────────────────────────────────── */
+const HELP_FAQ = [
+  {
+    q: 'Como importo as planilhas?',
+    a: 'Clique no seu avatar no canto superior direito e escolha "Importar planilhas". Você verá a lista de fontes de dados organizadas por aba Mensal ou Anual. Selecione o arquivo correspondente em cada linha — o sistema detecta a data pelo nome do arquivo.',
+  },
+  {
+    q: 'O que é o Parcial do Dia?',
+    a: 'É um relatório atualizado ao longo do dia com o desempenho parcial de vendas. Recomendamos importar uma nova versão a cada 15–60 minutos. O Velo pode avisar quando for hora de atualizar — configure a frequência em "Configurações de alerta" no menu do perfil.',
+  },
+  {
+    q: 'Qual a diferença entre Mensal e Anual?',
+    a: 'O modo Mensal concentra a gestão do dia a dia: metas, parciais e indicadores operacionais. O modo Anual reúne visões consolidadas do período fiscal, como ranking anual e parcial PEF. Use o seletor no topo do menu lateral para alternar.',
+  },
+  {
+    q: 'O que significa o ponto laranja no menu?',
+    a: 'Indica que uma ou mais planilhas necessárias para aquela página ainda não foram importadas. Um ponto pulsante no item "Parcial do Dia" significa que já passou do intervalo configurado desde a última importação.',
+  },
+  {
+    q: 'Como configuro as metas das lojas?',
+    a: 'Acesse "Metas do Mês" no menu lateral (Gestão Instantânea). Lá você define a meta de faturamento de cada loja para o mês corrente. As metas alimentam os cálculos de atingimento exibidos nas demais telas.',
+  },
+  {
+    q: 'Posso cadastrar lojas manualmente?',
+    a: 'Sim. No menu do perfil, abra "Cadastro de lojas". É possível adicionar lojas uma a uma, editar apelidos e regiões, ou importar uma lista de códigos PDV em lote.',
+  },
+  {
+    q: 'Os dados ficam salvos entre sessões?',
+    a: 'Sim. Planilhas importadas e preferências são armazenadas localmente no seu navegador. Ao fechar e reabrir o Velo no mesmo dispositivo, os dados permanecem disponíveis sem precisar reimportar.',
+  },
+]
+
+function HelpModal({ onClose }: { onClose: () => void }) {
+  const [open, setOpen] = useState<number | null>(0)
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal--help" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">Central de Ajuda</span>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="help-modal-body">
+          <p className="help-modal-intro">
+            Perguntas frequentes sobre o uso do Velo Retail.
+          </p>
+          <div className="help-faq">
+            {HELP_FAQ.map((item, i) => {
+              const isOpen = open === i
+              return (
+                <div key={item.q} className={`help-faq-item${isOpen ? ' open' : ''}`}>
+                  <button
+                    type="button"
+                    className="help-faq-question"
+                    onClick={() => setOpen(isOpen ? null : i)}
+                    aria-expanded={isOpen}
+                  >
+                    <span>{item.q}</span>
+                    <span className="help-faq-chevron">{isOpen ? '−' : '+'}</span>
+                  </button>
+                  {isOpen && <div className="help-faq-answer">{item.a}</div>}
+                </div>
+              )
+            })}
+          </div>
+          <p className="help-modal-footer">
+            Não encontrou o que procura?{' '}
+            <a href="mailto:suporte@veloretail.io">suporte@veloretail.io</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Notifications modal ────────────────────────────── */
+interface Notification {
+  id: string
+  type: 'alert' | 'success' | 'info'
+  title: string
+  body: string
+  time: string
+  read: boolean
+}
+
+const SEED_NOTIFICATIONS: Notification[] = [
+  {
+    id: 'parcial',
+    type: 'alert',
+    title: 'Hora de atualizar o Parcial do Dia',
+    body: 'Faz mais de 30 minutos desde a última importação. Carregue uma nova planilha para manter os indicadores em tempo real.',
+    time: 'há 12 min',
+    read: false,
+  },
+  {
+    id: 'meta',
+    type: 'success',
+    title: 'Meta do dia atingida',
+    body: 'A loja Shopping Iguatemi fechou o dia com 102% da meta de faturamento.',
+    time: 'há 28 min',
+    read: false,
+  },
+  {
+    id: 'pending',
+    type: 'info',
+    title: 'Planilha pendente de importação',
+    body: 'Indicadores principais ainda não foram carregados hoje. As telas de Lojas podem exibir dados incompletos.',
+    time: 'há 1 h',
+    read: false,
+  },
+]
+
+function NotificationsModal({
+  notifications,
+  onMarkRead,
+  onMarkAllRead,
+  onClose,
+}: {
+  notifications: Notification[]
+  onMarkRead: (id: string) => void
+  onMarkAllRead: () => void
+  onClose: () => void
+}) {
+  const unread = notifications.filter(n => !n.read).length
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal--notif" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <span className="modal-title">
+            Notificações{unread > 0 && <span className="notif-modal-count">{unread}</span>}
+          </span>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="notif-modal-body">
+          {unread > 0 && (
+            <div className="notif-modal-toolbar">
+              <button type="button" className="notif-mark-all" onClick={onMarkAllRead}>
+                Marcar todas como lidas
+              </button>
+            </div>
+          )}
+          <ul className="notif-list">
+            {notifications.map(n => (
+              <li key={n.id}>
+                <button
+                  type="button"
+                  className={`notif-item${n.read ? ' read' : ''}`}
+                  onClick={() => onMarkRead(n.id)}
+                >
+                  <span className={`notif-item-icon notif-item-icon--${n.type}`}>
+                    {n.type === 'alert' ? '⏱' : n.type === 'success' ? '🎯' : '📋'}
+                  </span>
+                  <span className="notif-item-content">
+                    <span className="notif-item-title">{n.title}</span>
+                    <span className="notif-item-body">{n.body}</span>
+                    <span className="notif-item-time">{n.time}</span>
+                  </span>
+                  {!n.read && <span className="notif-item-unread" />}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {notifications.every(n => n.read) && (
+            <p className="notif-modal-empty">Todas as notificações foram lidas.</p>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -6966,6 +7139,9 @@ function Sidebar() {
 
   return (
     <aside className="sidebar">
+      <div className="sidebar-home">
+        <SideItem to="/app/dashboard" icon={IC.home} label="Painel Geral" />
+      </div>
       <div className="sidebar-period-toggle">
         <button
           className={`period-btn${periodo === 'mensal' ? ' active' : ''}`}
@@ -7538,7 +7714,11 @@ export default function AppShell() {
   const [profileOpen, setProfileOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [alertSettingsOpen, setAlertSettingsOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifications, setNotifications] = useState<Notification[]>(SEED_NOTIFICATIONS)
   const [lojasOpen, setLojasOpen] = useState(false)
+  const unreadNotifs = notifications.filter(n => !n.read).length
   const [fileStatuses, setFileStatuses] = useState<Record<string, FileStatus>>(() => {
     const defaults: Record<string, FileStatus> = {}
     ;[...MENSAL_SOURCES, ...ANUAL_SOURCES].forEach(s => { defaults[s.id] = s.defaultStatus })
@@ -7681,10 +7861,10 @@ export default function AppShell() {
     <div className="app-shell">
       {/* Header */}
       <header className="app-header">
-        <NavLink to="/app/dashboard" className="app-header-logo">
+        <div className="app-header-logo">
           <div className="app-header-logo-icon">💎</div>
           <span className="app-header-logo-text">Velo Retail</span>
-        </NavLink>
+        </div>
 
         <div className="app-header-search">
           <span className="app-header-search-icon">🔍</span>
@@ -7694,11 +7874,11 @@ export default function AppShell() {
         <div className="app-header-spacer" />
 
         <div className="app-header-actions">
-          <button className="app-header-icon-btn" title="Notificações">
+          <button className="app-header-icon-btn" title="Notificações" onClick={() => setNotifOpen(true)}>
             🔔
-            <span className="notif-dot">3</span>
+            {unreadNotifs > 0 && <span className="notif-dot">{unreadNotifs}</span>}
           </button>
-          <button className="app-header-icon-btn" title="Ajuda">❓</button>
+          <button className="app-header-icon-btn" title="Ajuda" onClick={() => setHelpOpen(true)}>❓</button>
           <button className="theme-toggle" onClick={toggleTheme} title="Alternar tema">
             {theme === 'light' ? '🌙' : '☀️'}
           </button>
@@ -7741,6 +7921,15 @@ export default function AppShell() {
       {lojasOpen && <LojasModal onClose={() => setLojasOpen(false)} />}
       {importOpen && <ImportModal onClose={() => setImportOpen(false)} />}
       {alertSettingsOpen && <AlertSettingsModal onClose={() => setAlertSettingsOpen(false)} />}
+      {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
+      {notifOpen && (
+        <NotificationsModal
+          notifications={notifications}
+          onMarkRead={id => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))}
+          onMarkAllRead={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+          onClose={() => setNotifOpen(false)}
+        />
+      )}
       {toastVisible && (
         <ParcialAlertToast
           onDismiss={() => setToastVisible(false)}
@@ -7755,8 +7944,8 @@ export default function AppShell() {
         {/* Main */}
         <main className="app-main">
           <Routes>
-            <Route index element={<Navigate to="meta" replace />} />
-            {/* Mensal – Gestão Online */}
+            <Route index element={<Navigate to="dashboard" replace />} />
+            {/* Mensal – Gestão Instantânea */}
             <Route path="metas-mes"     element={<MetasMesPage />} />
             <Route path="meta"          element={<MetaDiaPage />} />
             <Route path="parcial"       element={<ParcialDiaPage />} />
@@ -7793,7 +7982,7 @@ export default function AppShell() {
             <Route path="vd"             element={<VDPage />} />
             <Route path="relatorios"     element={<RelatoriosPage />} />
             <Route path="configuracoes"  element={<ConfigPage />} />
-            <Route path="*"              element={<Navigate to="meta" replace />} />
+            <Route path="*"              element={<Navigate to="dashboard" replace />} />
           </Routes>
         </main>
       </div>

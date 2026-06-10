@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (username === ADMIN_CRED.username && password === ADMIN_CRED.password) {
       setUser({
         name: 'Administrador',
-        email: 'admin@prisma.io',
+        email: 'admin@veloretail.io',
         initials: 'AD',
         provider: 'email',
         perfil: 'admin',

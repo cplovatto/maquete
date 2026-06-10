@@ -12,7 +12,7 @@ const ThemeContext = createContext<ThemeContextType | null>(null)
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     try {
-      const saved = localStorage.getItem('prisma-theme')
+      const saved = localStorage.getItem('velo-theme') ?? localStorage.getItem('prisma-theme')
       if (saved === 'dark' || saved === 'light') return saved
     } catch (_) { /* ignore */ }
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
@@ -20,7 +20,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    try { localStorage.setItem('prisma-theme', theme) } catch (_) { /* ignore */ }
+    try { localStorage.setItem('velo-theme', theme) } catch (_) { /* ignore */ }
   }, [theme])
 
   const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light')

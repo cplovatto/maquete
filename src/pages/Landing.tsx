@@ -57,8 +57,7 @@ export default function Landing() {
           <button className="theme-toggle" onClick={toggleTheme} title="Alternar tema">
             {theme === 'light' ? '🌙' : '☀️'}
           </button>
-          <Link to="/entrar" className="btn btn-ghost">Entrar</Link>
-          <Link to="/entrar" className="btn btn-gradient">Começar Grátis</Link>
+          <Link to="/entrar" className="btn btn-gradient">Entrar</Link>
         </div>
       </nav>
 
@@ -118,7 +117,7 @@ export default function Landing() {
           <div className="product-cards">
             <div className="product-card">
               <div className="product-icon product-icon-loja">🏪</div>
-              <h3>Prisma Loja</h3>
+              <h3>Velo Loja</h3>
               <p>
                 Gestão completa do ponto de venda: estoque, frente de caixa,
                 clientes e relatórios integrados para lojas de cosméticos.
@@ -132,7 +131,7 @@ export default function Landing() {
             </div>
             <div className="product-card">
               <div className="product-icon product-icon-vd">💄</div>
-              <h3>Prisma VD</h3>
+              <h3>Velo VD</h3>
               <p>
                 Plataforma completa de Venda Direta: gerencie sua rede de consultoras,
                 catálogo digital, pedidos e comissões com facilidade.
@@ -144,30 +143,6 @@ export default function Landing() {
                 ))}
               </ul>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section id="sobre" style={{ background: 'var(--bg-surface-2)' }}>
-        <div className="section-inner">
-          <div className="section-header">
-            <div className="section-badge">Como Funciona</div>
-            <h2>Do cadastro ao relatório em minutos</h2>
-            <p>Configuração simples e intuitiva. Sem precisar de TI.</p>
-          </div>
-          <div className="product-cards">
-            {[
-              { icon: '🚀', title: '1. Cadastre sua empresa', desc: 'Configure sua loja, produtos e equipe em poucos cliques. Importação de planilhas inclusa.' },
-              { icon: '🔗', title: '2. Conecte seus canais', desc: 'Integre PDV, e-commerce, marketplace e sua rede de consultoras em uma única plataforma.' },
-              { icon: '📊', title: '3. Acompanhe em tempo real', desc: 'Dashboard completo com vendas, estoque, comissões e metas atualizados em tempo real.' },
-            ].map(s => (
-              <div className="product-card" key={s.title} style={{ textAlign: 'center', alignItems: 'center', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ fontSize: 40, marginBottom: 16 }}>{s.icon}</div>
-                <h3>{s.title}</h3>
-                <p>{s.desc}</p>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -234,6 +209,30 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* How it works */}
+      <section id="sobre" style={{ background: 'var(--bg-surface-2)' }}>
+        <div className="section-inner">
+          <div className="section-header">
+            <div className="section-badge">Como Funciona</div>
+            <h2>Do cadastro ao relatório em minutos</h2>
+            <p>Configuração simples e intuitiva. Sem precisar de TI.</p>
+          </div>
+          <div className="product-cards">
+            {[
+              { icon: '🚀', title: '1. Cadastre sua empresa', desc: 'Configure sua loja, produtos e equipe em poucos cliques. Importação de planilhas inclusa.' },
+              { icon: '🔗', title: '2. Conecte seus canais', desc: 'Integre PDV, e-commerce, marketplace e sua rede de consultoras em uma única plataforma.' },
+              { icon: '📊', title: '3. Acompanhe em tempo real', desc: 'Dashboard completo com vendas, estoque, comissões e metas atualizados em tempo real.' },
+            ].map(s => (
+              <div className="product-card" key={s.title} style={{ textAlign: 'center', alignItems: 'center', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontSize: 40, marginBottom: 16 }}>{s.icon}</div>
+                <h3>{s.title}</h3>
+                <p>{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="footer" id="footer">
         <div className="footer-inner">
@@ -251,8 +250,8 @@ export default function Landing() {
             <div className="footer-col">
               <h4>Produto</h4>
               <ul>
-                <li><a href="#">Prisma Loja</a></li>
-                <li><a href="#">Prisma VD</a></li>
+                <li><a href="#">Velo Loja</a></li>
+                <li><a href="#">Velo VD</a></li>
                 <li><a href="#">Preços</a></li>
                 <li><a href="#">Novidades</a></li>
               </ul>
