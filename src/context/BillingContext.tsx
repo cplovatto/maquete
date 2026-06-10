@@ -28,7 +28,7 @@ function generateInvoices(): Invoice[] {
     const pago = m > 0  // mês atual não pago, anteriores pagos
     list.push({
       id: `inv-${m}`,
-      empresaId: 'empresa-demo',
+      empresaId: 'velo',
       descricao: `Assinatura ${label} — Plano Enterprise`,
       valor: 997,
       vencimento: venc,

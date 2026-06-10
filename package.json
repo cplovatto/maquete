@@ -6,9 +6,16 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:users:list": "tsx scripts/db-users.ts list",
+    "db:users:add": "tsx scripts/db-users.ts add",
+    "db:users:remove": "tsx scripts/db-users.ts remove",
+    "db:users:seed": "tsx scripts/db-users.ts seed",
+    "db:users:passwd": "tsx scripts/db-users.ts passwd",
+    "db:users:reset": "tsx scripts/db-users.ts reset"
   },
   "dependencies": {
+    "firebase": "^12.14.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.2",
@@ -18,6 +25,9 @@
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.2",
+    "dotenv": "^17.4.2",
+    "firebase-admin": "^14.0.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.5.3",
     "vite": "^5.4.10"
   }

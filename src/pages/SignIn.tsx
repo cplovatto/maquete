@@ -7,7 +7,7 @@ export default function SignIn() {
   const { login } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -22,13 +22,13 @@ export default function SignIn() {
     setError('')
     setSocialNotice('')
     setLoading(true)
-    const creds = { username, password }
+    const creds = { email, password }
     setTimeout(() => {
-      const ok = login('email', creds.username, creds.password)
+      const ok = login('email', creds.email, creds.password)
       if (ok) {
-        navigate(creds.username === 'admin' ? '/admin' : '/app')
+        navigate(creds.email.trim().toLowerCase() === 'admin@velo.io' ? '/admin' : '/app')
       } else {
-        setError('Usuário ou senha incorretos.')
+        setError('E-mail ou senha incorretos.')
         setLoading(false)
       }
     }, 600)
@@ -88,14 +88,15 @@ export default function SignIn() {
 
         <form onSubmit={handleEmail}>
           <div className="form-group">
-            <label className="form-label" htmlFor="username">Usuário</label>
+            <label className="form-label" htmlFor="email">E-mail</label>
             <input
-              id="username"
-              type="text"
+              id="email"
+              type="email"
               className="form-input"
-              placeholder="demo"
-              value={username}
-              onChange={e => { setUsername(e.target.value); setError('') }}
+              placeholder="demo@velo.io"
+              value={email}
+              onChange={e => { setEmail(e.target.value); setError('') }}
+              autoComplete="email"
               required
               disabled={busy}
             />
@@ -115,7 +116,7 @@ export default function SignIn() {
           </div>
           {error && <p className="signin-error">{error}</p>}
           <div className="form-footer">
-            <span className="signin-demo-hint">Use <strong>demo</strong> / <strong>demo</strong></span>
+            <span className="signin-demo-hint">Use <strong>demo@velo.io</strong> / <strong>demo</strong></span>
           </div>
           <button type="submit" className="btn-submit" disabled={busy}>
             {loading ? 'Entrando…' : 'Entrar'}
