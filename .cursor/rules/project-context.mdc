@@ -1,0 +1,10 @@
+---
+description: Project context — read CLAUDE.md before making changes
+alwaysApply: true
+---
+
+# Velo Retail maquete
+
+Before planning or editing code, read and follow `CLAUDE.md` at the repo root.
+
+It is the source of truth for stack, architecture, routing, data sources, localStorage keys, and project conventions.
