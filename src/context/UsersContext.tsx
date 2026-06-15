@@ -31,7 +31,7 @@ const SEED: AppUser[] = [
   },
   {
     id: 'user-admin',
-    email: 'admin@prisma.io',
+    email: 'admin@veloretail.io',
     nome: 'Administrador',
     perfil: 'admin',
     empresaId: 'empresa-demo',

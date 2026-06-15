@@ -7,7 +7,7 @@
     <meta name="description" content="Gestão de varejo de cosméticos — Loja e Venda Direta" />
     <script>
       try {
-        const t = localStorage.getItem('prisma-theme');
+        const t = localStorage.getItem('velo-theme') ?? localStorage.getItem('prisma-theme');
         document.documentElement.setAttribute('data-theme',
           t || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
       } catch(e) {}

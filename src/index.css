@@ -460,6 +460,12 @@ input, textarea { font-family: inherit; }
 .brand-name { font-weight: 600; font-size: 14px; color: var(--text-primary); }
 .brand-sub  { font-size: 11px; color: var(--text-muted); }
 
+/* Sidebar home */
+.sidebar-home {
+  padding: 8px 12px 4px;
+  border-bottom: 1px solid var(--bg-border);
+}
+
 /* Period toggle */
 .sidebar-period-toggle {
   display: flex; gap: 4px; padding: 8px 12px;
@@ -575,6 +581,89 @@ input, textarea { font-family: inherit; }
 .lojas-import-btn { margin-top: 10px; padding: 8px 20px; background: var(--brand-primary); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
 .lojas-import-btn:disabled { opacity: .5; cursor: not-allowed; }
 .lojas-import-btn:not(:disabled):hover { opacity: .9; }
+
+/* Notifications modal */
+.modal--notif { width: 440px; }
+.notif-modal-count {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; margin-left: 8px;
+  background: #ef4444; color: #fff; border-radius: 9px;
+  font-size: 11px; font-weight: 700; vertical-align: middle;
+}
+.notif-modal-body { padding: 0 0 8px; overflow-y: auto; max-height: 60vh; }
+.notif-modal-toolbar {
+  display: flex; justify-content: flex-end;
+  padding: 0 16px 8px; border-bottom: 1px solid var(--bg-border);
+}
+.notif-mark-all {
+  background: none; border: none; padding: 4px 0;
+  font-size: 12px; font-weight: 500; color: var(--brand-primary);
+  cursor: pointer;
+}
+.notif-mark-all:hover { text-decoration: underline; }
+.notif-list { list-style: none; margin: 0; padding: 0; }
+.notif-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  width: 100%; padding: 14px 16px; background: none; border: none;
+  border-bottom: 1px solid var(--bg-border); text-align: left;
+  cursor: pointer; transition: background .12s;
+}
+.notif-item:hover { background: var(--bg-surface-hover); }
+.notif-item.read { opacity: .65; }
+.notif-item-icon {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; font-size: 17px;
+}
+.notif-item-icon--alert  { background: rgba(245,158,11,.12); }
+.notif-item-icon--success { background: rgba(22,163,74,.12); }
+.notif-item-icon--info   { background: rgba(124,58,237,.1); }
+.notif-item-content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.notif-item-title { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
+.notif-item-body { font-size: 12.5px; color: var(--text-secondary); line-height: 1.45; }
+.notif-item-time { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.notif-item-unread {
+  flex-shrink: 0; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--brand-primary); margin-top: 6px;
+}
+.notif-modal-empty {
+  padding: 20px 16px; margin: 0; text-align: center;
+  font-size: 13px; color: var(--text-muted);
+}
+
+/* Help modal */
+.modal--help { width: 560px; }
+.help-modal-body { padding: 0 20px 20px; overflow-y: auto; }
+.help-modal-intro { font-size: 13px; color: var(--text-secondary); margin: 0 0 14px; line-height: 1.5; }
+.help-faq { display: flex; flex-direction: column; gap: 6px; }
+.help-faq-item {
+  border: 1px solid var(--bg-border); border-radius: 8px; overflow: hidden;
+  transition: border-color .15s;
+}
+.help-faq-item.open { border-color: rgba(124,58,237,.3); }
+.help-faq-question {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; padding: 11px 14px; background: none; border: none;
+  font-size: 13.5px; font-weight: 600; color: var(--text-primary);
+  cursor: pointer; text-align: left; transition: background .12s;
+}
+.help-faq-question:hover { background: var(--bg-surface-hover); }
+.help-faq-chevron {
+  flex-shrink: 0; width: 20px; height: 20px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 400; color: var(--brand-primary);
+  background: rgba(124,58,237,.08);
+}
+.help-faq-answer {
+  padding: 0 14px 12px; font-size: 13px; color: var(--text-secondary);
+  line-height: 1.55; border-top: 1px solid var(--bg-border);
+  padding-top: 10px; margin: 0 0 2px;
+}
+.help-modal-footer {
+  margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--bg-border);
+  font-size: 12.5px; color: var(--text-muted); text-align: center;
+}
+.help-modal-footer a { color: var(--brand-primary); text-decoration: none; font-weight: 500; }
+.help-modal-footer a:hover { text-decoration: underline; }
 
 /* Alert settings modal */
 .modal--sm { width: 340px; }
