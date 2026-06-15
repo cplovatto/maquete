@@ -90,3 +90,100 @@ tasks:
     cmds:
       - task: typecheck
       - task: build
+
+  # ── Environment ────────────────────────────────────────────────────
+
+  env:init:
+    desc: "Copy .env.example → .env (if missing)"
+    cmds:
+      - test -f .env || cp .env.example .env
+      - echo ".env ready — edit if needed"
+
+  # ── Firestore (admin CLI) ──────────────────────────────────────────
+  # Requires firebase-service-account.json in repo root (gitignored).
+  # Generate in Firebase Console → Project Settings → Service accounts.
+
+  db:check:
+    desc: "Verify Firestore CLI prerequisites"
+    cmds:
+      - |
+        if [ ! -f firebase-service-account.json ] && [ -z "$GOOGLE_APPLICATION_CREDENTIALS" ]; then
+          echo "Missing firebase-service-account.json (or set GOOGLE_APPLICATION_CREDENTIALS)"
+          exit 1
+        fi
+      - echo "Firestore admin credentials OK"
+
+  db:users:list:
+    desc: "List all users in Firestore"
+    deps: [install]
+    cmds:
+      - npx tsx scripts/db-users.ts list
+
+  db:users:seed:
+    desc: "Upsert demo + admin users (idempotent — resets default passwords)"
+    deps: [install]
+    cmds:
+      - npx tsx scripts/db-users.ts seed
+
+  db:users:reset:
+    desc: "Delete ALL users, then seed defaults (demo@velo.io + admin@velo.io)"
+    deps: [install]
+    cmds:
+      - npx tsx scripts/db-users.ts reset
+
+  db:users:add:
+    desc: "Add a Firestore user (interactive, or pass EMAIL NOME PERFIL EMPRESA)"
+    deps: [install]
+    vars:
+      EMAIL: '{{.EMAIL | default ""}}'
+      NOME: '{{.NOME | default ""}}'
+      PERFIL: '{{.PERFIL | default "user"}}'
+      EMPRESA: '{{.EMPRESA | default "velo"}}'
+    cmds:
+      - |
+        EMAIL="{{.EMAIL}}"
+        NOME="{{.NOME}}"
+        PERFIL="{{.PERFIL}}"
+        EMPRESA="{{.EMPRESA}}"
+        [ -n "$EMAIL" ] || read -rp "E-mail: " EMAIL
+        [ -n "$NOME" ]  || read -rp "Nome exibido: " NOME
+        if [ -z "{{.EMAIL}}" ]; then
+          read -rp "Perfil [user]: " PERFIL_INPUT
+          PERFIL="${PERFIL_INPUT:-user}"
+        fi
+        if [ -z "{{.EMAIL}}" ]; then
+          read -rp "ID da empresa [velo]: " EMPRESA_INPUT
+          EMPRESA="${EMPRESA_INPUT:-velo}"
+        fi
+        npx tsx scripts/db-users.ts add --email="$EMAIL" --nome="$NOME" --perfil="$PERFIL" --empresa="$EMPRESA"
+
+  db:users:remove:
+    desc: "Remove a Firestore user (interactive, or pass EMAIL=...)"
+    deps: [install]
+    vars:
+      EMAIL: '{{.EMAIL | default ""}}'
+    cmds:
+      - |
+        EMAIL="{{.EMAIL}}"
+        [ -n "$EMAIL" ] || read -rp "E-mail a remover: " EMAIL
+        npx tsx scripts/db-users.ts remove --email="$EMAIL"
+
+  db:users:passwd:
+    desc: "Set user password (interactive, or pass EMAIL PASSWORD)"
+    deps: [install]
+    vars:
+      EMAIL: '{{.EMAIL | default ""}}'
+      PASSWORD: '{{.PASSWORD | default ""}}'
+    cmds:
+      - |
+        EMAIL="{{.EMAIL}}"
+        PASSWORD="{{.PASSWORD}}"
+        [ -n "$EMAIL" ] || read -rp "E-mail: " EMAIL
+        if [ -z "$PASSWORD" ]; then
+          read -rsp "Nova senha: " PASSWORD; echo
+          read -rsp "Confirmar senha: " PASSWORD2; echo
+          if [ "$PASSWORD" != "$PASSWORD2" ]; then
+            echo "Senhas não conferem."; exit 1
+          fi
+        fi
+        npx tsx scripts/db-users.ts passwd --email="$EMAIL" --password="$PASSWORD"

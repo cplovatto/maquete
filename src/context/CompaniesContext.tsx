@@ -47,12 +47,12 @@ const CompaniesCtx = createContext<CompaniesCtxType | null>(null)
 
 const SEED: Empresa[] = [
   {
-    id: 'empresa-demo',
+    id: 'velo',
     razaoSocial: 'Velo Cosméticos Ltda',
     fantasia: 'Velo Retail',
     cnpj: '12.345.678/0001-90',
     telefone: '(11) 99999-8888',
-    email: 'contato@veloretail.io',
+    email: 'contato@velo.io',
     plan: 'enterprise',
     locked: false,
     createdAt: '2026-01-15',

@@ -23,18 +23,18 @@ const UsersCtx = createContext<UsersCtxType | null>(null)
 const SEED: AppUser[] = [
   {
     id: 'user-demo',
-    email: 'demo',
+    email: 'demo@velo.io',
     nome: 'Usuário Demo',
     perfil: 'user',
-    empresaId: 'empresa-demo',
+    empresaId: 'velo',
     enabled: true,
   },
   {
     id: 'user-admin',
-    email: 'admin@veloretail.io',
+    email: 'admin@velo.io',
     nome: 'Administrador',
     perfil: 'admin',
-    empresaId: 'empresa-demo',
+    empresaId: 'velo',
     enabled: true,
   },
 ]

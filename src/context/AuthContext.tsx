@@ -13,26 +13,27 @@ export interface User {
 
 interface AuthContextType {
   user: User | null
-  login: (provider: 'google' | 'email', username?: string, password?: string) => boolean
+  login: (provider: 'google' | 'email', email?: string, password?: string) => boolean
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextType | null>(null)
 
-const ADMIN_CRED = { username: 'admin', password: 'admin' }
-const DEMO_CRED = { username: 'demo', password: 'demo' }
+const ADMIN_CRED = { email: 'admin@velo.io', password: 'admin' }
+const DEMO_CRED = { email: 'demo@velo.io', password: 'demo' }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
 
-  const login = (provider: 'google' | 'email', username?: string, password?: string): boolean => {
+  const login = (provider: 'google' | 'email', email?: string, password?: string): boolean => {
     if (provider !== 'email') return false
 
-    // Admin login (temporary — will be replaced by user-based admin)
-    if (username === ADMIN_CRED.username && password === ADMIN_CRED.password) {
+    const normalized = email?.trim().toLowerCase()
+
+    if (normalized === ADMIN_CRED.email && password === ADMIN_CRED.password) {
       setUser({
         name: 'Administrador',
-        email: 'admin@veloretail.io',
+        email: ADMIN_CRED.email,
         initials: 'AD',
         provider: 'email',
         perfil: 'admin',
@@ -40,15 +41,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true
     }
 
-    // Demo login (regular user)
-    if (username === DEMO_CRED.username && password === DEMO_CRED.password) {
+    if (normalized === DEMO_CRED.email && password === DEMO_CRED.password) {
       setUser({
         name: 'Demo',
-        email: 'demo',
+        email: DEMO_CRED.email,
         initials: 'DM',
         provider: 'email',
         perfil: 'user',
-        empresaId: 'empresa-demo',
+        empresaId: 'velo',
       })
       return true
     }

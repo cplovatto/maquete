@@ -1,0 +1,54 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "db:users:list",
+      "type": "shell",
+      "command": "task db:users:list",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "db:users:seed",
+      "type": "shell",
+      "command": "task db:users:seed",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "db:users:add",
+      "type": "shell",
+      "command": "task db:users:add",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "db:users:remove",
+      "type": "shell",
+      "command": "task db:users:remove",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "db:users:passwd",
+      "type": "shell",
+      "command": "task db:users:passwd",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "db:check",
+      "type": "shell",
+      "command": "task db:check",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    },
+    {
+      "label": "env:init",
+      "type": "shell",
+      "command": "task env:init",
+      "problemMatcher": [],
+      "presentation": { "reveal": "always", "panel": "shared" }
+    }
+  ]
+}

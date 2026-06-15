@@ -1,5 +1,9 @@
 node_modules/
 dist/
 *.local
+.env
+.env.local
 .DS_Store
 docs/
+firebase-service-account.json
+*-firebase-adminsdk-*.json
