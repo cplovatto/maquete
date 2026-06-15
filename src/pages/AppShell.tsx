@@ -689,12 +689,12 @@ function ParcialAlertToast({ onDismiss, onImport }: { onDismiss: () => void; onI
 interface DataSource { id: string; name: string; format: 'XLSX' | 'CSV'; icon: ReactNode; defaultStatus: FileStatus; section: string }
 
 const MENSAL_SOURCES: DataSource[] = [
-  // Gestão Instantânea
-  { id: 'meta',         name: 'Meta do dia',             format: 'XLSX', icon: IC.target,   defaultStatus: 'embedded', section: 'Gestão Instantânea' },
-  { id: 'parcial',      name: 'Parcial do dia',          format: 'CSV',  icon: IC.clock,    defaultStatus: 'pending',  section: 'Gestão Instantânea' },
-  { id: 'dia-ant',      name: 'Dia anterior',            format: 'CSV',  icon: IC.calendar, defaultStatus: 'pending',  section: 'Gestão Instantânea' },
-  { id: 'meta-diaant',  name: 'Meta — Dia anterior',     format: 'XLSX', icon: IC.calendar, defaultStatus: 'pending',  section: 'Gestão Instantânea' },
-  { id: 'parcial-skin', name: 'Parcial Skin',            format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'Gestão Instantânea' },
+  // Gestão Online
+  { id: 'meta',         name: 'Meta do dia',             format: 'XLSX', icon: IC.target,   defaultStatus: 'embedded', section: 'Gestão Online' },
+  { id: 'parcial',      name: 'Parcial do dia',          format: 'CSV',  icon: IC.clock,    defaultStatus: 'pending',  section: 'Gestão Online' },
+  { id: 'dia-ant',      name: 'Dia anterior',            format: 'CSV',  icon: IC.calendar, defaultStatus: 'pending',  section: 'Gestão Online' },
+  { id: 'meta-diaant',  name: 'Meta — Dia anterior',     format: 'XLSX', icon: IC.calendar, defaultStatus: 'pending',  section: 'Gestão Online' },
+  { id: 'parcial-skin', name: 'Parcial Skin',            format: 'XLSX', icon: IC.skin,     defaultStatus: 'pending',  section: 'Gestão Online' },
   // Lojas
   { id: 'main',             name: 'Indicadores principais',  format: 'XLSX', icon: IC.grid,     defaultStatus: 'pending', section: 'Lojas' },
   { id: 'fluxo',            name: 'Ação de Fluxo',           format: 'XLSX', icon: IC.arrows,   defaultStatus: 'pending', section: 'Lojas' },
@@ -6346,7 +6346,8 @@ function ParcialDiaPage() {
     return map
   }, [metaDiaRows, metasMensais])
 
-  const parcialMap = useMemo(() => new Map(parcialRows.map(r => [r.pdv, r])), [parcialRows])
+  const parcialMap     = useMemo(() => new Map(parcialRows.map(r => [r.pdv, r])), [parcialRows])
+  const parcialSkinMap = useMemo(() => new Map(parcialSkinRows.map(r => [r.pdv, r])), [parcialSkinRows])
 
   const allRows = useMemo(() => {
     const pdvs = new Set([...parcialMap.keys(), ...metaDiaMap.keys()])
@@ -6382,13 +6383,21 @@ function ParcialDiaPage() {
   const emRisco = rows.filter(r => r.status === 'danger').length
 
   const totalQB = rows.reduce((s, r) => s + (parcialMap.get(r.pdv)?.qb_atual ?? 0), 0)
-  const totalBM = totalQB > 0 ? totalParcial / totalQB : 0
+  const totalBM = totalQB > 0
+    ? rows.reduce((s, r) => {
+        const pr = parcialMap.get(r.pdv)
+        return s + (pr?.bm_atual ?? 0) * (pr?.qb_atual ?? 0)
+      }, 0) / totalQB
+    : 0
   const totalIV = totalQB > 0
     ? rows.reduce((s, r) => {
         const pr = parcialMap.get(r.pdv)
         return s + (pr?.iv_atual ?? 0) * (pr?.qb_atual ?? 0)
       }, 0) / totalQB
     : 0
+
+  const totalSkinParcial = rows.reduce((s, r) => s + (parcialSkinMap.get(r.pdv)?.receita ?? 0), 0)
+  const totalSkinMeta    = totalMeta * 0.04
 
   const statusColor = (s: string) => s === 'ok' ? '#059669' : s === 'warn' ? '#d97706' : s === 'danger' ? '#dc2626' : 'var(--text-muted)'
 
@@ -6457,6 +6466,14 @@ function ParcialDiaPage() {
               BM: {fBRL2(totalBM)} · IV: {fDec(totalIV, 2)}
             </div>
           )}
+          {totalSkinParcial > 0 && totalParcial > 0 && (() => {
+            const skinPct = totalSkinParcial / totalParcial * 100
+            return (
+              <div className="parcial-hero-kpis" style={{ color: skinPct >= 4 ? '#059669' : '#dc2626' }}>
+                Skin: {fDec(skinPct, 1)}% / 4%
+              </div>
+            )
+          })()}
         </div>
         <div className="kpi-card">
           <div className="kpi-label">% Atingido</div>
@@ -6488,7 +6505,7 @@ function ParcialDiaPage() {
                 <th style={{ minWidth: 100 }}>Progresso</th>
                 <th className="col-num">Ating. / Esp.</th>
                 <th className="col-num">Falta</th>
-                <th className="col-num">Projeção</th>
+                <th className="col-num">BM</th>
               </tr>
             </thead>
             <tbody>
@@ -6528,8 +6545,8 @@ function ParcialDiaPage() {
                   <td className="col-num" style={{ color: r.falta ? '#dc2626' : 'var(--text-muted)' }}>
                     {r.falta !== null ? (r.falta > 0 ? fBRLR(r.falta) : <span style={{ color: '#059669' }}>✓</span>) : <span className="dash-muted">—</span>}
                   </td>
-                  <td className="col-num" style={{ fontWeight: 600, color: r.projecao && r.meta_dia && r.projecao >= r.meta_dia ? '#059669' : 'var(--text-primary)' }}>
-                    {r.projecao !== null && r.venda_parcial > 0 ? fBRLR(r.projecao) : <span className="dash-muted">—</span>}
+                  <td className="col-num">
+                    {(() => { const bm = parcialMap.get(r.pdv)?.bm_atual ?? 0; return bm > 0 ? fBRLR(bm) : <span className="dash-muted">—</span> })()}
                   </td>
                 </tr>
               ))}
@@ -6546,7 +6563,7 @@ function ParcialDiaPage() {
                 <td className="col-num" style={{ color: '#dc2626', fontWeight: 700 }}>
                   {totalMeta > totalParcial ? fBRLR(totalMeta - totalParcial) : <span style={{ color: '#059669' }}>✓</span>}
                 </td>
-                <td />
+                <td className="col-num" style={{ fontWeight: 700 }}>{totalBM > 0 ? fBRLR(totalBM) : '—'}</td>
               </tr>
             </tfoot>
           </table>
@@ -6554,7 +6571,7 @@ function ParcialDiaPage() {
       </div>
 
       {parcialSkinRows.length > 0 && (() => {
-        const META_SKIN = 0.06
+        const META_SKIN = 0.04
         const skinFiltered = parcialSkinRows
           .map(r => ({ ...r, loja: lojaMap.get(r.pdv) }))
           .filter(r => selectedLabels.length === 0 || selectedLabels.some(lid => (r.loja?.labels ?? []).includes(lid)))
@@ -6583,7 +6600,7 @@ function ParcialDiaPage() {
           <div style={{ marginTop: 32 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
               <h3 className="page-section-title">
-                Parcial Skin <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>meta: 6%</span>
+                Parcial Skin <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 6 }}>meta: 4%</span>
               </h3>
               {shareGrupo !== null && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-surface)', border: '1px solid var(--bg-border)', borderRadius: 10, padding: '8px 14px' }}>
@@ -6591,7 +6608,7 @@ function ParcialDiaPage() {
                   <span style={{ fontSize: 18, fontWeight: 800, color: shareGrupo >= META_SKIN ? '#059669' : '#dc2626' }}>
                     {fDec(shareGrupo * 100, 1)}%
                   </span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 6%</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 4%</span>
                 </div>
               )}
             </div>
@@ -6613,13 +6630,13 @@ function ParcialDiaPage() {
                   <div key={lb.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: lb.color, background: lb.color + '22', border: `1px solid ${lb.color}55`, borderRadius: 20, padding: '2px 8px' }}>{lb.name}</span>
                     <span style={{ fontSize: 15, fontWeight: 800, color: share! >= META_SKIN ? '#059669' : '#dc2626' }}>{fDec(share! * 100, 1)}%</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 6%</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 4%</span>
                   </div>
                 ))}
                 <button
                   onClick={() => {
                     const hoje = new Date().toLocaleDateString('pt-BR')
-                    const lines = [`📊 *Parcial Skin — ${hoje}*`, `Meta: 6%`, '']
+                    const lines = [`📊 *Parcial Skin — ${hoje}*`, `Meta: 4%`, '']
                     labelSkinSummary.forEach(({ lb, share }) => {
                       const ok = share! >= META_SKIN
                       lines.push(`${ok ? '✅' : '❌'} *${lb.name}:* ${fDec(share! * 100, 1)}%`)
@@ -6963,11 +6980,10 @@ function Sidebar() {
       {periodo === 'mensal' && (
         <nav className="nav-sections">
           <div className="nav-group">
-            <div className="nav-group-title">Gestão Instantânea</div>
+            <div className="nav-group-title">Gestão Online</div>
             <SideItem to="/app/metas-mes"     icon={IC.sliders}  label="Metas do Mês" />
             <SideItem to="/app/meta"          icon={IC.target}   label="Meta do Dia" />
             <SideItem to="/app/parcial"       icon={IC.clock}    label="Parcial do Dia"  requires={['parcial']} />
-            <SideItem to="/app/dia-anterior"  icon={IC.calendar} label="Dia Anterior"    requires={['dia-ant','meta-diaant']} />
           </div>
           <div className="nav-group">
             <div className="nav-group-title">Lojas</div>
@@ -7740,7 +7756,7 @@ export default function AppShell() {
         <main className="app-main">
           <Routes>
             <Route index element={<Navigate to="meta" replace />} />
-            {/* Mensal – Gestão Instantânea */}
+            {/* Mensal – Gestão Online */}
             <Route path="metas-mes"     element={<MetasMesPage />} />
             <Route path="meta"          element={<MetaDiaPage />} />
             <Route path="parcial"       element={<ParcialDiaPage />} />
