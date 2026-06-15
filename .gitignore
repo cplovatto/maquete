@@ -4,6 +4,7 @@ dist/
 .env
 .env.local
 .DS_Store
+# Vite build output — deployed by GitHub Actions only; never commit
 docs/
 firebase-service-account.json
 *-firebase-adminsdk-*.json

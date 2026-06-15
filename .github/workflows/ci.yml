@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  no-tracked-build-output:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reject tracked docs/ build output
+        run: |
+          tracked=$(git ls-files 'docs/')
+          if [ -n "$tracked" ]; then
+            echo "::error::docs/ must not be committed. Build output is deployed via GitHub Actions."
+            echo "$tracked"
+            echo "Fix with: git rm -r --cached docs/"
+            exit 1
+          fi
