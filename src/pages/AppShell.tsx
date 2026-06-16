@@ -749,9 +749,15 @@ const MENSAL_SOURCES: DataSource[] = [
 ]
 
 const ANUAL_SOURCES: DataSource[] = [
-  { id: 'anual-main',  name: 'Indicadores anuais',  format: 'XLSX', icon: IC.grid,   defaultStatus: 'pending', section: 'Lojas' },
-  { id: 'anual-fluxo', name: 'Ação de Fluxo anual', format: 'XLSX', icon: IC.arrows, defaultStatus: 'pending', section: 'Lojas' },
-  { id: 'anual-pef',   name: 'Parcial PEF',         format: 'XLSX', icon: IC.dollar, defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-main',         name: 'Indicadores anuais',       format: 'XLSX', icon: IC.grid,        defaultStatus: 'pending', section: 'Lojas' },
+  { id: 'anual-fluxo',        name: 'Ação de Fluxo anual',      format: 'XLSX', icon: IC.arrows,      defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-skin',         name: 'Skin (Cuidados Faciais) anual', format: 'XLSX', icon: IC.skin,        defaultStatus: 'pending', section: 'IAF' },
+  { id: 'anual-id-cliente',   name: 'ID do Cliente anual',      format: 'XLSX', icon: IC.idCard,      defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-loja-digital', name: 'Loja Digital anual',       format: 'XLSX', icon: IC.lojaDigital, defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-servicos',     name: 'Serviços anual',           format: 'XLSX', icon: IC.doc,         defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-boleto-promo', name: 'Boleto Promocional anual', format: 'XLSX', icon: IC.ticket,      defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-resgates',     name: 'Resgates anual',           format: 'XLSX', icon: IC.gift,        defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-pef',          name: 'Parcial PEF',              format: 'XLSX', icon: IC.dollar,      defaultStatus: 'pending', section: 'IAF'   },
 ]
 
 function extractDateFromFilename(name: string): Date | null {
@@ -6872,12 +6878,18 @@ function Sidebar() {
             <SideItem to="/app/anual/regioes"  icon={IC.mapPin} label="Análise Regional"  requires={['anual-main']} />
             <SideItem to="/app/anual/ranking"  icon={IC.chart}  label="Ranking de Lojas"  requires={['anual-main']} />
             <SideItem to="/app/anual/detalhe"  icon={IC.store}  label="Raio-X da Loja"   requires={['anual-main']} />
-            <SideItem to="/app/anual/fluxo"    icon={IC.arrows} label="Ação de Fluxo"     requires={['anual-fluxo']} />
           </div>
           <div className="nav-group">
             <div className="nav-group-title">IAF</div>
-            <SideItem to="/app/anual/iaf"  icon={IC.check}  label="Indicadores" requires={['anual-main']} />
-            <SideItem to="/app/anual/pef"  icon={IC.dollar} label="Parcial PEF" requires={['anual-pef']} />
+            <SideItem to="/app/anual/iaf"                icon={IC.check}       label="Indicadores"        requires={['anual-main']} />
+            <SideItem to="/app/anual/fluxo"               icon={IC.arrows}      label="Ação de Fluxo"      requires={['anual-fluxo']} />
+            <SideItem to="/app/anual/skin"                icon={IC.skin}        label="Skin"               requires={['anual-skin']} />
+            <SideItem to="/app/anual/id-cliente"          icon={IC.idCard}      label="ID do Cliente"      requires={['anual-id-cliente']} />
+            <SideItem to="/app/anual/loja-digital"        icon={IC.lojaDigital} label="Loja Digital"       requires={['anual-loja-digital']} />
+            <SideItem to="/app/anual/servicos"            icon={IC.doc}         label="Serviços"           requires={['anual-servicos']} />
+            <SideItem to="/app/anual/boleto-promocional"  icon={IC.ticket}      label="Boleto Promocional" requires={['anual-boleto-promo']} />
+            <SideItem to="/app/anual/resgates"            icon={IC.gift}        label="Resgates"           requires={['anual-resgates']} />
+            <SideItem to="/app/anual/pef"                 icon={IC.dollar}      label="Parcial PEF"        requires={['anual-pef']} />
           </div>
         </nav>
       )}
@@ -7651,10 +7663,16 @@ export default function AppShell() {
             <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional"   requires={['anual-main']} />} />
             <Route path="anual/ranking"  element={<WipPage title="Anual — Ranking de Lojas"   requires={['anual-main']} />} />
             <Route path="anual/detalhe"  element={<WipPage title="Anual — Raio-X da Loja"    requires={['anual-main']} />} />
-            <Route path="anual/fluxo"    element={<WipPage title="Anual — Ação de Fluxo"      requires={['anual-fluxo']} />} />
             {/* Anual – IAF */}
-            <Route path="anual/iaf"  element={<WipPage title="Anual — Indicadores" requires={['anual-main']} />} />
-            <Route path="anual/pef"  element={<WipPage title="Anual — Parcial PEF" requires={['anual-pef']} />} />
+            <Route path="anual/iaf"                 element={<WipPage title="Anual — Indicadores"         requires={['anual-main']} />} />
+            <Route path="anual/fluxo"               element={<WipPage title="Anual — Ação de Fluxo"       requires={['anual-fluxo']} />} />
+            <Route path="anual/skin"                element={<WipPage title="Anual — Skin"                requires={['anual-skin']} />} />
+            <Route path="anual/id-cliente"          element={<WipPage title="Anual — ID do Cliente"       requires={['anual-id-cliente']} />} />
+            <Route path="anual/loja-digital"        element={<WipPage title="Anual — Loja Digital"        requires={['anual-loja-digital']} />} />
+            <Route path="anual/servicos"            element={<WipPage title="Anual — Serviços"            requires={['anual-servicos']} />} />
+            <Route path="anual/boleto-promocional"  element={<WipPage title="Anual — Boleto Promocional"  requires={['anual-boleto-promo']} />} />
+            <Route path="anual/resgates"            element={<WipPage title="Anual — Resgates"            requires={['anual-resgates']} />} />
+            <Route path="anual/pef"                 element={<WipPage title="Anual — Parcial PEF"         requires={['anual-pef']} />} />
             {/* legado */}
             <Route path="loja"           element={<LojaPage />} />
             <Route path="vd"             element={<VDPage />} />
