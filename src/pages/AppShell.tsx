@@ -1421,14 +1421,7 @@ function VisaoGeralPage() {
                     )
                   })}
                 </tbody>
-                <tfoot>
-                  <tr className="gap-table-total">
-                    <td colSpan={6} className="gap-total-label">Resultado consolidado do grupo</td>
-                    <td className="col-num" style={{ fontWeight: 700, color: totalPP >= 0 ? '#059669' : '#dc2626' }}>
-                      {totalPP >= 0 ? '+' : ''}{totalPP.toFixed(2).replace('.', ',')} pp
-                    </td>
-                  </tr>
-                </tfoot>
+
               </table>
             </div>
           </div>
