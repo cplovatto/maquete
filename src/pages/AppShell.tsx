@@ -3016,8 +3016,8 @@ function DispersaoPage() {
 }
 
 /* ── IAF — Ação de Fluxo ────────────────────────────── */
-function IafFluxoPage() {
-  const { fluxoRows, fluxoConsultorRows, fluxoTotal, mainRows, mainTotal, cpData, consultorRows } = useData()
+function IafFluxoPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { fluxoRows, fluxoConsultorRows, fluxoTotal, mainRows, mainTotal, cpData, consultorRows } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { metas: iafMetas, updateMeta: updateIafMeta } = useIafMetas()
@@ -3563,8 +3563,8 @@ function IafFluxoPage() {
 }
 
 /* ── IAF — Serviços ─────────────────────────────────── */
-function ServicosPage() {
-  const { servicosRows, servicosTotal } = useData()
+function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { servicosRows, servicosTotal } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
@@ -3867,8 +3867,8 @@ function ServicosPage() {
 }
 
 /* ── IAF — ID do Cliente ───────────────────────────── */
-function IDClientePage() {
-  const { idClienteRows, idClienteConsultorRows, idClienteCP } = useData()
+function IDClientePage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { idClienteRows, idClienteConsultorRows, idClienteCP } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { metas: iafMetas, updateMeta: updateIafMeta } = useIafMetas()
@@ -4424,8 +4424,8 @@ function ShareCategoriasPage() {
 }
 
 /* ── IAF — Loja Digital ─────────────────────────────── */
-function LojaDigitalPage() {
-  const { lojaDigitalRows, lojaDigitalTotal } = useData()
+function LojaDigitalPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { lojaDigitalRows, lojaDigitalTotal } = useIafData(periodo)
   const { lojas } = useLojas()
   const { openImport } = useFileStatus()
 
@@ -4623,8 +4623,8 @@ function LojaDigitalPage() {
 }
 
 /* ── IAF — Skin (Cuidados Faciais) ─────────────────── */
-function IafSkinPage() {
-  const { skinRows, skinConsultorRows, skinCP, mainRows, consultorRows } = useData()
+function IafSkinPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { skinRows, skinConsultorRows, skinCP, mainRows, consultorRows } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { metas: iafMetas, updateMeta: updateIafMeta } = useIafMetas()
@@ -5171,8 +5171,8 @@ function IafSkinPage() {
 }
 
 /* ── IAF — Resgates ─────────────────────────────────── */
-function ResgatesPage() {
-  const { resgatesPdvRows, resgatesTotal, resgatesConsultorRows, consultorRows, fluxoConsultorRows } = useData()
+function ResgatesPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { resgatesPdvRows, resgatesTotal, resgatesConsultorRows, consultorRows, fluxoConsultorRows } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
@@ -5574,8 +5574,8 @@ function ResgatesPage() {
 }
 
 /* ── IAF — Boleto Promocional ───────────────────────── */
-function BoletoPromocionalPage() {
-  const { boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, consultorRows, fluxoConsultorRows } = useData()
+function BoletoPromocionalPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, consultorRows, fluxoConsultorRows } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
@@ -6898,6 +6898,28 @@ function Sidebar() {
   )
 }
 
+/* ── Dados IAF por período (mensal/anual usam o mesmo formato de planilha) ── */
+function useIafData(periodo: 'mensal' | 'anual') {
+  const d = useData()
+  return periodo === 'anual'
+    ? { mainRows: d.anualMainRows, mainTotal: d.anualMainTotal, cpData: d.anualCpData, consultorRows: d.anualConsultorRows,
+        fluxoRows: d.anualFluxoRows, fluxoTotal: d.anualFluxoTotal, fluxoConsultorRows: d.anualFluxoConsultorRows,
+        skinRows: d.anualSkinRows, skinConsultorRows: d.anualSkinConsultorRows, skinCP: d.anualSkinCP,
+        idClienteRows: d.anualIdClienteRows, idClienteConsultorRows: d.anualIdClienteConsultorRows, idClienteCP: d.anualIdClienteCP,
+        lojaDigitalRows: d.anualLojaDigitalRows, lojaDigitalTotal: d.anualLojaDigitalTotal,
+        servicosRows: d.anualServicosRows, servicosTotal: d.anualServicosTotal,
+        resgatesPdvRows: d.anualResgatesPdvRows, resgatesTotal: d.anualResgatesTotal, resgatesConsultorRows: d.anualResgatesConsultorRows,
+        boletoPromoPdvRows: d.anualBoletoPromoPdvRows, boletoPromoTotal: d.anualBoletoPromoTotal, boletoPromoConsultorRows: d.anualBoletoPromoConsultorRows }
+    : { mainRows: d.mainRows, mainTotal: d.mainTotal, cpData: d.cpData, consultorRows: d.consultorRows,
+        fluxoRows: d.fluxoRows, fluxoTotal: d.fluxoTotal, fluxoConsultorRows: d.fluxoConsultorRows,
+        skinRows: d.skinRows, skinConsultorRows: d.skinConsultorRows, skinCP: d.skinCP,
+        idClienteRows: d.idClienteRows, idClienteConsultorRows: d.idClienteConsultorRows, idClienteCP: d.idClienteCP,
+        lojaDigitalRows: d.lojaDigitalRows, lojaDigitalTotal: d.lojaDigitalTotal,
+        servicosRows: d.servicosRows, servicosTotal: d.servicosTotal,
+        resgatesPdvRows: d.resgatesPdvRows, resgatesTotal: d.resgatesTotal, resgatesConsultorRows: d.resgatesConsultorRows,
+        boletoPromoPdvRows: d.boletoPromoPdvRows, boletoPromoTotal: d.boletoPromoTotal, boletoPromoConsultorRows: d.boletoPromoConsultorRows }
+}
+
 /* ── Metas IAF configuráveis ────────────────────────── */
 const IAF_METAS_DEFAULT = { skin: 2.7, af: 28, bp: 33, resgate: 52, id: 115 }
 type IafMetasKey = keyof typeof IAF_METAS_DEFAULT
@@ -6950,8 +6972,8 @@ function MetaTag({ label, value, defaultValue, onSave }: { label: string; value:
 
 /* ── IAF — Indicadores (Resumo por loja) ────────────── */
 
-function IafIndicadoresPage() {
-  const { mainRows, skinRows, fluxoRows, idClienteRows, servicosRows, resgatesPdvRows, boletoPromoPdvRows } = useData()
+function IafIndicadoresPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { mainRows, skinRows, fluxoRows, idClienteRows, servicosRows, resgatesPdvRows, boletoPromoPdvRows } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
@@ -7664,14 +7686,14 @@ export default function AppShell() {
             <Route path="anual/ranking"  element={<WipPage title="Anual — Ranking de Lojas"   requires={['anual-main']} />} />
             <Route path="anual/detalhe"  element={<WipPage title="Anual — Raio-X da Loja"    requires={['anual-main']} />} />
             {/* Anual – IAF */}
-            <Route path="anual/iaf"                 element={<WipPage title="Anual — Indicadores"         requires={['anual-main']} />} />
-            <Route path="anual/fluxo"               element={<WipPage title="Anual — Ação de Fluxo"       requires={['anual-fluxo']} />} />
-            <Route path="anual/skin"                element={<WipPage title="Anual — Skin"                requires={['anual-skin']} />} />
-            <Route path="anual/id-cliente"          element={<WipPage title="Anual — ID do Cliente"       requires={['anual-id-cliente']} />} />
-            <Route path="anual/loja-digital"        element={<WipPage title="Anual — Loja Digital"        requires={['anual-loja-digital']} />} />
-            <Route path="anual/servicos"            element={<WipPage title="Anual — Serviços"            requires={['anual-servicos']} />} />
-            <Route path="anual/boleto-promocional"  element={<WipPage title="Anual — Boleto Promocional"  requires={['anual-boleto-promo']} />} />
-            <Route path="anual/resgates"            element={<WipPage title="Anual — Resgates"            requires={['anual-resgates']} />} />
+            <Route path="anual/iaf"                 element={<IafIndicadoresPage periodo="anual" />} />
+            <Route path="anual/fluxo"               element={<IafFluxoPage periodo="anual" />} />
+            <Route path="anual/skin"                element={<IafSkinPage periodo="anual" />} />
+            <Route path="anual/id-cliente"          element={<IDClientePage periodo="anual" />} />
+            <Route path="anual/loja-digital"        element={<LojaDigitalPage periodo="anual" />} />
+            <Route path="anual/servicos"            element={<ServicosPage periodo="anual" />} />
+            <Route path="anual/boleto-promocional"  element={<BoletoPromocionalPage periodo="anual" />} />
+            <Route path="anual/resgates"            element={<ResgatesPage periodo="anual" />} />
             <Route path="anual/pef"                 element={<WipPage title="Anual — Parcial PEF"         requires={['anual-pef']} />} />
             {/* legado */}
             <Route path="loja"           element={<LojaPage />} />
