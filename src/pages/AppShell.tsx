@@ -2573,8 +2573,6 @@ function ConsultoresPage() {
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
-  const [selectedOppLabels, setSelectedOppLabels] = useState<string[]>([])
-  const [copiedOpp, setCopiedOpp] = useState(false)
 
   if (consultorRows.length === 0) return (
     <div className="page-empty-state">
@@ -2630,44 +2628,6 @@ function ConsultoresPage() {
   }, [consultorRows, storeAvgQB, groupBM, lojaMap, selectedLabels])
 
   const totalGap = alertRows.reduce((s, r) => s + r.gapReceita, 0)
-
-  // ── Consultores com oportunidade ──
-  const fluxoConsMap = useMemo(() => {
-    const map = new Map<string, FluxoConsultorRow>()
-    fluxoConsultorRows.forEach(r => map.set(`${r.pdv}|${r.consultor}`, r))
-    return map
-  }, [fluxoConsultorRows])
-
-  const totalQB = consultorRows.reduce((s, c) => s + c.qb_atual, 0)
-  const groupIV = totalQB > 0 ? consultorRows.reduce((s, c) => s + c.iv_atual * c.qb_atual, 0) / totalQB : 0
-  const groupPM = totalQB > 0 ? consultorRows.reduce((s, c) => s + c.pm_atual * c.qb_atual, 0) / totalQB : 0
-  const totalResgates = fluxoConsultorRows.reduce((s, r) => s + r.resgates, 0)
-  const groupConv = totalResgates > 0 ? fluxoConsultorRows.reduce((s, r) => s + r.conversoes, 0) / totalResgates * 100 : 0
-
-  // TODO: sistema de pontuação ponderada
-
-  const oppRows = useMemo(() => {
-    return consultorRows
-      .map(c => {
-        const fluxo = fluxoConsMap.get(`${c.pdv}|${c.consultor}`)
-        const rawConv = fluxo?.conv_pct ?? null
-        // normaliza para escala 0-100 (arquivo pode entregar 0.28 ou 28)
-        const conv = rawConv !== null ? (rawConv < 1 ? rawConv * 100 : rawConv) : null
-        const hasConv = conv !== null && groupConv > 0
-
-        const badCount = [
-          c.bm_atual < groupBM,
-          c.iv_atual < groupIV,
-          c.pm_atual < groupPM,
-          hasConv && conv! < groupConv,
-        ].filter(Boolean).length
-
-        return { ...c, loja: lojaMap.get(c.pdv), fluxo, conv, badCount, hasConv }
-      })
-      .filter(c => c.badCount > 0)
-      .filter(c => selectedOppLabels.length === 0 || selectedOppLabels.some(lid => (c.loja?.labels ?? []).includes(lid)))
-      .sort((a, b) => b.badCount - a.badCount)
-  }, [consultorRows, fluxoConsMap, groupBM, groupIV, groupPM, groupConv, lojaMap, selectedOppLabels])
 
   return (
     <div className="page-content">
@@ -2766,143 +2726,6 @@ function ConsultoresPage() {
                 <td className="col-num col-gap-val">{fBRLR(totalGap)}</td>
               </tr>
             </tfoot>
-          </table>
-        </div>
-      </div>
-
-      {/* ── Consultores com oportunidade ── */}
-      <div className="cons-alert-card">
-        <div className="cons-opp-header">
-          <div>
-            <div className="cons-opp-badge">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              Oportunidade
-            </div>
-            <h3 className="cons-alert-title">Consultores com Oportunidade</h3>
-            <p className="cons-alert-desc">
-              Consultores com mais indicadores abaixo da média do grupo.
-              Referência: BM {fBRLR(groupBM)} · IV {fDec(groupIV)} · PM {fBRLR(groupPM)}{groupConv > 0 ? ` · AF ${Math.round(groupConv)}%` : ''}.
-            </p>
-          </div>
-          <div className="cons-opp-total">
-            <span className="cons-opp-total-label">Consultores em atenção</span>
-            <span className="cons-opp-total-value">{oppRows.length}</span>
-            <span className="cons-opp-total-sub">de {consultorRows.length} total{selectedOppLabels.length > 0 ? ' · filtrado' : ''}</span>
-            <button
-              onClick={() => {
-                const hoje = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                const maxBadRef = groupConv > 0 ? 4 : 3
-                const lines: string[] = [
-                  `*Consultores com Oportunidade · ${hoje}*`,
-                  `Referência: BM ${fBRLR(groupBM)} · IV ${fDec(groupIV)} · PM ${fBRLR(groupPM)}${groupConv > 0 ? ` · AF ${Math.round(groupConv)}%` : ''}`,
-                  '',
-                ]
-                // agrupa por label
-                const labelGroups: { name: string; rows: typeof oppRows }[] = []
-                if (labels.length > 0) {
-                  labels.forEach(lb => {
-                    const rows = oppRows.filter(c => (c.loja?.labels ?? []).includes(lb.id))
-                    if (rows.length > 0) labelGroups.push({ name: lb.name, rows })
-                  })
-                  const semLabel = oppRows.filter(c => (c.loja?.labels ?? []).length === 0)
-                  if (semLabel.length > 0) labelGroups.push({ name: 'Sem região', rows: semLabel })
-                } else {
-                  labelGroups.push({ name: 'Todos', rows: oppRows })
-                }
-                labelGroups.forEach(group => {
-                  lines.push(`📍 *${group.name}* (${group.rows.length} consultor${group.rows.length !== 1 ? 'es' : ''})`)
-                  group.rows.forEach(c => {
-                    const goodCount = maxBadRef - c.badCount
-                    lines.push(`• ${c.consultor} — ${c.pdv} · ${goodCount}/${maxBadRef} · BM: ${fBRLR(c.bm_atual)} · IV: ${fDec(c.iv_atual)} · PM: ${fBRLR(c.pm_atual)}${c.hasConv && c.conv !== null ? ` · AF: ${Math.round(c.conv)}%` : ''}`)
-                  })
-                  lines.push('')
-                })
-                navigator.clipboard.writeText(lines.join('\n').trimEnd())
-                setCopiedOpp(true)
-                setTimeout(() => setCopiedOpp(false), 2500)
-              }}
-              style={{
-                marginTop: 8, display: 'flex', alignItems: 'center', gap: 6,
-                padding: '5px 12px', borderRadius: 6, border: '1px solid var(--bg-border)',
-                background: copiedOpp ? '#f0fdf4' : 'var(--bg-surface)',
-                color: copiedOpp ? '#16a34a' : 'var(--text-secondary)',
-                fontSize: 12, fontWeight: 500, cursor: 'pointer', transition: 'all .2s',
-              }}
-            >
-              {copiedOpp
-                ? <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg> Copiado!</>
-                : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copiar para WhatsApp</>
-              }
-            </button>
-          </div>
-        </div>
-
-        {labels.length > 0 && (
-          <div className="region-filter-bar" style={{ borderBottom: '1px solid var(--bg-border)', borderRadius: 0, padding: '10px 20px' }}>
-            <span className="region-filter-label">Região</span>
-            <button
-              className={`region-filter-btn${selectedOppLabels.length === 0 ? ' active' : ''}`}
-              onClick={() => setSelectedOppLabels([])}
-            >Todas</button>
-            {labels.map(lb => (
-              <button
-                key={lb.id}
-                className={`region-filter-btn${selectedOppLabels.includes(lb.id) ? ' active' : ''}`}
-                style={selectedOppLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
-                onClick={() => setSelectedOppLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
-              >{lb.name}</button>
-            ))}
-          </div>
-        )}
-
-        <div className="dash-table-wrap" style={{ marginBottom: 0 }}>
-          <table className="dash-table">
-            <thead>
-              <tr>
-                <th className="col-rank">#</th>
-                <th>Consultor</th>
-                <th className="col-pdv">PDV</th>
-                <th>Região</th>
-                <th className="col-num">Indicadores</th>
-                <th className="col-num">BM</th>
-                <th className="col-num">IV</th>
-                <th className="col-num">PM</th>
-                {groupConv > 0 && <th className="col-num">Conv. %</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {oppRows.map((c, i) => {
-                const maxBad   = c.hasConv ? 4 : 3
-                const goodCount = maxBad - c.badCount
-                const badClass  = goodCount === 0 ? 'score-badge--4' : goodCount === 1 ? 'score-badge--3' : goodCount === maxBad ? 'score-badge--1' : 'score-badge--2'
-                return (
-                  <tr key={`${c.pdv}-${c.consultor}`}>
-                    <td className="col-rank">{i + 1}</td>
-                    <td className="col-consultor">{c.consultor}</td>
-                    <td className="col-pdv">{c.pdv}</td>
-                    <td>
-                      <div className="label-chips-group">
-                        {(c.loja?.labels ?? []).map(lid => {
-                          const lb = labels.find(x => x.id === lid)
-                          return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
-                        })}
-                      </div>
-                    </td>
-                    <td className="col-num">
-                      <span className={`score-badge ${badClass}`}>{goodCount}/{maxBad}</span>
-                    </td>
-                    <td className="col-num" style={c.bm_atual < groupBM ? { color: '#dc2626', fontWeight: 600 } : { color: '#059669' }}>{fBRLR(c.bm_atual)}</td>
-                    <td className="col-num" style={c.iv_atual < groupIV ? { color: '#dc2626', fontWeight: 600 } : { color: '#059669' }}>{fDec(c.iv_atual)}</td>
-                    <td className="col-num" style={c.pm_atual < groupPM ? { color: '#dc2626', fontWeight: 600 } : { color: '#059669' }}>{fBRLR(c.pm_atual)}</td>
-                    {groupConv > 0 && (
-                      <td className="col-num" style={c.hasConv && c.conv! < groupConv ? { color: '#dc2626', fontWeight: 600 } : c.hasConv ? { color: '#059669' } : { color: 'var(--text-muted)' }}>
-                        {c.conv !== null ? `${Math.round(c.conv)}%` : '—'}
-                      </td>
-                    )}
-                  </tr>
-                )
-              })}
-            </tbody>
           </table>
         </div>
       </div>
