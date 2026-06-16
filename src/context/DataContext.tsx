@@ -312,6 +312,30 @@ interface DataCtxType {
   metaDiaRows: MetaDiaRow[]
   parcialRows: ParcialRow[]
   parcialSkinRows: ParcialSkinRow[]
+  // Anual — mesma forma dos dados mensais, espelhados por período
+  anualMainRows: MainRow[]
+  anualMainTotal: MainTotal | null
+  anualCpData: CPData | null
+  anualConsultorRows: ConsultorRow[]
+  anualFluxoRows: FluxoRow[]
+  anualFluxoTotal: FluxoTotal | null
+  anualFluxoConsultorRows: FluxoConsultorRow[]
+  anualSkinRows: SkinRow[]
+  anualSkinConsultorRows: SkinConsultorRow[]
+  anualSkinCP: SkinCP | null
+  anualIdClienteRows: IDClienteRow[]
+  anualIdClienteConsultorRows: IDClienteConsultorRow[]
+  anualIdClienteCP: IDClienteCP | null
+  anualLojaDigitalRows: LojaDigitalPdvRow[]
+  anualLojaDigitalTotal: LojaDigitalTotal | null
+  anualServicosRows: ServicosRow[]
+  anualServicosTotal: ServicosTotal | null
+  anualResgatesPdvRows: ResgatesPdvRow[]
+  anualResgatesTotal: ResgatesTotal | null
+  anualResgatesConsultorRows: ResgatesConsultorRow[]
+  anualBoletoPromoPdvRows: BoletoPromoPdvRow[]
+  anualBoletoPromoTotal: BoletoPromoTotal | null
+  anualBoletoPromoConsultorRows: BoletoPromoConsultorRow[]
   loadFile: (id: string, file: File) => Promise<void>
 }
 
@@ -882,6 +906,31 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [parcialRows, setParcialRows]                               = useState<ParcialRow[]>(() => tryParse('prisma-data-parcial', []))
   const [parcialSkinRows, setParcialSkinRows]                       = useState<ParcialSkinRow[]>(() => tryParse('prisma-data-parcial-skin', []))
 
+  // Anual
+  const [anualMainRows, setAnualMainRows]                           = useState<MainRow[]>(() => tryParse('prisma-data-anual-main', []))
+  const [anualMainTotal, setAnualMainTotal]                         = useState<MainTotal | null>(() => tryParse('prisma-data-anual-main-total', null))
+  const [anualCpData, setAnualCpData]                               = useState<CPData | null>(() => tryParse('prisma-data-anual-cp', null))
+  const [anualConsultorRows, setAnualConsultorRows]                 = useState<ConsultorRow[]>(() => tryParse('prisma-data-anual-consultor', []))
+  const [anualFluxoRows, setAnualFluxoRows]                         = useState<FluxoRow[]>(() => tryParse('prisma-data-anual-fluxo', []))
+  const [anualFluxoTotal, setAnualFluxoTotal]                       = useState<FluxoTotal | null>(() => tryParse('prisma-data-anual-fluxo-total', null))
+  const [anualFluxoConsultorRows, setAnualFluxoConsultorRows]       = useState<FluxoConsultorRow[]>(() => tryParse('prisma-data-anual-fluxo-consultor', []))
+  const [anualSkinRows, setAnualSkinRows]                           = useState<SkinRow[]>(() => tryParse('prisma-data-anual-skin', []))
+  const [anualSkinConsultorRows, setAnualSkinConsultorRows]         = useState<SkinConsultorRow[]>(() => tryParse('prisma-data-anual-skin-consultor', []))
+  const [anualSkinCP, setAnualSkinCP]                               = useState<SkinCP | null>(() => tryParse('prisma-data-anual-skin-cp', null))
+  const [anualIdClienteRows, setAnualIdClienteRows]                 = useState<IDClienteRow[]>(() => tryParse('prisma-data-anual-idcliente', []))
+  const [anualIdClienteConsultorRows, setAnualIdClienteConsultorRows] = useState<IDClienteConsultorRow[]>(() => tryParse('prisma-data-anual-idcliente-consultor', []))
+  const [anualIdClienteCP, setAnualIdClienteCP]                     = useState<IDClienteCP | null>(() => tryParse('prisma-data-anual-idcliente-cp', null))
+  const [anualLojaDigitalRows, setAnualLojaDigitalRows]             = useState<LojaDigitalPdvRow[]>(() => tryParse('prisma-data-anual-lojadigital', []))
+  const [anualLojaDigitalTotal, setAnualLojaDigitalTotal]           = useState<LojaDigitalTotal | null>(() => tryParse('prisma-data-anual-lojadigital-total', null))
+  const [anualServicosRows, setAnualServicosRows]                   = useState<ServicosRow[]>(() => tryParse('prisma-data-anual-servicos', []))
+  const [anualServicosTotal, setAnualServicosTotal]                 = useState<ServicosTotal | null>(() => tryParse('prisma-data-anual-servicos-total', null))
+  const [anualResgatesPdvRows, setAnualResgatesPdvRows]             = useState<ResgatesPdvRow[]>(() => tryParse('prisma-data-anual-resgates', []))
+  const [anualResgatesTotal, setAnualResgatesTotal]                 = useState<ResgatesTotal | null>(() => tryParse('prisma-data-anual-resgates-total', null))
+  const [anualResgatesConsultorRows, setAnualResgatesConsultorRows] = useState<ResgatesConsultorRow[]>(() => tryParse('prisma-data-anual-resgates-consultor', []))
+  const [anualBoletoPromoPdvRows, setAnualBoletoPromoPdvRows]       = useState<BoletoPromoPdvRow[]>(() => tryParse('prisma-data-anual-boleto-promo', []))
+  const [anualBoletoPromoTotal, setAnualBoletoPromoTotal]           = useState<BoletoPromoTotal | null>(() => tryParse('prisma-data-anual-boleto-promo-total', null))
+  const [anualBoletoPromoConsultorRows, setAnualBoletoPromoConsultorRows] = useState<BoletoPromoConsultorRow[]>(() => tryParse('prisma-data-anual-boleto-promo-consultor', []))
+
   useEffect(() => { try { localStorage.setItem('prisma-data-main', JSON.stringify(mainRows)) } catch {} }, [mainRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-main-total', JSON.stringify(mainTotal)) } catch {} }, [mainTotal])
   useEffect(() => { try { localStorage.setItem('prisma-data-cp', JSON.stringify(cpData)) } catch {} }, [cpData])
@@ -907,6 +956,30 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem('prisma-data-meta-dia', JSON.stringify(metaDiaRows)) } catch {} }, [metaDiaRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-parcial', JSON.stringify(parcialRows)) } catch {} }, [parcialRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-parcial-skin', JSON.stringify(parcialSkinRows)) } catch {} }, [parcialSkinRows])
+
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-main', JSON.stringify(anualMainRows)) } catch {} }, [anualMainRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-main-total', JSON.stringify(anualMainTotal)) } catch {} }, [anualMainTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-cp', JSON.stringify(anualCpData)) } catch {} }, [anualCpData])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-consultor', JSON.stringify(anualConsultorRows)) } catch {} }, [anualConsultorRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-fluxo', JSON.stringify(anualFluxoRows)) } catch {} }, [anualFluxoRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-fluxo-total', JSON.stringify(anualFluxoTotal)) } catch {} }, [anualFluxoTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-fluxo-consultor', JSON.stringify(anualFluxoConsultorRows)) } catch {} }, [anualFluxoConsultorRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-skin', JSON.stringify(anualSkinRows)) } catch {} }, [anualSkinRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-skin-consultor', JSON.stringify(anualSkinConsultorRows)) } catch {} }, [anualSkinConsultorRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-skin-cp', JSON.stringify(anualSkinCP)) } catch {} }, [anualSkinCP])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-idcliente', JSON.stringify(anualIdClienteRows)) } catch {} }, [anualIdClienteRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-idcliente-consultor', JSON.stringify(anualIdClienteConsultorRows)) } catch {} }, [anualIdClienteConsultorRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-idcliente-cp', JSON.stringify(anualIdClienteCP)) } catch {} }, [anualIdClienteCP])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-lojadigital', JSON.stringify(anualLojaDigitalRows)) } catch {} }, [anualLojaDigitalRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-lojadigital-total', JSON.stringify(anualLojaDigitalTotal)) } catch {} }, [anualLojaDigitalTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-servicos', JSON.stringify(anualServicosRows)) } catch {} }, [anualServicosRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-servicos-total', JSON.stringify(anualServicosTotal)) } catch {} }, [anualServicosTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-resgates', JSON.stringify(anualResgatesPdvRows)) } catch {} }, [anualResgatesPdvRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-resgates-total', JSON.stringify(anualResgatesTotal)) } catch {} }, [anualResgatesTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-resgates-consultor', JSON.stringify(anualResgatesConsultorRows)) } catch {} }, [anualResgatesConsultorRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-boleto-promo', JSON.stringify(anualBoletoPromoPdvRows)) } catch {} }, [anualBoletoPromoPdvRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-boleto-promo-total', JSON.stringify(anualBoletoPromoTotal)) } catch {} }, [anualBoletoPromoTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-boleto-promo-consultor', JSON.stringify(anualBoletoPromoConsultorRows)) } catch {} }, [anualBoletoPromoConsultorRows])
 
   async function loadFile(id: string, file: File) {
     if (id === 'main') {
@@ -1003,11 +1076,37 @@ export function DataProvider({ children }: { children: ReactNode }) {
         })
         .filter(r => r.venda_ly > 0)
       setMetaDiaRows(rows)
+    } else if (id === 'anual-main') {
+      const { rows, total, cp, consultorRows: cr } = await parseMainFile(file)
+      setAnualMainRows(rows); setAnualMainTotal(total); setAnualCpData(cp); setAnualConsultorRows(cr)
+    } else if (id === 'anual-fluxo') {
+      const { rows, total, fluxoConsultorRows: fcr } = await parseFluxoFile(file)
+      setAnualFluxoRows(rows); setAnualFluxoTotal(total); setAnualFluxoConsultorRows(fcr)
+    } else if (id === 'anual-skin') {
+      const { rows, consultorRows: cr, cp } = await parseSkinFile(file)
+      setAnualSkinRows(rows); setAnualSkinConsultorRows(cr); setAnualSkinCP(cp)
+    } else if (id === 'anual-id-cliente') {
+      const { rows, consultorRows: cr, cp } = await parseIDClienteFile(file)
+      setAnualIdClienteRows(rows); setAnualIdClienteConsultorRows(cr); setAnualIdClienteCP(cp)
+    } else if (id === 'anual-loja-digital') {
+      const { rows, total } = await parseLojaDigitalFile(file)
+      setAnualLojaDigitalRows(rows); setAnualLojaDigitalTotal(total)
+    } else if (id === 'anual-servicos') {
+      const { rows, total } = await parseServicosFile(file)
+      setAnualServicosRows(rows); setAnualServicosTotal(total)
+    } else if (id === 'anual-resgates') {
+      const { rows, total, consultores } = await parseResgatesFile(file)
+      setAnualResgatesPdvRows(rows); setAnualResgatesTotal(total); setAnualResgatesConsultorRows(consultores)
+    } else if (id === 'anual-boleto-promo') {
+      const { rows, total, consultores } = await parseBoletoPromoFile(file)
+      setAnualBoletoPromoPdvRows(rows); setAnualBoletoPromoTotal(total); setAnualBoletoPromoConsultorRows(consultores)
     }
   }
 
   return (
-    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, shareCatRows, shareCatCP, servicosRows, servicosTotal, resgatesPdvRows, resgatesTotal, resgatesConsultorRows, boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, metaDiaRows, parcialRows, parcialSkinRows, loadFile }}>
+    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, shareCatRows, shareCatCP, servicosRows, servicosTotal, resgatesPdvRows, resgatesTotal, resgatesConsultorRows, boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, metaDiaRows, parcialRows, parcialSkinRows,
+      anualMainRows, anualMainTotal, anualCpData, anualConsultorRows, anualFluxoRows, anualFluxoTotal, anualFluxoConsultorRows, anualSkinRows, anualSkinConsultorRows, anualSkinCP, anualIdClienteRows, anualIdClienteConsultorRows, anualIdClienteCP, anualLojaDigitalRows, anualLojaDigitalTotal, anualServicosRows, anualServicosTotal, anualResgatesPdvRows, anualResgatesTotal, anualResgatesConsultorRows, anualBoletoPromoPdvRows, anualBoletoPromoTotal, anualBoletoPromoConsultorRows,
+      loadFile }}>
       {children}
     </DataCtx.Provider>
   )

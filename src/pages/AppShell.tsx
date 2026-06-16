@@ -749,9 +749,15 @@ const MENSAL_SOURCES: DataSource[] = [
 ]
 
 const ANUAL_SOURCES: DataSource[] = [
-  { id: 'anual-main',  name: 'Indicadores anuais',  format: 'XLSX', icon: IC.grid,   defaultStatus: 'pending', section: 'Lojas' },
-  { id: 'anual-fluxo', name: 'Ação de Fluxo anual', format: 'XLSX', icon: IC.arrows, defaultStatus: 'pending', section: 'Lojas' },
-  { id: 'anual-pef',   name: 'Parcial PEF',         format: 'XLSX', icon: IC.dollar, defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-main',         name: 'Indicadores anuais',       format: 'XLSX', icon: IC.grid,        defaultStatus: 'pending', section: 'Lojas' },
+  { id: 'anual-fluxo',        name: 'Ação de Fluxo anual',      format: 'XLSX', icon: IC.arrows,      defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-skin',         name: 'Skin (Cuidados Faciais) anual', format: 'XLSX', icon: IC.skin,        defaultStatus: 'pending', section: 'IAF' },
+  { id: 'anual-id-cliente',   name: 'ID do Cliente anual',      format: 'XLSX', icon: IC.idCard,      defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-loja-digital', name: 'Loja Digital anual',       format: 'XLSX', icon: IC.lojaDigital, defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-servicos',     name: 'Serviços anual',           format: 'XLSX', icon: IC.doc,         defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-boleto-promo', name: 'Boleto Promocional anual', format: 'XLSX', icon: IC.ticket,      defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-resgates',     name: 'Resgates anual',           format: 'XLSX', icon: IC.gift,        defaultStatus: 'pending', section: 'IAF'   },
+  { id: 'anual-pef',          name: 'Parcial PEF',              format: 'XLSX', icon: IC.dollar,      defaultStatus: 'pending', section: 'IAF'   },
 ]
 
 function extractDateFromFilename(name: string): Date | null {
@@ -3010,8 +3016,8 @@ function DispersaoPage() {
 }
 
 /* ── IAF — Ação de Fluxo ────────────────────────────── */
-function IafFluxoPage() {
-  const { fluxoRows, fluxoConsultorRows, fluxoTotal, mainRows, mainTotal, cpData, consultorRows } = useData()
+function IafFluxoPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { fluxoRows, fluxoConsultorRows, fluxoTotal, mainRows, mainTotal, cpData, consultorRows } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { metas: iafMetas, updateMeta: updateIafMeta } = useIafMetas()
@@ -3557,8 +3563,8 @@ function IafFluxoPage() {
 }
 
 /* ── IAF — Serviços ─────────────────────────────────── */
-function ServicosPage() {
-  const { servicosRows, servicosTotal } = useData()
+function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { servicosRows, servicosTotal } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
@@ -3861,8 +3867,8 @@ function ServicosPage() {
 }
 
 /* ── IAF — ID do Cliente ───────────────────────────── */
-function IDClientePage() {
-  const { idClienteRows, idClienteConsultorRows, idClienteCP } = useData()
+function IDClientePage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { idClienteRows, idClienteConsultorRows, idClienteCP } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { metas: iafMetas, updateMeta: updateIafMeta } = useIafMetas()
@@ -4418,8 +4424,8 @@ function ShareCategoriasPage() {
 }
 
 /* ── IAF — Loja Digital ─────────────────────────────── */
-function LojaDigitalPage() {
-  const { lojaDigitalRows, lojaDigitalTotal } = useData()
+function LojaDigitalPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { lojaDigitalRows, lojaDigitalTotal } = useIafData(periodo)
   const { lojas } = useLojas()
   const { openImport } = useFileStatus()
 
@@ -4617,8 +4623,8 @@ function LojaDigitalPage() {
 }
 
 /* ── IAF — Skin (Cuidados Faciais) ─────────────────── */
-function IafSkinPage() {
-  const { skinRows, skinConsultorRows, skinCP, mainRows, consultorRows } = useData()
+function IafSkinPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { skinRows, skinConsultorRows, skinCP, mainRows, consultorRows } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { metas: iafMetas, updateMeta: updateIafMeta } = useIafMetas()
@@ -5165,8 +5171,8 @@ function IafSkinPage() {
 }
 
 /* ── IAF — Resgates ─────────────────────────────────── */
-function ResgatesPage() {
-  const { resgatesPdvRows, resgatesTotal, resgatesConsultorRows, consultorRows, fluxoConsultorRows } = useData()
+function ResgatesPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { resgatesPdvRows, resgatesTotal, resgatesConsultorRows, consultorRows, fluxoConsultorRows } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
@@ -5568,8 +5574,8 @@ function ResgatesPage() {
 }
 
 /* ── IAF — Boleto Promocional ───────────────────────── */
-function BoletoPromocionalPage() {
-  const { boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, consultorRows, fluxoConsultorRows } = useData()
+function BoletoPromocionalPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, consultorRows, fluxoConsultorRows } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
@@ -6867,18 +6873,46 @@ function Sidebar() {
             <SideItem to="/app/anual/regioes"  icon={IC.mapPin} label="Análise Regional"  requires={['anual-main']} />
             <SideItem to="/app/anual/ranking"  icon={IC.chart}  label="Ranking de Lojas"  requires={['anual-main']} />
             <SideItem to="/app/anual/detalhe"  icon={IC.store}  label="Raio-X da Loja"   requires={['anual-main']} />
-            <SideItem to="/app/anual/fluxo"    icon={IC.arrows} label="Ação de Fluxo"     requires={['anual-fluxo']} />
           </div>
           <div className="nav-group">
             <div className="nav-group-title">IAF</div>
-            <SideItem to="/app/anual/iaf"  icon={IC.check}  label="Indicadores" requires={['anual-main']} />
-            <SideItem to="/app/anual/pef"  icon={IC.dollar} label="Parcial PEF" requires={['anual-pef']} />
+            <SideItem to="/app/anual/iaf"                icon={IC.check}       label="Indicadores"        requires={['anual-main']} />
+            <SideItem to="/app/anual/fluxo"               icon={IC.arrows}      label="Ação de Fluxo"      requires={['anual-fluxo']} />
+            <SideItem to="/app/anual/skin"                icon={IC.skin}        label="Skin"               requires={['anual-skin']} />
+            <SideItem to="/app/anual/id-cliente"          icon={IC.idCard}      label="ID do Cliente"      requires={['anual-id-cliente']} />
+            <SideItem to="/app/anual/loja-digital"        icon={IC.lojaDigital} label="Loja Digital"       requires={['anual-loja-digital']} />
+            <SideItem to="/app/anual/servicos"            icon={IC.doc}         label="Serviços"           requires={['anual-servicos']} />
+            <SideItem to="/app/anual/boleto-promocional"  icon={IC.ticket}      label="Boleto Promocional" requires={['anual-boleto-promo']} />
+            <SideItem to="/app/anual/resgates"            icon={IC.gift}        label="Resgates"           requires={['anual-resgates']} />
+            <SideItem to="/app/anual/pef"                 icon={IC.dollar}      label="Parcial PEF"        requires={['anual-pef']} />
           </div>
         </nav>
       )}
 
     </aside>
   )
+}
+
+/* ── Dados IAF por período (mensal/anual usam o mesmo formato de planilha) ── */
+function useIafData(periodo: 'mensal' | 'anual') {
+  const d = useData()
+  return periodo === 'anual'
+    ? { mainRows: d.anualMainRows, mainTotal: d.anualMainTotal, cpData: d.anualCpData, consultorRows: d.anualConsultorRows,
+        fluxoRows: d.anualFluxoRows, fluxoTotal: d.anualFluxoTotal, fluxoConsultorRows: d.anualFluxoConsultorRows,
+        skinRows: d.anualSkinRows, skinConsultorRows: d.anualSkinConsultorRows, skinCP: d.anualSkinCP,
+        idClienteRows: d.anualIdClienteRows, idClienteConsultorRows: d.anualIdClienteConsultorRows, idClienteCP: d.anualIdClienteCP,
+        lojaDigitalRows: d.anualLojaDigitalRows, lojaDigitalTotal: d.anualLojaDigitalTotal,
+        servicosRows: d.anualServicosRows, servicosTotal: d.anualServicosTotal,
+        resgatesPdvRows: d.anualResgatesPdvRows, resgatesTotal: d.anualResgatesTotal, resgatesConsultorRows: d.anualResgatesConsultorRows,
+        boletoPromoPdvRows: d.anualBoletoPromoPdvRows, boletoPromoTotal: d.anualBoletoPromoTotal, boletoPromoConsultorRows: d.anualBoletoPromoConsultorRows }
+    : { mainRows: d.mainRows, mainTotal: d.mainTotal, cpData: d.cpData, consultorRows: d.consultorRows,
+        fluxoRows: d.fluxoRows, fluxoTotal: d.fluxoTotal, fluxoConsultorRows: d.fluxoConsultorRows,
+        skinRows: d.skinRows, skinConsultorRows: d.skinConsultorRows, skinCP: d.skinCP,
+        idClienteRows: d.idClienteRows, idClienteConsultorRows: d.idClienteConsultorRows, idClienteCP: d.idClienteCP,
+        lojaDigitalRows: d.lojaDigitalRows, lojaDigitalTotal: d.lojaDigitalTotal,
+        servicosRows: d.servicosRows, servicosTotal: d.servicosTotal,
+        resgatesPdvRows: d.resgatesPdvRows, resgatesTotal: d.resgatesTotal, resgatesConsultorRows: d.resgatesConsultorRows,
+        boletoPromoPdvRows: d.boletoPromoPdvRows, boletoPromoTotal: d.boletoPromoTotal, boletoPromoConsultorRows: d.boletoPromoConsultorRows }
 }
 
 /* ── Metas IAF configuráveis ────────────────────────── */
@@ -6933,8 +6967,8 @@ function MetaTag({ label, value, defaultValue, onSave }: { label: string; value:
 
 /* ── IAF — Indicadores (Resumo por loja) ────────────── */
 
-function IafIndicadoresPage() {
-  const { mainRows, skinRows, fluxoRows, idClienteRows, servicosRows, resgatesPdvRows, boletoPromoPdvRows } = useData()
+function IafIndicadoresPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { mainRows, skinRows, fluxoRows, idClienteRows, servicosRows, resgatesPdvRows, boletoPromoPdvRows } = useIafData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const { openImport } = useFileStatus()
@@ -7646,10 +7680,16 @@ export default function AppShell() {
             <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional"   requires={['anual-main']} />} />
             <Route path="anual/ranking"  element={<WipPage title="Anual — Ranking de Lojas"   requires={['anual-main']} />} />
             <Route path="anual/detalhe"  element={<WipPage title="Anual — Raio-X da Loja"    requires={['anual-main']} />} />
-            <Route path="anual/fluxo"    element={<WipPage title="Anual — Ação de Fluxo"      requires={['anual-fluxo']} />} />
             {/* Anual – IAF */}
-            <Route path="anual/iaf"  element={<WipPage title="Anual — Indicadores" requires={['anual-main']} />} />
-            <Route path="anual/pef"  element={<WipPage title="Anual — Parcial PEF" requires={['anual-pef']} />} />
+            <Route path="anual/iaf"                 element={<IafIndicadoresPage periodo="anual" />} />
+            <Route path="anual/fluxo"               element={<IafFluxoPage periodo="anual" />} />
+            <Route path="anual/skin"                element={<IafSkinPage periodo="anual" />} />
+            <Route path="anual/id-cliente"          element={<IDClientePage periodo="anual" />} />
+            <Route path="anual/loja-digital"        element={<LojaDigitalPage periodo="anual" />} />
+            <Route path="anual/servicos"            element={<ServicosPage periodo="anual" />} />
+            <Route path="anual/boleto-promocional"  element={<BoletoPromocionalPage periodo="anual" />} />
+            <Route path="anual/resgates"            element={<ResgatesPage periodo="anual" />} />
+            <Route path="anual/pef"                 element={<WipPage title="Anual — Parcial PEF"         requires={['anual-pef']} />} />
             {/* legado */}
             <Route path="loja"           element={<LojaPage />} />
             <Route path="vd"             element={<VDPage />} />
