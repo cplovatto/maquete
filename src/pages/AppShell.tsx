@@ -37,141 +37,7 @@ function usePdvLabel() {
   return (pdv: string) => showApelido ? (lojaMap.get(pdv)?.apelido || pdv) : pdv
 }
 
-/* ── Fake data ──────────────────────────────────────── */
-const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
-const CHART_H = [38, 52, 44, 65, 72, 58, 80, 70, 88, 95, 100, 82]
-
-const ORDERS = [
-  { id: '#4521', cliente: 'Maria Fonseca',    itens: 'Batom Matte + Sérum',           valor: 'R$ 287,90', status: 'Concluído',           badge: 'badge-green' },
-  { id: '#4520', cliente: 'João Pinheiro',    itens: 'Kit Skincare Premium',           valor: 'R$ 459,00', status: 'Em andamento',        badge: 'badge-blue'  },
-  { id: '#4519', cliente: 'Ana Sousa',        itens: 'Paleta de Sombras',             valor: 'R$ 189,50', status: 'Aguard. pagamento',    badge: 'badge-yellow'},
-  { id: '#4518', cliente: 'Carla Mesquita',   itens: 'Shampoo + Condicionador',       valor: 'R$ 124,90', status: 'Concluído',           badge: 'badge-green' },
-  { id: '#4517', cliente: 'Pedro Alves',      itens: 'Creme Anti-idade',              valor: 'R$ 329,00', status: 'Concluído',           badge: 'badge-green' },
-]
-
-const ACTIVITY = [
-  { av: 'MS', alt: '',     text: <><strong>Maria Silva</strong> fez login no sistema</>,               time: 'agora mesmo' },
-  { av: 'JA', alt: 'alt',  text: <><strong>João Alves</strong> adicionou 12 itens ao estoque</>,       time: '4 min atrás' },
-  { av: 'CP', alt: 'alt2', text: <><strong>Carla Pinto</strong> fechou pedido <strong>#4521</strong></>, time: '18 min atrás' },
-  { av: 'AM', alt: '',     text: <><strong>Ana Mesquita</strong> se cadastrou como consultora VD</>,    time: '42 min atrás' },
-  { av: 'RB', alt: 'alt',  text: <><strong>Roberto Braga</strong> emitiu NF-e #001.547</>,             time: '1 h atrás'   },
-]
-
 /* ── Sub-pages ──────────────────────────────────────── */
-function DashboardPage() {
-  const [activeBar, setActiveBar] = useState(10)
-
-  return (
-    <div>
-      <div className="page-header">
-        <div className="page-title">Painel Geral</div>
-        <div className="page-subtitle">Segunda-feira, 19 de maio de 2025</div>
-      </div>
-
-      <div className="stats-grid">
-        {[
-          { label: 'Vendas Hoje', value: 'R$ 3.847', delta: '+12,3%', dir: 'up', icon: '💰', bg: 'icon-bg-purple' },
-          { label: 'Pedidos Abertos', value: '48', delta: '+5 novos', dir: 'up', icon: '🛒', bg: 'icon-bg-blue' },
-          { label: 'Clientes Ativos', value: '1.234', delta: '+8 esta semana', dir: 'up', icon: '👥', bg: 'icon-bg-green' },
-          { label: 'Ticket Médio', value: 'R$ 218', delta: '-2,1%', dir: 'down', icon: '📈', bg: 'icon-bg-orange' },
-        ].map(s => (
-          <div className="stat-card" key={s.label}>
-            <div className="stat-card-head">
-              <span className="stat-card-label">{s.label}</span>
-              <div className={`stat-card-icon ${s.bg}`}>{s.icon}</div>
-            </div>
-            <div className="stat-card-value">{s.value}</div>
-            <div className={`stat-card-delta delta-${s.dir}`}>
-              {s.dir === 'up' ? '▲' : '▼'} {s.delta}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="dash-grid">
-        {/* Chart + orders */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div className="card">
-            <div className="card-head">
-              <div>
-                <div className="card-title">Vendas — Últimos 12 Meses</div>
-                <div className="card-subtitle">Em reais (R$)</div>
-              </div>
-              <span className="card-action">Exportar</span>
-            </div>
-            <div className="chart-bars">
-              {CHART_H.map((h, i) => (
-                <div
-                  key={i}
-                  className={`chart-bar${activeBar === i ? ' active' : ''}`}
-                  style={{ height: `${h}%` }}
-                  onClick={() => setActiveBar(i)}
-                />
-              ))}
-            </div>
-            <div className="chart-months">
-              {MONTHS.map(m => <span key={m} className="chart-month-label">{m}</span>)}
-            </div>
-          </div>
-
-          <div className="card">
-            <div className="card-head">
-              <div>
-                <div className="card-title">Pedidos Recentes</div>
-                <div className="card-subtitle">Últimas 24 horas</div>
-              </div>
-              <span className="card-action">Ver todos</span>
-            </div>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Pedido</th>
-                  <th>Cliente</th>
-                  <th>Itens</th>
-                  <th>Valor</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {ORDERS.map(o => (
-                  <tr key={o.id}>
-                    <td className="td-primary">{o.id}</td>
-                    <td>{o.cliente}</td>
-                    <td>{o.itens}</td>
-                    <td className="td-primary">{o.valor}</td>
-                    <td><span className={`badge ${o.badge}`}>{o.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Activity */}
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <div className="card-title">Atividade Recente</div>
-              <div className="card-subtitle">Atualizações em tempo real</div>
-            </div>
-          </div>
-          <div className="activity-list">
-            {ACTIVITY.map((a, i) => (
-              <div className="activity-item" key={i}>
-                <div className={`activity-av${a.alt ? ` ${a.alt}` : ''}`}>{a.av}</div>
-                <div>
-                  <div className="activity-text">{a.text}</div>
-                  <div className="activity-time">{a.time}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function LojaPage() {
   return (
     <div className="placeholder-page">
@@ -6955,9 +6821,6 @@ function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-home">
-        <SideItem to="/app/dashboard" icon={IC.home} label="Painel Geral" />
-      </div>
       <div className="sidebar-period-toggle">
         <button
           className={`period-btn${periodo === 'mensal' ? ' active' : ''}`}
@@ -7760,7 +7623,7 @@ export default function AppShell() {
         {/* Main */}
         <main className="app-main">
           <Routes>
-            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route index element={<Navigate to="meta" replace />} />
             {/* Mensal – Gestão Instantânea */}
             <Route path="metas-mes"     element={<MetasMesPage />} />
             <Route path="meta"          element={<MetaDiaPage />} />
@@ -7793,12 +7656,11 @@ export default function AppShell() {
             <Route path="anual/iaf"  element={<WipPage title="Anual — Indicadores" requires={['anual-main']} />} />
             <Route path="anual/pef"  element={<WipPage title="Anual — Parcial PEF" requires={['anual-pef']} />} />
             {/* legado */}
-            <Route path="dashboard"      element={<DashboardPage />} />
             <Route path="loja"           element={<LojaPage />} />
             <Route path="vd"             element={<VDPage />} />
             <Route path="relatorios"     element={<RelatoriosPage />} />
             <Route path="configuracoes"  element={<ConfigPage />} />
-            <Route path="*"              element={<Navigate to="dashboard" replace />} />
+            <Route path="*"              element={<Navigate to="meta" replace />} />
           </Routes>
         </main>
       </div>
