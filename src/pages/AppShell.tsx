@@ -6238,12 +6238,7 @@ function ParcialDiaPage() {
   const emRisco = rows.filter(r => r.status === 'danger').length
 
   const totalQB = rows.reduce((s, r) => s + (parcialMap.get(r.pdv)?.qb_atual ?? 0), 0)
-  const totalBM = totalQB > 0
-    ? rows.reduce((s, r) => {
-        const pr = parcialMap.get(r.pdv)
-        return s + (pr?.bm_atual ?? 0) * (pr?.qb_atual ?? 0)
-      }, 0) / totalQB
-    : 0
+  const totalBM = totalQB > 0 ? totalParcial / totalQB : 0
   const totalIV = totalQB > 0
     ? rows.reduce((s, r) => {
         const pr = parcialMap.get(r.pdv)
@@ -6401,7 +6396,7 @@ function ParcialDiaPage() {
                     {r.falta !== null ? (r.falta > 0 ? fBRLR(r.falta) : <span style={{ color: '#059669' }}>✓</span>) : <span className="dash-muted">—</span>}
                   </td>
                   <td className="col-num">
-                    {(() => { const bm = parcialMap.get(r.pdv)?.bm_atual ?? 0; return bm > 0 ? fBRLR(bm) : <span className="dash-muted">—</span> })()}
+                    {(() => { const pr = parcialMap.get(r.pdv); const bm = pr && pr.qb_atual > 0 ? pr.venda_parcial / pr.qb_atual : 0; return bm > 0 ? fBRLR(bm) : <span className="dash-muted">—</span> })()}
                   </td>
                 </tr>
               ))}
