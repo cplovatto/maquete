@@ -218,6 +218,26 @@ export interface ParcialRow {
   iv_atual: number
 }
 
+export interface PefChannelData {
+  receita_ant: number
+  receita_atual: number
+  meta_pef: number
+  gap_r: number
+  gap_pct: number | null
+  realizado_pct: number | null
+}
+export interface PefRow {
+  un: string
+  pdv: string
+  cidade: string
+  local: string
+  loja: PefChannelData
+  cr: PefChannelData
+  total: PefChannelData
+}
+export interface PefTotal { loja: PefChannelData; cr: PefChannelData; total: PefChannelData }
+export interface PefFiltros { periodo_atual: string; periodo_anterior: string; cp: string }
+
 export interface ParcialSkinRow {
   pdv: string
   share: number       // participação skin no GMV total (decimal)
@@ -336,6 +356,9 @@ interface DataCtxType {
   anualBoletoPromoPdvRows: BoletoPromoPdvRow[]
   anualBoletoPromoTotal: BoletoPromoTotal | null
   anualBoletoPromoConsultorRows: BoletoPromoConsultorRow[]
+  pefRows: PefRow[]
+  pefTotal: PefTotal | null
+  pefFiltros: PefFiltros | null
   loadFile: (id: string, file: File) => Promise<void>
 }
 
@@ -872,6 +895,60 @@ async function parseResgatesFile(file: File): Promise<{ rows: ResgatesPdvRow[]; 
   return { rows, total, consultores }
 }
 
+async function parsePefFile(file: File): Promise<{ rows: PefRow[]; total: PefTotal; filtros: PefFiltros }> {
+  const { read, utils } = await getXLSX()
+  const ab = await file.arrayBuffer()
+  const wb = read(ab, { type: 'array' })
+
+  const filtrosWs = wb.Sheets['FILTROS']
+  const filtrosData = utils.sheet_to_json<(string | number)[]>(filtrosWs, { header: 1, defval: '' })
+  const filtros: PefFiltros = {
+    periodo_atual:    String(filtrosData[2]?.[1] ?? ''),
+    periodo_anterior: String(filtrosData[3]?.[1] ?? ''),
+    cp:               String(filtrosData[4]?.[1] ?? ''),
+  }
+
+  const ws = wb.Sheets['PERFORMANCE POR PDV']
+  const data = utils.sheet_to_json<(string | number)[]>(ws, { header: 1, defval: '' })
+
+  function parseChannel(row: (string | number)[], offset: number): PefChannelData {
+    const toNum = (v: string | number) => typeof v === 'number' ? v : 0
+    const toNullable = (v: string | number) => typeof v === 'number' ? v : null
+    return {
+      receita_ant:    toNum(row[offset]),
+      receita_atual:  toNum(row[offset + 1]),
+      meta_pef:       toNum(row[offset + 2]),
+      gap_r:          toNum(row[offset + 3]),
+      gap_pct:        toNullable(row[offset + 4]),
+      realizado_pct:  toNullable(row[offset + 5]),
+    }
+  }
+
+  const totalRow = data[3] ?? []
+  const total: PefTotal = {
+    loja:  parseChannel(totalRow, 4),
+    cr:    parseChannel(totalRow, 10),
+    total: parseChannel(totalRow, 16),
+  }
+
+  const rows: PefRow[] = []
+  for (let i = 4; i < data.length; i++) {
+    const row = data[i]
+    if (!row[1] && row[1] !== 0) continue
+    rows.push({
+      un:     String(row[0]),
+      pdv:    String(row[1]),
+      cidade: String(row[2]),
+      local:  String(row[3]),
+      loja:   parseChannel(row, 4),
+      cr:     parseChannel(row, 10),
+      total:  parseChannel(row, 16),
+    })
+  }
+
+  return { rows, total, filtros }
+}
+
 function tryParse<T>(key: string, fallback: T): T {
   try { const s = localStorage.getItem(key); return s ? (JSON.parse(s) as T) : fallback } catch { return fallback }
 }
@@ -980,6 +1057,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem('prisma-data-anual-boleto-promo', JSON.stringify(anualBoletoPromoPdvRows)) } catch {} }, [anualBoletoPromoPdvRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-anual-boleto-promo-total', JSON.stringify(anualBoletoPromoTotal)) } catch {} }, [anualBoletoPromoTotal])
   useEffect(() => { try { localStorage.setItem('prisma-data-anual-boleto-promo-consultor', JSON.stringify(anualBoletoPromoConsultorRows)) } catch {} }, [anualBoletoPromoConsultorRows])
+  const [pefRows, setPefRows]         = useState<PefRow[]>(() => tryParse('prisma-data-pef', []))
+  const [pefTotal, setPefTotal]       = useState<PefTotal | null>(() => tryParse('prisma-data-pef-total', null))
+  const [pefFiltros, setPefFiltros]   = useState<PefFiltros | null>(() => tryParse('prisma-data-pef-filtros', null))
+  useEffect(() => { try { localStorage.setItem('prisma-data-pef', JSON.stringify(pefRows)) } catch {} }, [pefRows])
+  useEffect(() => { try { localStorage.setItem('prisma-data-pef-total', JSON.stringify(pefTotal)) } catch {} }, [pefTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-pef-filtros', JSON.stringify(pefFiltros)) } catch {} }, [pefFiltros])
 
   async function loadFile(id: string, file: File) {
     if (id === 'main') {
@@ -1100,12 +1183,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     } else if (id === 'anual-boleto-promo') {
       const { rows, total, consultores } = await parseBoletoPromoFile(file)
       setAnualBoletoPromoPdvRows(rows); setAnualBoletoPromoTotal(total); setAnualBoletoPromoConsultorRows(consultores)
+    } else if (id === 'anual-pef') {
+      const { rows, total, filtros } = await parsePefFile(file)
+      setPefRows(rows); setPefTotal(total); setPefFiltros(filtros)
     }
   }
 
   return (
     <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, shareCatRows, shareCatCP, servicosRows, servicosTotal, resgatesPdvRows, resgatesTotal, resgatesConsultorRows, boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, metaDiaRows, parcialRows, parcialSkinRows,
       anualMainRows, anualMainTotal, anualCpData, anualConsultorRows, anualFluxoRows, anualFluxoTotal, anualFluxoConsultorRows, anualSkinRows, anualSkinConsultorRows, anualSkinCP, anualIdClienteRows, anualIdClienteConsultorRows, anualIdClienteCP, anualLojaDigitalRows, anualLojaDigitalTotal, anualServicosRows, anualServicosTotal, anualResgatesPdvRows, anualResgatesTotal, anualResgatesConsultorRows, anualBoletoPromoPdvRows, anualBoletoPromoTotal, anualBoletoPromoConsultorRows,
+      pefRows, pefTotal, pefFiltros,
       loadFile }}>
       {children}
     </DataCtx.Provider>
