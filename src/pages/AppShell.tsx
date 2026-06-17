@@ -7081,10 +7081,16 @@ function ParcialPEFPage() {
                   <td><span className="col-pdv">{r.pdv}</span></td>
                   <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.un}</td>
                   <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{r.local || '—'}</td>
-                  <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(r.loja.receita_ant)}</td>
-                  <td className="col-num">{fR(r.loja.receita_atual)}</td>
-                  <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.loja.meta_pef > 0 ? fR(r.loja.meta_pef) : '—'}</td>
-                  <td className="col-num">{fVar(r.loja.realizado_pct)}</td>
+                  {(() => {
+                    const inativo = r.loja.receita_atual === 0 && r.loja.meta_pef === 0
+                    if (inativo) return <><td className="col-num" colSpan={4} style={{ color: 'var(--text-muted)', textAlign: 'center' }}>—</td></>
+                    return (<>
+                      <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.loja.receita_ant > 0 ? fR(r.loja.receita_ant) : '—'}</td>
+                      <td className="col-num">{fR(r.loja.receita_atual)}</td>
+                      <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.loja.meta_pef > 0 ? fR(r.loja.meta_pef) : '—'}</td>
+                      <td className="col-num">{fVar(r.loja.realizado_pct)}</td>
+                    </>)
+                  })()}
                   <td className="col-num">{r.cr.receita_atual > 0 ? fR(r.cr.receita_atual) : <span className="dash-muted">—</span>}</td>
                   <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.cr.meta_pef > 0 ? fR(r.cr.meta_pef) : <span className="dash-muted">—</span>}</td>
                   <td className="col-num">{r.cr.meta_pef > 0 ? fVar(r.cr.realizado_pct) : <span className="dash-muted">—</span>}</td>
