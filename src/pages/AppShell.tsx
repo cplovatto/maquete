@@ -914,8 +914,8 @@ function LojasEmptyState() {
 
 type SortKey = keyof MainRow | 'conv_pct'
 
-function useStoreTableData(sortKey: SortKey, sortDir: 'asc' | 'desc') {
-  const { mainRows, fluxoRows } = useData()
+function useStoreTableData(sortKey: SortKey, sortDir: 'asc' | 'desc', periodo: 'mensal' | 'anual' = 'mensal') {
+  const { mainRows, fluxoRows } = useLojaData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   return useMemo(() => {
@@ -1003,8 +1003,8 @@ function StoreTableHead({ sortKey, sortDir, onSort }: { sortKey: SortKey; sortDi
 }
 
 /* ── Lojas — Visão Geral ─────────────────────────────── */
-function VisaoGeralPage() {
-  const { mainRows, mainTotal, cpData, fluxoRows, fluxoTotal } = useData()
+function VisaoGeralPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { mainRows, mainTotal, cpData, fluxoRows, fluxoTotal } = useLojaData(periodo)
   const pdvLabel = usePdvLabel()
 
   const { lojas } = useLojas()
@@ -1458,14 +1458,14 @@ function IndicadoresRef() {
   )
 }
 
-function RankingPage() {
-  const { mainRows, fluxoRows } = useData()
+function RankingPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { mainRows, fluxoRows } = useLojaData(periodo)
   const pdvLabel = usePdvLabel()
   const [sortKey, setSortKey] = useState<SortKey>('vf_atual')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [chartMetric, setChartMetric] = useState<ChartMetric>('vf_var')
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
-  const { rows, labels } = useStoreTableData(sortKey, sortDir)
+  const { rows, labels } = useStoreTableData(sortKey, sortDir, periodo)
 
   function toggleSort(k: SortKey) {
     if (sortKey === k) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
@@ -1636,8 +1636,8 @@ function RankingPage() {
 }
 
 /* ── Lojas — Análise Regional ────────────────────────── */
-function RegioesPage() {
-  const { mainRows, fluxoRows } = useData()
+function RegioesPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { mainRows, fluxoRows } = useLojaData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const [selectedPotLabels, setSelectedPotLabels] = useState<string[]>([])
@@ -2091,8 +2091,8 @@ function RegioesPage() {
 }
 
 /* ── Lojas — Raio-X da Loja ─────────────────────────── */
-function DetalhePage() {
-  const { mainRows, fluxoRows, consultorRows, fluxoConsultorRows, cpData } = useData()
+function DetalhePage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
+  const { mainRows, fluxoRows, consultorRows, fluxoConsultorRows, cpData } = useLojaData(periodo)
   const { lojas } = useLojas()
   const { labels } = useLabels()
   const [selectedPdv, setSelectedPdv] = useState<string>('')
@@ -6915,6 +6915,16 @@ function useIafData(periodo: 'mensal' | 'anual') {
         boletoPromoPdvRows: d.boletoPromoPdvRows, boletoPromoTotal: d.boletoPromoTotal, boletoPromoConsultorRows: d.boletoPromoConsultorRows }
 }
 
+/* ── Dados de Lojas por período ─────────────────────── */
+function useLojaData(periodo: 'mensal' | 'anual') {
+  const d = useData()
+  return periodo === 'anual'
+    ? { mainRows: d.anualMainRows, mainTotal: d.anualMainTotal, cpData: d.anualCpData, consultorRows: d.anualConsultorRows,
+        fluxoRows: d.anualFluxoRows, fluxoTotal: d.anualFluxoTotal, fluxoConsultorRows: d.anualFluxoConsultorRows }
+    : { mainRows: d.mainRows, mainTotal: d.mainTotal, cpData: d.cpData, consultorRows: d.consultorRows,
+        fluxoRows: d.fluxoRows, fluxoTotal: d.fluxoTotal, fluxoConsultorRows: d.fluxoConsultorRows }
+}
+
 /* ── Metas IAF configuráveis ────────────────────────── */
 const IAF_METAS_DEFAULT = { skin: 2.7, af: 28, bp: 33, resgate: 52, id: 115 }
 type IafMetasKey = keyof typeof IAF_METAS_DEFAULT
@@ -7676,10 +7686,10 @@ export default function AppShell() {
             <Route path="iaf/boleto-promocional" element={<BoletoPromocionalPage />} />
             <Route path="iaf/resgates"           element={<ResgatesPage />} />
             {/* Anual – Lojas */}
-            <Route path="anual/lojas"    element={<WipPage title="Anual — Lojas"              requires={['anual-main']} />} />
-            <Route path="anual/regioes"  element={<WipPage title="Anual — Análise Regional"   requires={['anual-main']} />} />
-            <Route path="anual/ranking"  element={<WipPage title="Anual — Ranking de Lojas"   requires={['anual-main']} />} />
-            <Route path="anual/detalhe"  element={<WipPage title="Anual — Raio-X da Loja"    requires={['anual-main']} />} />
+            <Route path="anual/lojas"    element={<VisaoGeralPage periodo="anual" />} />
+            <Route path="anual/regioes"  element={<RegioesPage   periodo="anual" />} />
+            <Route path="anual/ranking"  element={<RankingPage   periodo="anual" />} />
+            <Route path="anual/detalhe"  element={<DetalhePage   periodo="anual" />} />
             {/* Anual – IAF */}
             <Route path="anual/iaf"                 element={<IafIndicadoresPage periodo="anual" />} />
             <Route path="anual/fluxo"               element={<IafFluxoPage periodo="anual" />} />
