@@ -7017,32 +7017,26 @@ function ParcialPEFPage() {
       {tot && (
         <div className="kpi-row" style={{ marginBottom: 20 }}>
           <div className="kpi-card">
-            <div className="kpi-label">Receita Atual (Total)</div>
-            <div className="kpi-value">{fR(tot.total.receita_atual)}</div>
+            <div className="kpi-label">Receita Anterior</div>
+            <div className="kpi-value">{fR(tot.loja.receita_ant)}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-label">Meta PEF (Total)</div>
-            <div className="kpi-value">{fR(tot.total.meta_pef)}</div>
+            <div className="kpi-label">Receita Atual</div>
+            <div className="kpi-value">{fR(tot.loja.receita_atual)}</div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-label">Realizado</div>
-            <div className="kpi-value">{fVar(totalRealPct)}</div>
+            <div className="kpi-label">Meta PEF</div>
+            <div className="kpi-value">{fR(tot.loja.meta_pef)}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-label">Gap Acordado</div>
-            <div className="kpi-value" style={{ color: tot.total.gap_r >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>
-              {fR(tot.total.gap_r)}
+            <div className="kpi-value" style={{ color: tot.loja.gap_r >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>
+              {fR(tot.loja.gap_r)}
             </div>
           </div>
           <div className="kpi-card">
-            <div className="kpi-label">Receita Loja</div>
-            <div className="kpi-value">{fR(tot.loja.receita_atual)}</div>
-            <div className="kpi-note">{fVar(tot.loja.realizado_pct)} da meta</div>
-          </div>
-          <div className="kpi-card">
-            <div className="kpi-label">Clique e Retire</div>
-            <div className="kpi-value">{fR(tot.cr.receita_atual)}</div>
-            <div className="kpi-note">{fVar(tot.cr.realizado_pct)} da meta</div>
+            <div className="kpi-label">Realizado</div>
+            <div className="kpi-value">{fVar(tot.loja.realizado_pct)}</div>
           </div>
         </div>
       )}
@@ -7056,50 +7050,35 @@ function ParcialPEFPage() {
               <th>PDV</th>
               <th>UN</th>
               <th>Local</th>
-              <th className="col-num">Ant. Loja</th>
-              <th className="col-num">Atual Loja</th>
-              <th className="col-num">Meta Loja</th>
-              <th className="col-num">Real. Loja</th>
-              <th className="col-num">Atual C&R</th>
-              <th className="col-num">Meta C&R</th>
-              <th className="col-num">Real. C&R</th>
-              <th className="col-num">Atual Total</th>
-              <th className="col-num">Meta Total</th>
-              <th className="col-num">Real. Total</th>
-              <th className="col-num">Gap Total</th>
+              <th className="col-num">Rec. Anterior</th>
+              <th className="col-num">Rec. Atual</th>
+              <th className="col-num">Meta PEF</th>
+              <th className="col-num">Gap (R$)</th>
+              <th className="col-num">Gap (%)</th>
+              <th className="col-num">Realizado</th>
             </tr>
           </thead>
           <tbody>
             {pefRows.map((r, i) => {
-              const realTotal = r.total.realizado_pct
-              const rowColor = realTotal !== null
-                ? realTotal >= 1 ? '#059669' : realTotal >= 0.95 ? '#d97706' : '#dc2626'
+              const real = r.loja.realizado_pct
+              const rowColor = real !== null
+                ? real >= 1 ? '#059669' : real >= 0.95 ? '#d97706' : '#dc2626'
                 : 'var(--text-secondary)'
+              const inativo = r.loja.receita_atual === 0 && r.loja.meta_pef === 0
               return (
                 <tr key={`${r.pdv}-${i}`}>
                   <td className="col-rank">{i + 1}</td>
                   <td><span className="col-pdv">{r.pdv}</span></td>
                   <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.un}</td>
                   <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{r.local || '—'}</td>
-                  {(() => {
-                    const inativo = r.loja.receita_atual === 0 && r.loja.meta_pef === 0
-                    if (inativo) return <><td className="col-num" colSpan={4} style={{ color: 'var(--text-muted)', textAlign: 'center' }}>—</td></>
-                    return (<>
-                      <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.loja.receita_ant > 0 ? fR(r.loja.receita_ant) : '—'}</td>
-                      <td className="col-num">{fR(r.loja.receita_atual)}</td>
-                      <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.loja.meta_pef > 0 ? fR(r.loja.meta_pef) : '—'}</td>
-                      <td className="col-num">{fVar(r.loja.realizado_pct)}</td>
-                    </>)
-                  })()}
-                  <td className="col-num">{r.cr.receita_atual > 0 ? fR(r.cr.receita_atual) : <span className="dash-muted">—</span>}</td>
-                  <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.cr.meta_pef > 0 ? fR(r.cr.meta_pef) : <span className="dash-muted">—</span>}</td>
-                  <td className="col-num">{r.cr.meta_pef > 0 ? fVar(r.cr.realizado_pct) : <span className="dash-muted">—</span>}</td>
-                  <td className="col-num" style={{ fontWeight: 600 }}>{fR(r.total.receita_atual)}</td>
-                  <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.total.meta_pef > 0 ? fR(r.total.meta_pef) : '—'}</td>
-                  <td className="col-num" style={{ color: rowColor, fontWeight: 700 }}>{fPct(r.total.realizado_pct)}</td>
-                  <td className="col-num" style={{ color: r.total.gap_r >= 0 ? '#059669' : '#dc2626', fontWeight: 600 }}>
-                    {r.total.meta_pef > 0 ? fR(r.total.gap_r) : '—'}
-                  </td>
+                  {inativo ? <td className="col-num" colSpan={6} style={{ color: 'var(--text-muted)', textAlign: 'center' }}>—</td> : (<>
+                    <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.loja.receita_ant > 0 ? fR(r.loja.receita_ant) : '—'}</td>
+                    <td className="col-num">{fR(r.loja.receita_atual)}</td>
+                    <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.loja.meta_pef > 0 ? fR(r.loja.meta_pef) : '—'}</td>
+                    <td className="col-num" style={{ color: r.loja.gap_r >= 0 ? '#059669' : '#dc2626' }}>{r.loja.meta_pef > 0 ? fR(r.loja.gap_r) : '—'}</td>
+                    <td className="col-num">{r.loja.gap_pct !== null ? `${(r.loja.gap_pct * 100).toFixed(1)}%` : '—'}</td>
+                    <td className="col-num" style={{ color: rowColor, fontWeight: 700 }}>{fPct(real)}</td>
+                  </>)}
                 </tr>
               )
             })}
@@ -7111,14 +7090,9 @@ function ParcialPEFPage() {
                 <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(tot.loja.receita_ant)}</td>
                 <td className="col-num">{fR(tot.loja.receita_atual)}</td>
                 <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(tot.loja.meta_pef)}</td>
+                <td className="col-num" style={{ color: tot.loja.gap_r >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>{fR(tot.loja.gap_r)}</td>
+                <td className="col-num">{tot.loja.gap_pct !== null ? `${(tot.loja.gap_pct * 100).toFixed(1)}%` : '—'}</td>
                 <td className="col-num">{fVar(tot.loja.realizado_pct)}</td>
-                <td className="col-num">{fR(tot.cr.receita_atual)}</td>
-                <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(tot.cr.meta_pef)}</td>
-                <td className="col-num">{fVar(tot.cr.realizado_pct)}</td>
-                <td className="col-num" style={{ fontWeight: 700 }}>{fR(tot.total.receita_atual)}</td>
-                <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(tot.total.meta_pef)}</td>
-                <td className="col-num">{fVar(tot.total.realizado_pct)}</td>
-                <td className="col-num" style={{ color: tot.total.gap_r >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>{fR(tot.total.gap_r)}</td>
               </tr>
             </tfoot>
           )}
