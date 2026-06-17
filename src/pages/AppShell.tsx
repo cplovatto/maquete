@@ -6975,6 +6975,153 @@ function MetaTag({ label, value, defaultValue, onSave }: { label: string; value:
   )
 }
 
+/* ── Anual — Parcial PEF ─────────────────────────────── */
+
+function ParcialPEFPage() {
+  const { pefRows, pefTotal, pefFiltros } = useData()
+  const { openImport } = useFileStatus()
+
+  if (pefRows.length === 0) return (
+    <div className="page-empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <div className="page-empty-title">Nenhum dado PEF carregado</div>
+      <div className="page-empty-desc">Importe a planilha de Performance por PDV para ver o acompanhamento PEF</div>
+      <button className="page-empty-btn" onClick={openImport}>Importar planilha</button>
+    </div>
+  )
+
+  const fR  = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+  const fPct = (v: number | null) => v !== null ? `${(v * 100).toFixed(1)}%` : '—'
+  const fVar = (v: number | null) => {
+    if (v === null) return <span style={{ color: 'var(--text-muted)' }}>—</span>
+    const pct = v * 100
+    const color = pct >= 100 ? '#059669' : pct >= 95 ? '#d97706' : '#dc2626'
+    return <span style={{ color, fontWeight: 700 }}>{pct.toFixed(1)}%</span>
+  }
+
+  const tot = pefTotal
+  const totalRealPct = tot?.total.realizado_pct ?? null
+
+  return (
+    <div>
+      <div className="page-title-row">
+        <div>
+          <h2 className="page-title">Parcial PEF</h2>
+          <p className="page-subtitle">
+            {pefFiltros ? `${pefFiltros.periodo_atual} · CP ${pefFiltros.cp}` : `${pefRows.length} lojas`}
+          </p>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      {tot && (
+        <div className="kpi-row" style={{ marginBottom: 20 }}>
+          <div className="kpi-card">
+            <div className="kpi-label">Receita Atual (Total)</div>
+            <div className="kpi-value">{fR(tot.total.receita_atual)}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Meta PEF (Total)</div>
+            <div className="kpi-value">{fR(tot.total.meta_pef)}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Realizado</div>
+            <div className="kpi-value">{fVar(totalRealPct)}</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Gap Acordado</div>
+            <div className="kpi-value" style={{ color: tot.total.gap_r >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>
+              {fR(tot.total.gap_r)}
+            </div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Receita Loja</div>
+            <div className="kpi-value">{fR(tot.loja.receita_atual)}</div>
+            <div className="kpi-note">{fVar(tot.loja.realizado_pct)} da meta</div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Clique e Retire</div>
+            <div className="kpi-value">{fR(tot.cr.receita_atual)}</div>
+            <div className="kpi-note">{fVar(tot.cr.realizado_pct)} da meta</div>
+          </div>
+        </div>
+      )}
+
+      {/* Tabela */}
+      <div className="card" style={{ padding: 0, overflowX: 'auto' }}>
+        <table className="dash-table">
+          <thead>
+            <tr>
+              <th className="col-rank">#</th>
+              <th>PDV</th>
+              <th>UN</th>
+              <th>Local</th>
+              <th className="col-num">Ant. Loja</th>
+              <th className="col-num">Atual Loja</th>
+              <th className="col-num">Meta Loja</th>
+              <th className="col-num">Real. Loja</th>
+              <th className="col-num">Atual C&R</th>
+              <th className="col-num">Meta C&R</th>
+              <th className="col-num">Real. C&R</th>
+              <th className="col-num">Atual Total</th>
+              <th className="col-num">Meta Total</th>
+              <th className="col-num">Real. Total</th>
+              <th className="col-num">Gap Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pefRows.map((r, i) => {
+              const realTotal = r.total.realizado_pct
+              const rowColor = realTotal !== null
+                ? realTotal >= 1 ? '#059669' : realTotal >= 0.95 ? '#d97706' : '#dc2626'
+                : 'var(--text-secondary)'
+              return (
+                <tr key={`${r.pdv}-${i}`}>
+                  <td className="col-rank">{i + 1}</td>
+                  <td><span className="col-pdv">{r.pdv}</span></td>
+                  <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.un}</td>
+                  <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{r.local || '—'}</td>
+                  <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(r.loja.receita_ant)}</td>
+                  <td className="col-num">{fR(r.loja.receita_atual)}</td>
+                  <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.loja.meta_pef > 0 ? fR(r.loja.meta_pef) : '—'}</td>
+                  <td className="col-num">{fVar(r.loja.realizado_pct)}</td>
+                  <td className="col-num">{r.cr.receita_atual > 0 ? fR(r.cr.receita_atual) : <span className="dash-muted">—</span>}</td>
+                  <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.cr.meta_pef > 0 ? fR(r.cr.meta_pef) : <span className="dash-muted">—</span>}</td>
+                  <td className="col-num">{r.cr.meta_pef > 0 ? fVar(r.cr.realizado_pct) : <span className="dash-muted">—</span>}</td>
+                  <td className="col-num" style={{ fontWeight: 600 }}>{fR(r.total.receita_atual)}</td>
+                  <td className="col-num" style={{ color: 'var(--text-muted)' }}>{r.total.meta_pef > 0 ? fR(r.total.meta_pef) : '—'}</td>
+                  <td className="col-num" style={{ color: rowColor, fontWeight: 700 }}>{fPct(r.total.realizado_pct)}</td>
+                  <td className="col-num" style={{ color: r.total.gap_r >= 0 ? '#059669' : '#dc2626', fontWeight: 600 }}>
+                    {r.total.meta_pef > 0 ? fR(r.total.gap_r) : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+          {tot && (
+            <tfoot>
+              <tr>
+                <td colSpan={4} className="gap-total-label">TOTAL</td>
+                <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(tot.loja.receita_ant)}</td>
+                <td className="col-num">{fR(tot.loja.receita_atual)}</td>
+                <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(tot.loja.meta_pef)}</td>
+                <td className="col-num">{fVar(tot.loja.realizado_pct)}</td>
+                <td className="col-num">{fR(tot.cr.receita_atual)}</td>
+                <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(tot.cr.meta_pef)}</td>
+                <td className="col-num">{fVar(tot.cr.realizado_pct)}</td>
+                <td className="col-num" style={{ fontWeight: 700 }}>{fR(tot.total.receita_atual)}</td>
+                <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(tot.total.meta_pef)}</td>
+                <td className="col-num">{fVar(tot.total.realizado_pct)}</td>
+                <td className="col-num" style={{ color: tot.total.gap_r >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>{fR(tot.total.gap_r)}</td>
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+    </div>
+  )
+}
+
 /* ── IAF — Indicadores (Resumo por loja) ────────────── */
 
 function IafIndicadoresPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) {
@@ -7699,7 +7846,7 @@ export default function AppShell() {
             <Route path="anual/servicos"            element={<ServicosPage periodo="anual" />} />
             <Route path="anual/boleto-promocional"  element={<BoletoPromocionalPage periodo="anual" />} />
             <Route path="anual/resgates"            element={<ResgatesPage periodo="anual" />} />
-            <Route path="anual/pef"                 element={<WipPage title="Anual — Parcial PEF"         requires={['anual-pef']} />} />
+            <Route path="anual/pef"                 element={<ParcialPEFPage />} />
             {/* legado */}
             <Route path="loja"           element={<LojaPage />} />
             <Route path="vd"             element={<VDPage />} />
