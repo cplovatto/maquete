@@ -6980,6 +6980,29 @@ function MetaTag({ label, value, defaultValue, onSave }: { label: string; value:
 function ParcialPEFPage() {
   const { pefRows, pefTotal, pefFiltros } = useData()
   const { openImport } = useFileStatus()
+  const { lojas } = useLojas()
+  const { labels } = useLabels()
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+
+  const lojaMap = useMemo(() => new Map(lojas.map(l => [l.id, l])), [lojas])
+
+  const rows = useMemo(() =>
+    selectedLabels.length === 0
+      ? pefRows
+      : pefRows.filter(r => selectedLabels.some(lid => (lojaMap.get(r.pdv)?.labels ?? []).includes(lid)))
+  , [pefRows, lojaMap, selectedLabels])
+
+  const filtTot = useMemo(() => {
+    if (rows.length === 0) return null
+    const sum = (fn: (r: typeof rows[0]) => number) => rows.reduce((s, r) => s + fn(r), 0)
+    const rec_ant  = sum(r => r.loja.receita_ant)
+    const rec_atual = sum(r => r.loja.receita_atual)
+    const meta      = sum(r => r.loja.meta_pef)
+    const gap_r     = rec_atual - meta
+    const gap_pct   = meta > 0 ? gap_r / meta : null
+    const real_pct  = meta > 0 ? rec_atual / meta : null
+    return { receita_ant: rec_ant, receita_atual: rec_atual, meta_pef: meta, gap_r, gap_pct, realizado_pct: real_pct }
+  }, [rows])
 
   if (pefRows.length === 0) return (
     <div className="page-empty-state">
@@ -6999,8 +7022,7 @@ function ParcialPEFPage() {
     return <span style={{ color, fontWeight: 700 }}>{pct.toFixed(1)}%</span>
   }
 
-  const tot = pefTotal
-  const totalRealPct = tot?.total.realizado_pct ?? null
+  const tot = selectedLabels.length > 0 ? filtTot : pefTotal?.loja ?? null
 
   return (
     <div>
@@ -7008,35 +7030,51 @@ function ParcialPEFPage() {
         <div>
           <h2 className="page-title">Parcial PEF</h2>
           <p className="page-subtitle">
-            {pefFiltros ? `${pefFiltros.periodo_atual} · CP ${pefFiltros.cp}` : `${pefRows.length} lojas`}
+            {pefFiltros ? `${pefFiltros.periodo_atual} · CP ${pefFiltros.cp}` : `${rows.length} lojas`}
+            {selectedLabels.length > 0 ? ' · filtrado por região' : ''}
           </p>
         </div>
       </div>
+
+      {labels.length > 0 && (
+        <div className="region-filter-bar">
+          <span className="region-filter-label">Região</span>
+          <button className={`region-filter-btn${selectedLabels.length === 0 ? ' active' : ''}`} onClick={() => setSelectedLabels([])}>Todas</button>
+          {labels.map(lb => (
+            <button
+              key={lb.id}
+              className={`region-filter-btn${selectedLabels.includes(lb.id) ? ' active' : ''}`}
+              style={selectedLabels.includes(lb.id) ? { background: lb.color + '22', borderColor: lb.color, color: lb.color } as React.CSSProperties : undefined}
+              onClick={() => setSelectedLabels(prev => prev.includes(lb.id) ? prev.filter(x => x !== lb.id) : [...prev, lb.id])}
+            >{lb.name}</button>
+          ))}
+        </div>
+      )}
 
       {/* KPIs */}
       {tot && (
         <div className="kpi-row" style={{ marginBottom: 20 }}>
           <div className="kpi-card">
             <div className="kpi-label">Receita Anterior</div>
-            <div className="kpi-value">{fR(tot.loja.receita_ant)}</div>
+            <div className="kpi-value">{fR(tot.receita_ant)}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-label">Receita Atual</div>
-            <div className="kpi-value">{fR(tot.loja.receita_atual)}</div>
+            <div className="kpi-value">{fR(tot.receita_atual)}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-label">Meta PEF</div>
-            <div className="kpi-value">{fR(tot.loja.meta_pef)}</div>
+            <div className="kpi-value">{fR(tot.meta_pef)}</div>
           </div>
           <div className="kpi-card">
             <div className="kpi-label">Gap Acordado</div>
-            <div className="kpi-value" style={{ color: tot.loja.gap_r >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>
-              {fR(tot.loja.gap_r)}
+            <div className="kpi-value" style={{ color: tot.gap_r >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>
+              {fR(tot.gap_r)}
             </div>
           </div>
           <div className="kpi-card">
             <div className="kpi-label">Realizado</div>
-            <div className="kpi-value">{fVar(tot.loja.realizado_pct)}</div>
+            <div className="kpi-value">{fVar(tot.realizado_pct)}</div>
           </div>
         </div>
       )}
@@ -7059,7 +7097,7 @@ function ParcialPEFPage() {
             </tr>
           </thead>
           <tbody>
-            {pefRows.map((r, i) => {
+            {rows.map((r, i) => {
               const real = r.loja.realizado_pct
               const rowColor = real !== null
                 ? real >= 1 ? '#059669' : real >= 0.95 ? '#d97706' : '#dc2626'
@@ -7087,12 +7125,12 @@ function ParcialPEFPage() {
             <tfoot>
               <tr>
                 <td colSpan={4} className="gap-total-label">TOTAL</td>
-                <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(tot.loja.receita_ant)}</td>
-                <td className="col-num">{fR(tot.loja.receita_atual)}</td>
-                <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(tot.loja.meta_pef)}</td>
-                <td className="col-num" style={{ color: tot.loja.gap_r >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>{fR(tot.loja.gap_r)}</td>
-                <td className="col-num">{tot.loja.gap_pct !== null ? `${(tot.loja.gap_pct * 100).toFixed(1)}%` : '—'}</td>
-                <td className="col-num">{fVar(tot.loja.realizado_pct)}</td>
+                <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(tot.receita_ant)}</td>
+                <td className="col-num">{fR(tot.receita_atual)}</td>
+                <td className="col-num" style={{ color: 'var(--text-muted)' }}>{fR(tot.meta_pef)}</td>
+                <td className="col-num" style={{ color: tot.gap_r >= 0 ? '#059669' : '#dc2626', fontWeight: 700 }}>{fR(tot.gap_r)}</td>
+                <td className="col-num">{tot.gap_pct !== null ? `${(tot.gap_pct * 100).toFixed(1)}%` : '—'}</td>
+                <td className="col-num">{fVar(tot.realizado_pct)}</td>
               </tr>
             </tfoot>
           )}
