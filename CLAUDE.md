@@ -308,4 +308,5 @@ Documentada nos issues:
 
 ## Referência
 
-- `prototipo01.html` — fonte de verdade para ícones SVG, estrutura de menu e lista de planilhas. Consultar sempre que precisar adicionar novos itens ao sidebar ou ao modal de importação.
+- `AGENTS.md` — regras para agentes; **não consultar `prototipo/`** salvo pedido explícito do operador.
+- `prototipo/prototipo01.html` — protótipo HTML legado (ícones, menu, planilhas). Só abrir se o operador pedir; ver `AGENTS.md`.
