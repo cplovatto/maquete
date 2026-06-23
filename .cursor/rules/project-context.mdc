@@ -1,10 +1,13 @@
 ---
-description: Project context — read CLAUDE.md before making changes
+description: Project context — read CLAUDE.md and AGENTS.md before making changes
 alwaysApply: true
 ---
 
 # Velo Retail maquete
 
-Before planning or editing code, read and follow `CLAUDE.md` at the repo root.
+Before planning or editing code, read and follow at the repo root:
 
-It is the source of truth for stack, architecture, routing, data sources, localStorage keys, and project conventions.
+- `CLAUDE.md` — stack, architecture, routing, data sources, localStorage keys, and project conventions
+- `AGENTS.md` — regras operacionais para agentes (ex.: não consultar `prototipo/` salvo pedido explícito)
+
+`AGENTS.md` prevalece sobre menções conflitantes em `CLAUDE.md` sobre a pasta `prototipo/`.
