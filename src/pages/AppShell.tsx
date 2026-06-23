@@ -786,7 +786,8 @@ function formatImportDate(fileDate: Date | null, loadedAt: Date): { text: string
 
 function ImportModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'mensal' | 'anual'>('mensal')
-  const { statuses, onFileLoaded, lastLoaded, fileDates } = useFileStatus()
+  const [parseErrors, setParseErrors] = useState<Record<string, string>>({})
+  const { statuses, onFileLoaded, lastLoaded, fileDates, setStatuses } = useFileStatus()
   const { loadFile } = useData()
 
   const sources = tab === 'mensal' ? MENSAL_SOURCES : ANUAL_SOURCES
@@ -815,21 +816,41 @@ function ImportModal({ onClose }: { onClose: () => void }) {
                     type="file"
                     accept={source.format === 'CSV' ? '.csv' : '.xlsx,.xls'}
                     style={{ display: 'none' }}
-                    onChange={e => {
+                    onChange={async e => {
                       const file = e.target.files?.[0]
                       if (!file) return
-                      onFileLoaded(source.id, file.name)
-                      loadFile(source.id, file)
+                      try {
+                        const count = await loadFile(source.id, file)
+                        if (count > 0) {
+                          onFileLoaded(source.id, file.name)
+                          setParseErrors(prev => { const next = { ...prev }; delete next[source.id]; return next })
+                        } else {
+                          setParseErrors(prev => ({
+                            ...prev,
+                            [source.id]: 'Nenhuma linha reconhecida — confira se o arquivo e a aba PDV estão corretos.',
+                          }))
+                          setStatuses(prev => ({ ...prev, [source.id]: source.defaultStatus }))
+                        }
+                      } catch {
+                        setParseErrors(prev => ({
+                          ...prev,
+                          [source.id]: 'Erro ao ler o arquivo.',
+                        }))
+                        setStatuses(prev => ({ ...prev, [source.id]: source.defaultStatus }))
+                      }
+                      e.target.value = ''
                     }}
                   />
                   <span className="import-icon">{source.icon}</span>
                   <span className="import-meta">
                     <span className="import-name">{source.name}</span>
-                    {lastLoaded[source.id]
-                      ? (() => { const { text, stale } = formatImportDate(fileDates[source.id] ?? null, lastLoaded[source.id]); return (
-                          <span className={`import-status ok${stale ? ' stale' : ''}`}>{text}</span>
-                        )})()
-                      : <span className="import-status">Não carregado</span>
+                    {parseErrors[source.id]
+                      ? <span className="import-status stale">{parseErrors[source.id]}</span>
+                      : lastLoaded[source.id]
+                        ? (() => { const { text, stale } = formatImportDate(fileDates[source.id] ?? null, lastLoaded[source.id]); return (
+                            <span className={`import-status ok${stale ? ' stale' : ''}`}>{text}</span>
+                          )})()
+                        : <span className="import-status">Não carregado</span>
                     }
                   </span>
                   <span className={`import-format-badge format-${source.format.toLowerCase()}`}>{source.format}</span>
