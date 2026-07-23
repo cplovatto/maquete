@@ -1,4 +1,4 @@
-import { useState, createContext, useContext, useEffect, useRef, useMemo } from 'react'
+import { useState, createContext, useContext, useEffect, useRef, useMemo, useCallback } from 'react'
 import type { ReactNode, Dispatch, SetStateAction } from 'react'
 import { Routes, Route, Navigate, NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -9,6 +9,51 @@ import { useData, type MainRow, type FluxoRow, type MainTotal, type FluxoTotal, 
 
 /* ── File status context ────────────────────────────── */
 type FileStatus = 'embedded' | 'loaded' | 'pending'
+export type SourceState = 'missing' | 'stale' | 'refresh' | 'ok'
+type NavWarnDot = 'missing' | 'stale' | 'refresh'
+
+function isFileDateToday(fileDate: Date | null, loadedAt?: Date): boolean {
+  const ref = fileDate ?? loadedAt
+  if (!ref) return true
+  return ref.toDateString() === new Date().toDateString()
+}
+
+function computeSourceState(
+  id: string,
+  status: FileStatus | undefined,
+  fileDates: Record<string, Date | null>,
+  lastLoaded: Record<string, Date>,
+  alertActive: boolean,
+): SourceState {
+  const s = status ?? 'pending'
+  if (s === 'pending') return 'missing'
+  if (s === 'embedded') return 'ok'
+  if (id === 'parcial' && alertActive) return 'refresh'
+  if (!isFileDateToday(fileDates[id] ?? null, lastLoaded[id])) return 'stale'
+  return 'ok'
+}
+
+function computeNavWarn(
+  requires: string[] | undefined,
+  statuses: Record<string, FileStatus>,
+  fileDates: Record<string, Date | null>,
+  lastLoaded: Record<string, Date>,
+  alertActive: boolean,
+): NavWarnDot | null {
+  if (!requires?.length) return null
+  const states = requires.map(id => computeSourceState(id, statuses[id], fileDates, lastLoaded, alertActive))
+  if (states.some(s => s === 'missing')) return 'missing'
+  if (requires.includes('parcial') && states.some(s => s === 'refresh')) return 'refresh'
+  if (states.some(s => s === 'stale')) return 'stale'
+  return null
+}
+
+const NAV_WARN_TITLES: Record<NavWarnDot, string> = {
+  missing: 'Arquivo necessário não carregado',
+  stale: 'Planilha de outro dia — atualize os dados',
+  refresh: 'Hora de atualizar o Parcial do Dia',
+}
+
 interface FileStatusCtxType {
   statuses: Record<string, FileStatus>
   setStatuses: Dispatch<SetStateAction<Record<string, FileStatus>>>
@@ -26,6 +71,8 @@ interface FileStatusCtxType {
   setToastVisible: Dispatch<SetStateAction<boolean>>
   showApelido: boolean
   setShowApelido: Dispatch<SetStateAction<boolean>>
+  getSourceState: (id: string) => SourceState
+  getNavWarn: (requires?: string[]) => NavWarnDot | null
 }
 const FileStatusCtx = createContext<FileStatusCtxType | null>(null)
 function useFileStatus() { return useContext(FileStatusCtx)! }
@@ -786,7 +833,8 @@ function formatImportDate(fileDate: Date | null, loadedAt: Date): { text: string
 
 function ImportModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<'mensal' | 'anual'>('mensal')
-  const { statuses, onFileLoaded, lastLoaded, fileDates } = useFileStatus()
+  const [parseErrors, setParseErrors] = useState<Record<string, string>>({})
+  const { onFileLoaded, lastLoaded, fileDates, setStatuses, getSourceState } = useFileStatus()
   const { loadFile } = useData()
 
   const sources = tab === 'mensal' ? MENSAL_SOURCES : ANUAL_SOURCES
@@ -815,21 +863,49 @@ function ImportModal({ onClose }: { onClose: () => void }) {
                     type="file"
                     accept={source.format === 'CSV' ? '.csv' : '.xlsx,.xls'}
                     style={{ display: 'none' }}
-                    onChange={e => {
+                    onChange={async e => {
                       const file = e.target.files?.[0]
                       if (!file) return
-                      onFileLoaded(source.id, file.name)
-                      loadFile(source.id, file)
+                      try {
+                        const count = await loadFile(source.id, file)
+                        if (count > 0) {
+                          onFileLoaded(source.id, file.name)
+                          setParseErrors(prev => { const next = { ...prev }; delete next[source.id]; return next })
+                        } else {
+                          setParseErrors(prev => ({
+                            ...prev,
+                            [source.id]: 'Nenhuma linha reconhecida — confira se o arquivo e a aba PDV estão corretos.',
+                          }))
+                          setStatuses(prev => ({ ...prev, [source.id]: source.defaultStatus }))
+                        }
+                      } catch {
+                        setParseErrors(prev => ({
+                          ...prev,
+                          [source.id]: 'Erro ao ler o arquivo.',
+                        }))
+                        setStatuses(prev => ({ ...prev, [source.id]: source.defaultStatus }))
+                      }
+                      e.target.value = ''
                     }}
                   />
                   <span className="import-icon">{source.icon}</span>
                   <span className="import-meta">
                     <span className="import-name">{source.name}</span>
-                    {lastLoaded[source.id]
-                      ? (() => { const { text, stale } = formatImportDate(fileDates[source.id] ?? null, lastLoaded[source.id]); return (
-                          <span className={`import-status ok${stale ? ' stale' : ''}`}>{text}</span>
-                        )})()
-                      : <span className="import-status">Não carregado</span>
+                    {parseErrors[source.id]
+                      ? <span className="import-status error">{parseErrors[source.id]}</span>
+                      : lastLoaded[source.id]
+                        ? (() => {
+                            const { text } = formatImportDate(fileDates[source.id] ?? null, lastLoaded[source.id])
+                            const state = getSourceState(source.id)
+                            if (state === 'refresh') {
+                              return <span className="import-status refresh">{text} · hora de atualizar</span>
+                            }
+                            if (state === 'stale') {
+                              return <span className="import-status stale">{text}</span>
+                            }
+                            return <span className="import-status ok">{text}</span>
+                          })()
+                        : <span className="import-status">Não carregado</span>
                     }
                   </span>
                   <span className={`import-format-badge format-${source.format.toLowerCase()}`}>{source.format}</span>
@@ -846,10 +922,8 @@ function ImportModal({ onClose }: { onClose: () => void }) {
 /* ── Sidebar nav item ───────────────────────────────── */
 interface SideItemProps { to: string; icon: ReactNode; label: string; requires?: string[] }
 function SideItem({ to, icon, label, requires }: SideItemProps) {
-  const { statuses, alertActive } = useFileStatus()
-  const hasMissing = requires?.some(id => statuses[id] === 'pending') ?? false
-  const isParcial = requires?.includes('parcial') ?? false
-  const showPulse = isParcial && alertActive
+  const { getNavWarn } = useFileStatus()
+  const warn = getNavWarn(requires)
 
   return (
     <NavLink
@@ -859,9 +933,12 @@ function SideItem({ to, icon, label, requires }: SideItemProps) {
     >
       {icon}
       {label}
-      {showPulse
-        ? <span className="nav-warn-dot nav-warn-dot--pulse" title="Hora de atualizar o Parcial do Dia" />
-        : hasMissing && <span className="nav-warn-dot" title="Arquivo necessário não carregado" />}
+      {warn && (
+        <span
+          className={`nav-warn-dot nav-warn-dot--${warn}${warn === 'refresh' ? ' nav-warn-dot--pulse' : ''}`}
+          title={NAV_WARN_TITLES[warn]}
+        />
+      )}
     </NavLink>
   )
 }
@@ -6774,10 +6851,10 @@ function MetasMesPage() {
 
 /* ── Placeholder page ───────────────────────────────── */
 function WipPage({ title, requires }: { title: string; requires?: string[] }) {
-  const { statuses, openImport } = useFileStatus()
+  const { getSourceState, openImport } = useFileStatus()
   const missing = (requires ?? [])
     .map(id => [...MENSAL_SOURCES, ...ANUAL_SOURCES].find(s => s.id === id))
-    .filter((s): s is DataSource => !!s && statuses[s.id] === 'pending')
+    .filter((s): s is DataSource => !!s && getSourceState(s.id) === 'missing')
 
   if (missing.length > 0) {
     return (
@@ -7727,6 +7804,16 @@ export default function AppShell() {
     } catch {}
   }, [lastParcialUpload])
 
+  const getSourceState = useCallback(
+    (id: string) => computeSourceState(id, fileStatuses[id], fileDates, lastLoaded, alertActive),
+    [fileStatuses, fileDates, lastLoaded, alertActive],
+  )
+
+  const getNavWarn = useCallback(
+    (requires?: string[]) => computeNavWarn(requires, fileStatuses, fileDates, lastLoaded, alertActive),
+    [fileStatuses, fileDates, lastLoaded, alertActive],
+  )
+
   function handleLogout() {
     logout()
     navigate('/')
@@ -7740,6 +7827,7 @@ export default function AppShell() {
       alertIntervalMinutes, setAlertIntervalMinutes,
       alertActive, toastVisible, setToastVisible,
       showApelido, setShowApelido,
+      getSourceState, getNavWarn,
     }}>
     <div className="app-shell">
       {/* Header */}
