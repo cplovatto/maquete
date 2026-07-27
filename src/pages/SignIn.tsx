@@ -26,7 +26,7 @@ export default function SignIn() {
     setTimeout(() => {
       const ok = login('email', creds.email, creds.password)
       if (ok) {
-        navigate(creds.email.trim().toLowerCase() === 'admin@velo.io' ? '/admin' : '/app')
+        navigate(creds.email.trim().toLowerCase() === 'admin@velo.io' ? '/admin' : '/selecionar-canal')
       } else {
         setError('E-mail ou senha incorretos.')
         setLoading(false)
