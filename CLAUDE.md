@@ -155,7 +155,8 @@ Cada linha do modal mostra a data e hora do arquivo carregado:
 
 - **Não carregado** → cinza, sem data
 - **Carregado hoje** → `24/05/2026 às 14:32` em **verde**
-- **Carregado em dia anterior** → `23/05/2026 às 14:32` em **vermelho**
+- **Carregado em dia anterior** → `23/05/2026 às 14:32` em **vermelho** (stale)
+- **Parcial — hora de atualizar** → data em **laranja** com sufixo “hora de atualizar”
 
 A **data** é extraída do nome do arquivo pela função `extractDateFromFilename()`.
 A **hora** é o momento em que o usuário selecionou o arquivo.
@@ -175,8 +176,7 @@ Fallbacks adicionais: `YYYY-MM-DD` e `DDMMYYYY` compacto. Se nenhum padrão for 
 
 - Toggle **Mensal / Anual** no topo
 - Cada `SideItem` aceita `requires?: string[]` — lista de IDs de fontes de dados necessárias
-- Se qualquer fonte em `requires` for `pending`: exibe **dot laranja** no item
-- Se a fonte `parcial` for `pending` E `alertActive` for `true`: o dot **pulsa** (animação CSS)
+- `getNavWarn(requires)` agrega o estado de cada fonte (`getSourceState`) com prioridade: **vermelho** = missing, **laranja pulsante** = refresh (parcial), **laranja** = stale
 - Ícones SVG copiados do `prototipo01.html` — objeto `IC` no topo do arquivo
 - `NavLink` usa `end` (desde #6) para evitar que rotas pai (ex: `/app/lojas`) fiquem ativas quando uma filha está selecionada (ex: `/app/lojas/regioes`)
 
@@ -237,8 +237,11 @@ Arquivo único. Organização por seção com comentários `/* ── Nome ─�
 | `.nav-item` | Item de navegação (NavLink) |
 | `.nav-item.active` | Item selecionado |
 | `.nav-icon` | SVG dentro do nav-item (18×18px) |
-| `.nav-warn-dot` | Dot laranja de aviso |
-| `.nav-warn-dot--pulse` | Dot com animação de pulso |
+| `.nav-warn-dot` | Dot de aviso no menu (cor via `--missing` / `--stale` / `--refresh`) |
+| `.nav-warn-dot--missing` | Dot vermelho — arquivo não carregado |
+| `.nav-warn-dot--stale` | Dot laranja — planilha de outro dia |
+| `.nav-warn-dot--refresh` | Dot laranja — hora de atualizar (parcial) |
+| `.nav-warn-dot--pulse` | Dot com animação de pulso (só em `refresh`) |
 | `.nav-group` | Grupo de itens com título |
 | `.nav-group-title` | Label uppercase do grupo |
 | `.nav-sections` | Container dos grupos |
@@ -286,9 +289,12 @@ Isso representa ~3% do limite mínimo de 5 MB. Para redes de até ~100 lojas com
 
 | Indicador | Onde | Significado |
 |---|---|---|
-| ⬤ Laranja fixo | Itens com `requires` pendentes | Arquivo obrigatório não carregado |
-| ⬤ Laranja pulsante | Parcial do Dia (`alertActive`) | Hora de reimportar o parcial |
+| ⬤ Vermelho fixo | Itens com `requires` em estado `missing` | Arquivo obrigatório não carregado |
+| ⬤ Laranja fixo | Itens com `requires` em estado `stale` | Planilha de outro dia — atualizar dados |
+| ⬤ Laranja pulsante | Parcial do Dia em estado `refresh` | Hora de reimportar o parcial (timer) |
 | 🔴 Badge vermelho | Ícone de sino no header | Notificações não lidas (hardcoded `3`) |
+
+Estados por fonte (`getSourceState`): `missing` (pending) → `stale` (data ≠ hoje) → `refresh` (parcial + timer) → `ok`. Prioridade no menu: missing > refresh > stale.
 
 ### Estratégia futura de dados
 
@@ -308,4 +314,5 @@ Documentada nos issues:
 
 ## Referência
 
-- `prototipo01.html` — fonte de verdade para ícones SVG, estrutura de menu e lista de planilhas. Consultar sempre que precisar adicionar novos itens ao sidebar ou ao modal de importação.
+- `AGENTS.md` — regras para agentes; **não consultar `prototipo/`** salvo pedido explícito do operador.
+- `prototipo/prototipo01.html` — protótipo HTML legado (ícones, menu, planilhas). Só abrir se o operador pedir; ver `AGENTS.md`.

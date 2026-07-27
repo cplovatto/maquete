@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Velo Retail">
+  <defs>
+    <linearGradient id="velo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="url(#velo-gradient)"/>
+  <path
+    fill="#ffffff"
+    d="M16 7.5 22.5 13.25 19.25 24.5 16 26.75 12.75 24.5 9.5 13.25Z"
+  />
+  <path
+    fill="#ffffff"
+    fill-opacity="0.45"
+    d="M16 7.5 22.5 13.25 16 16.5 9.5 13.25Z"
+  />
+  <path
+    fill="#ffffff"
+    fill-opacity="0.25"
+    d="M16 16.5 22.5 13.25 19.25 24.5 16 26.75Z"
+  />
+</svg>

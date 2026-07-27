@@ -359,7 +359,7 @@ interface DataCtxType {
   pefRows: PefRow[]
   pefTotal: PefTotal | null
   pefFiltros: PefFiltros | null
-  loadFile: (id: string, file: File) => Promise<void>
+  loadFile: (id: string, file: File) => Promise<number>
 }
 
 const DataCtx = createContext<DataCtxType | null>(null)
@@ -387,6 +387,53 @@ function toNum(v: unknown): number {
   if (typeof v === 'number') return v
   if (typeof v === 'string') { const n = parseFloat(v.replace(',', '.')); return isNaN(n) ? 0 : n }
   return 0
+}
+
+function findSheet(wb: WorkBook, name: string) {
+  const key = Object.keys(wb.Sheets).find(k => k.trim().toLowerCase() === name.toLowerCase())
+  return key ? wb.Sheets[key] : undefined
+}
+
+function pdvFromCell(v: unknown): string {
+  const s = String(v ?? '').trim()
+  if (!s || s.toUpperCase() === 'TOTAL' || s.toUpperCase() === 'PDV') return ''
+  const m = s.match(/^(\d{4,6})/)
+  return m ? m[1] : s.replace(/\D/g, '')
+}
+
+function parseMetaDiaSheet(wb: WorkBook, utils: XLSX_Utils): MetaDiaRow[] {
+  const ws = findSheet(wb, 'PDV') ?? wb.Sheets[wb.SheetNames[0]]
+  if (!ws) return []
+  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null, raw: true })
+
+  let dataStart = -1
+  for (let i = 0; i < raw.length; i++) {
+    const label = String((raw[i] as unknown[])?.[0] ?? '').trim().toUpperCase()
+    if (label === 'TOTAL') { dataStart = i + 1; break }
+  }
+
+  const rows: MetaDiaRow[] = []
+  const start = dataStart >= 0 ? dataStart : 0
+  for (let i = start; i < raw.length; i++) {
+    const a = raw[i] as unknown[]
+    if (!a || a[0] == null || a[0] === '') break
+    const pdv = pdvFromCell(a[0])
+    if (!pdv) continue
+    const venda_ly = parseBRL(a[2]) || toNum(a[2])
+    if (venda_ly > 0) rows.push({ pdv, venda_ly })
+  }
+
+  if (rows.length === 0) {
+    for (const r of raw) {
+      const a = r as unknown[]
+      const pdv = pdvFromCell(a?.[0])
+      if (!pdv) continue
+      const venda_ly = parseBRL(a[2]) || toNum(a[2])
+      if (venda_ly > 0) rows.push({ pdv, venda_ly })
+    }
+  }
+
+  return rows
 }
 
 function toMainRow(a: unknown[]): MainRow {
@@ -676,11 +723,11 @@ async function parseIDClienteFile(file: File): Promise<{ rows: IDClienteRow[]; c
 }
 
 function parseLojaDigitalPdvSheet(wb: WorkBook, utils: XLSX_Utils): { rows: LojaDigitalPdvRow[]; total: LojaDigitalTotal | null } {
-  const ws = wb.Sheets['PDV']
+  const ws = findSheet(wb, 'PDV')
   if (!ws) return { rows: [], total: null }
   const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
   const toRow = (a: unknown[]): LojaDigitalPdvRow => ({
-    pdv: String(a[0]),
+    pdv: pdvFromCell(a[0]),
     clientes_enc: toNum(a[1]),
     clientes_ate: toNum(a[2]),
     tme: String(a[3] ?? ''),
@@ -689,7 +736,9 @@ function parseLojaDigitalPdvSheet(wb: WorkBook, utils: XLSX_Utils): { rows: Loja
     receita: toNum(a[6]),
     boleto_medio: toNum(a[7]),
   })
-  const tr = raw[1] as unknown[]
+  let totalRowIdx = raw.findIndex(r => String((r as unknown[])?.[0] ?? '').trim().toUpperCase() === 'TOTAL')
+  if (totalRowIdx < 0) totalRowIdx = 1
+  const tr = raw[totalRowIdx] as unknown[]
   const total: LojaDigitalTotal | null = tr ? {
     clientes_enc: toNum(tr[1]),
     clientes_ate: toNum(tr[2]),
@@ -699,7 +748,10 @@ function parseLojaDigitalPdvSheet(wb: WorkBook, utils: XLSX_Utils): { rows: Loja
     receita: toNum(tr[6]),
     boleto_medio: toNum(tr[7]),
   } : null
-  const rows = raw.slice(2).filter(r => (r as unknown[])[0]).map(r => toRow(r as unknown[]))
+  const rows = raw
+    .slice(totalRowIdx + 1)
+    .map(r => toRow(r as unknown[]))
+    .filter(r => r.pdv.length >= 4)
   return { rows, total }
 }
 
@@ -1064,37 +1116,46 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem('prisma-data-pef-total', JSON.stringify(pefTotal)) } catch {} }, [pefTotal])
   useEffect(() => { try { localStorage.setItem('prisma-data-pef-filtros', JSON.stringify(pefFiltros)) } catch {} }, [pefFiltros])
 
-  async function loadFile(id: string, file: File) {
+  async function loadFile(id: string, file: File): Promise<number> {
     if (id === 'main') {
       const { rows, total, cp, consultorRows: cr } = await parseMainFile(file)
       setMainRows(rows); setMainTotal(total); setCpData(cp); setConsultorRows(cr)
+      return rows.length
     } else if (id === 'fluxo') {
       const { rows, total, fluxoConsultorRows: fcr } = await parseFluxoFile(file)
       setFluxoRows(rows); setFluxoTotal(total); setFluxoConsultorRows(fcr)
+      return rows.length
     } else if (id === 'skin') {
       const { rows, consultorRows: cr, cp } = await parseSkinFile(file)
       setSkinRows(rows); setSkinConsultorRows(cr); setSkinCP(cp)
+      return rows.length
     } else if (id === 'id-cliente') {
       const { rows, consultorRows: cr, cp } = await parseIDClienteFile(file)
       setIdClienteRows(rows); setIdClienteConsultorRows(cr); setIdClienteCP(cp)
+      return rows.length
     } else if (id === 'loja-digital') {
       const { rows, total } = await parseLojaDigitalFile(file)
       setLojaDigitalRows(rows); setLojaDigitalTotal(total)
+      return rows.length
     } else if (id === 'share-categorias') {
       const { rows, cp } = await parseShareCategoriasFile(file)
       setShareCatRows(rows); setShareCatCP(cp)
+      return rows.length
     } else if (id === 'servicos') {
       const { rows, total } = await parseServicosFile(file)
       setServicosRows(rows); setServicosTotal(total)
+      return rows.length
     } else if (id === 'resgates') {
       const { rows, total, consultores } = await parseResgatesFile(file)
       setResgatesPdvRows(rows); setResgatesTotal(total); setResgatesConsultorRows(consultores)
+      return rows.length
     } else if (id === 'boleto-promo') {
       const { rows, total, consultores } = await parseBoletoPromoFile(file)
       setBoletoPromoPdvRows(rows); setBoletoPromoTotal(total); setBoletoPromoConsultorRows(consultores)
       localStorage.setItem('prisma-data-boleto-promo', JSON.stringify(rows))
       localStorage.setItem('prisma-data-boleto-promo-total', JSON.stringify(total))
       localStorage.setItem('prisma-data-boleto-promo-consultor', JSON.stringify(consultores))
+      return rows.length
     } else if (id === 'parcial') {
       // Formato: GerencialVendas-DD-MM-YYYY.csv
       // Separador ponto-e-vírgula, encoding UTF-8 com BOM
@@ -1116,6 +1177,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         })
         .filter(r => r.pdv && r.venda_parcial > 0)
       setParcialRows(rows)
+      return rows.length
     } else if (id === 'parcial-skin') {
       const { read, utils } = await getXLSX()
       const data = await file.arrayBuffer()
@@ -1138,55 +1200,51 @@ export function DataProvider({ children }: { children: ReactNode }) {
           }
         })
       setParcialSkinRows(rows)
+      return rows.length
     } else if (id === 'meta') {
       const { read, utils } = await getXLSX()
-      const data = await file.arrayBuffer()
-      const wb = read(data, { type: 'array' })
-      // Usa aba PDV se existir, senão primeira aba
-      const ws = wb.Sheets['PDV'] ?? wb.Sheets[wb.SheetNames[0]]
-      const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
-      const rows: MetaDiaRow[] = raw
-        .filter(r => {
-          const a = r as unknown[]
-          const pdv = String(a[0] ?? '').trim()
-          // Pula cabeçalhos e total
-          return pdv && !isNaN(Number(pdv.replace(/\D/g, ''))) && pdv.toUpperCase() !== 'TOTAL'
-        })
-        .map(r => {
-          const a = r as unknown[]
-          // Col 0 = PDV, col 2 = PERÍODO ATUAL (= mesmo dia ano passado)
-          return { pdv: String(a[0]).trim(), venda_ly: parseBRL(a[2]) }
-        })
-        .filter(r => r.venda_ly > 0)
+      const wb = read(await file.arrayBuffer(), { type: 'array' })
+      const rows = parseMetaDiaSheet(wb, utils)
       setMetaDiaRows(rows)
+      return rows.length
     } else if (id === 'anual-main') {
       const { rows, total, cp, consultorRows: cr } = await parseMainFile(file)
       setAnualMainRows(rows); setAnualMainTotal(total); setAnualCpData(cp); setAnualConsultorRows(cr)
+      return rows.length
     } else if (id === 'anual-fluxo') {
       const { rows, total, fluxoConsultorRows: fcr } = await parseFluxoFile(file)
       setAnualFluxoRows(rows); setAnualFluxoTotal(total); setAnualFluxoConsultorRows(fcr)
+      return rows.length
     } else if (id === 'anual-skin') {
       const { rows, consultorRows: cr, cp } = await parseSkinFile(file)
       setAnualSkinRows(rows); setAnualSkinConsultorRows(cr); setAnualSkinCP(cp)
+      return rows.length
     } else if (id === 'anual-id-cliente') {
       const { rows, consultorRows: cr, cp } = await parseIDClienteFile(file)
       setAnualIdClienteRows(rows); setAnualIdClienteConsultorRows(cr); setAnualIdClienteCP(cp)
+      return rows.length
     } else if (id === 'anual-loja-digital') {
       const { rows, total } = await parseLojaDigitalFile(file)
       setAnualLojaDigitalRows(rows); setAnualLojaDigitalTotal(total)
+      return rows.length
     } else if (id === 'anual-servicos') {
       const { rows, total } = await parseServicosFile(file)
       setAnualServicosRows(rows); setAnualServicosTotal(total)
+      return rows.length
     } else if (id === 'anual-resgates') {
       const { rows, total, consultores } = await parseResgatesFile(file)
       setAnualResgatesPdvRows(rows); setAnualResgatesTotal(total); setAnualResgatesConsultorRows(consultores)
+      return rows.length
     } else if (id === 'anual-boleto-promo') {
       const { rows, total, consultores } = await parseBoletoPromoFile(file)
       setAnualBoletoPromoPdvRows(rows); setAnualBoletoPromoTotal(total); setAnualBoletoPromoConsultorRows(consultores)
+      return rows.length
     } else if (id === 'anual-pef') {
       const { rows, total, filtros } = await parsePefFile(file)
       setPefRows(rows); setPefTotal(total); setPefFiltros(filtros)
+      return rows.length
     }
+    return 0
   }
 
   return (
