@@ -386,6 +386,48 @@ input, textarea { font-family: inherit; }
 .signin-back { position: fixed; top: 20px; left: 20px; z-index: 10; }
 
 /* ════════════════════════════════════════════════════
+   CHANNEL SELECT (Canal Loja × Venda Direta)
+   ════════════════════════════════════════════════════ */
+.channel-select-page {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 24px; background: var(--bg-page); position: relative; overflow: hidden;
+}
+.channel-select-bg {
+  position: absolute; inset: 0; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 60% at 25% 50%, rgba(124,58,237,.12) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 50% at 75% 50%, rgba(236,72,153,.08) 0%, transparent 55%);
+}
+.channel-select-corner {
+  position: fixed; top: 20px; right: 20px; z-index: 10;
+  display: flex; align-items: center; gap: 10px;
+}
+.channel-select-inner { position: relative; z-index: 1; width: 100%; max-width: 780px; }
+.channel-select-header { text-align: center; margin-bottom: 40px; }
+.channel-select-header h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 8px; }
+.channel-select-header p { color: var(--text-secondary); font-size: 15px; }
+.channel-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px;
+}
+.channel-card {
+  background: var(--bg-surface); border: 1px solid var(--bg-border);
+  border-radius: 20px; padding: 36px; text-align: left; cursor: pointer;
+  font-family: inherit; color: inherit;
+  transition: all .3s; position: relative; overflow: hidden;
+}
+.channel-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0;
+  height: 3px; background: var(--brand-gradient); opacity: 0; transition: opacity .3s;
+}
+.channel-card:hover { transform: translateY(-5px); box-shadow: var(--shadow-xl); border-color: rgba(124,58,237,.4); }
+.channel-card:hover::before { opacity: 1; }
+.channel-card h3 { font-size: 1.25rem; font-weight: 700; margin: 4px 0 8px; }
+.channel-card p { color: var(--text-secondary); font-size: .9375rem; line-height: 1.6; }
+@media (max-width: 640px) {
+  .channel-cards { grid-template-columns: 1fr; }
+}
+
+/* ════════════════════════════════════════════════════
    APP SHELL
    ════════════════════════════════════════════════════ */
 .app-shell { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }

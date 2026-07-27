@@ -10,7 +10,9 @@ import { UsersProvider } from './context/UsersContext'
 import { BillingProvider } from './context/BillingContext'
 import Landing from './pages/Landing'
 import SignIn from './pages/SignIn'
+import ChannelSelect from './pages/ChannelSelect'
 import AppShell from './pages/AppShell'
+import VendaDiretaShell from './pages/VendaDiretaShell'
 import AdminShell from './pages/AdminShell'
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -42,10 +44,26 @@ export default function App() {
             <Route path="/" element={<Landing />} />
             <Route path="/entrar" element={<SignIn />} />
             <Route
+              path="/selecionar-canal"
+              element={
+                <ProtectedRoute>
+                  <ChannelSelect />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/app/*"
               element={
                 <ProtectedRoute>
                   <AppShell />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vd/*"
+              element={
+                <ProtectedRoute>
+                  <VendaDiretaShell />
                 </ProtectedRoute>
               }
             />
