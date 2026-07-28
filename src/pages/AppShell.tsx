@@ -7360,6 +7360,48 @@ function IafIndicadoresPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anua
       .sort((a, b) => (b.nota ?? -1) - (a.nota ?? -1))
   }, [labels, allPdvs, lojaMap, mainMap, skinMap, fluxoMap, bpMap, resgateMap, idMap, servMap, servicosMetas])
 
+  const groupTotal = useMemo(() => {
+    if (allPdvs.length === 0) return null
+    const scoreOf = (v: number | null, meta: number): number | null =>
+      v !== null ? (v >= meta ? 1 : 0) : null
+
+    let skinRec = 0, skinVf = 0
+    allPdvs.forEach(pdv => {
+      const r = skinMap.get(pdv); if (!r) return
+      const vf = mainMap.get(pdv)?.vf_atual ?? (r.share > 0 ? r.receita_atual / r.share : 0)
+      if (vf > 0) { skinRec += r.receita_atual; skinVf += vf }
+    })
+    const skinAvg = skinVf > 0 ? skinRec / skinVf * 100 : null
+
+    let afConv = 0, afResg = 0
+    allPdvs.forEach(pdv => { const r = fluxoMap.get(pdv); if (r) { afConv += r.conversoes; afResg += r.resgates } })
+    const afAvg = afResg > 0 ? afConv / afResg * 100 : null
+
+    let bpConv = 0, bpElig = 0
+    allPdvs.forEach(pdv => { const r = bpMap.get(pdv); if (r) { bpConv += r.convertidos_qtd; bpElig += r.elegiveis_qtd } })
+    const bpAvg = bpElig > 0 ? bpConv / bpElig * 100 : null
+
+    let resgQtd = 0, resgBol = 0
+    allPdvs.forEach(pdv => { const r = resgateMap.get(pdv); if (r) { resgQtd += r.qtd_resgate_atual; resgBol += r.qtd_boletos_atual } })
+    const resgateAvg = resgBol > 0 ? resgQtd / resgBol * 100 : null
+
+    let idWeighted = 0, idAtend = 0
+    allPdvs.forEach(pdv => { const r = idMap.get(pdv); if (r) { idWeighted += r.pct_cpf_atual * r.atend_id_atual; idAtend += r.atend_id_atual } })
+    const idAvg = idAtend > 0 ? idWeighted / idAtend * 100 : null
+
+    let servComp = 0, servMeta = 0
+    allPdvs.forEach(pdv => {
+      const r = servMap.get(pdv); if (r) servComp += r.servicos_completos
+      const m = servicosMetas[pdv]; if (m) servMeta += m
+    })
+
+    const scores = [scoreOf(skinAvg, iafMetas.skin), scoreOf(afAvg, iafMetas.af), scoreOf(bpAvg, iafMetas.bp), scoreOf(resgateAvg, iafMetas.resgate), scoreOf(idAvg, iafMetas.id)]
+      .filter((s): s is number => s !== null)
+    const nota = scores.length > 0 ? (scores.reduce((s, x) => s + x, 0) / scores.length) * 5 : null
+
+    return { count: allPdvs.length, skinAvg, afAvg, bpAvg, resgateAvg, idAvg, servComp, servMeta, nota }
+  }, [allPdvs, mainMap, skinMap, fluxoMap, bpMap, resgateMap, idMap, servMap, servicosMetas, iafMetas])
+
   if (allPdvs.length === 0) return (
     <div className="page-empty-state">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg>
@@ -7486,6 +7528,31 @@ function IafIndicadoresPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anua
                 )
               })}
             </tbody>
+            {groupTotal && (
+              <tfoot>
+                <tr style={{ borderTop: '2px solid var(--bg-border)' }}>
+                  <td style={{ fontWeight: 700 }}>Grupo Total</td>
+                  <td className="col-num" style={{ color: 'var(--text-secondary)', fontWeight: 700 }}>{groupTotal.count}</td>
+                  <ICell v={groupTotal.skinAvg}    meta={iafMetas.skin} />
+                  <ICell v={groupTotal.afAvg}      meta={iafMetas.af} />
+                  <ICell v={groupTotal.bpAvg}      meta={iafMetas.bp} />
+                  <ICell v={groupTotal.resgateAvg} meta={iafMetas.resgate} />
+                  <ICell v={groupTotal.idAvg}      meta={iafMetas.id} />
+                  <td className="col-num">
+                    {groupTotal.servMeta > 0
+                      ? <span style={{ fontWeight: 700, color: groupTotal.servComp >= groupTotal.servMeta ? '#059669' : '#dc2626' }}>
+                          {groupTotal.servComp}/{groupTotal.servMeta}
+                        </span>
+                      : groupTotal.servComp > 0
+                        ? <span style={{ color: 'var(--text-secondary)' }}>{groupTotal.servComp}</span>
+                        : <span className="dash-muted">—</span>}
+                  </td>
+                  <td className="col-num" style={{ fontWeight: 700, color: groupTotal.nota === null ? 'var(--text-muted)' : groupTotal.nota >= 4 ? '#059669' : groupTotal.nota >= 3 ? '#d97706' : '#dc2626' }}>
+                    {groupTotal.nota !== null ? groupTotal.nota.toFixed(1) : '—'}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
           </div>
         </div>
