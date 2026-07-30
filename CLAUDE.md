@@ -30,10 +30,14 @@ src/
   context/
     AuthContext.tsx          # autenticação simulada
     ThemeContext.tsx         # tema claro/escuro (persiste em localStorage)
+    VdDataContext.tsx        # dados do Canal VD — ver seção "Canal VD"
   pages/
     Landing.tsx              # página de marketing (rota "/")
     SignIn.tsx               # login simulado (rota "/entrar")
-    AppShell.tsx             # shell principal do app (rota "/app/*")
+    ChannelSelect.tsx        # escolha de canal, Loja x Venda Direta (rota "/selecionar-canal")
+    AppShell.tsx             # shell do Canal Loja (rota "/app/*")
+    VendaDiretaShell.tsx     # shell do Canal VD (rota "/vd/*") — ver seção "Canal VD"
+    vd/                      # páginas de dashboard do Canal VD
 prototipo/
   prototipo01.html           # protótipo HTML original — fonte de referência
                              # para menu, ícones SVG e fontes de dados
@@ -46,6 +50,18 @@ prototipo/
 ```
 /                → Landing
 /entrar          → SignIn
+/selecionar-canal → ChannelSelect (Canal Loja x Venda Direta)
+/vd/*            → VendaDiretaShell (protegida por ProtectedRoute) — ver seção "Canal VD"
+  /vd/equipes            Ranking de Equipes
+  /vd/equipes/detalhe    Detalhe da Equipe
+  /vd/inicios            Inícios
+  /vd/atividade          Atividade
+  /vd/financeiro         Financeiro
+  /vd/risco              Em Risco
+  /vd/adensamento        Adensamento
+  /vd/mix                Mix de Produto
+  /vd/iaf                IAF Geral
+  /vd/iaf/ers            IAF ERS
 /app/*           → AppShell (protegida por ProtectedRoute)
   /app/meta              Gestão Instantânea — Meta do Dia
   /app/parcial           Gestão Instantânea — Parcial do Dia
@@ -303,6 +319,70 @@ Documentada nos issues:
 - **#8** — ADR: IndexedDB vs backend. Decisão: pular IndexedDB, ir direto para backend se o protótipo virar produto
 - **#9** — Modo demo: limpar dados automaticamente a cada 8h para testers
 - **#10** — Google Login via Supabase Auth (substituir `demo/demo`)
+
+## Canal VD (Venda Direta)
+
+Segundo canal do app (além do Canal Loja), para a operação de revendedoras — rota `/vd/*`, shell em `src/pages/VendaDiretaShell.tsx`, páginas em `src/pages/vd/`.
+
+### Modelo de negócio
+
+- **Hierarquia**: Gerente → Equipe (liderada por uma supervisora) → Revendedoras. Uma equipe é o equivalente, no Canal VD, ao "Consultor" do Canal Loja (um grupo de pessoas sob a mesma liderança).
+- Revendedoras **não são colaboradoras** — são cadastradas. Saem da base automaticamente após **6 ciclos consecutivos sem comprar**.
+- O canal trabalha por **ciclo**, não por calendário mensal (por isso a sidebar do VD não tem o toggle Mensal/Anual do Canal Loja).
+- Duas pessoas são responsáveis por indicador (olhando a base toda, não um grupo de revendedoras): quem cuida de Inícios e quem cuida de Atividade — hoje mostrado nas páginas correspondentes como texto fixo ("Responsável: ..."), não como dado dinâmico.
+- **Líquidas** (crescimento líquido de cadastro) só é acompanhada por **Grupo** — não existe apuração por equipe/supervisora individual. `IniciosPage` mostra "—" na linha de cada equipe e só preenche o valor real na linha de subtotal do grupo. Premiação segue a mesma regra (depende de líquidas).
+- **ER — Espaço do Revendedor**: lojas físicas de atendimento só para revendedoras (não confundir com "loja" do Canal Loja, nem com "escritório regional"). Hoje são 4: Caxias do Sul, Santa Maria, Uruguaiana, Bagé (`ERS` em `VdDataContext.tsx`). Cada equipe está vinculada a um ER (`VdEquipeRow.er`).
+
+### Dados (`VdDataContext.tsx`)
+
+- `VdEquipeRow` — indicadores por equipe: `er` (Espaço do Revendedor vinculado), base por ciclos-sem-comprar (`base: number[]`, índice 0–6), meta/realizado de cadastro (Inícios), financeiro e ativos, mix de produto (Skin/Cabelos/Make/Multimarca) entre as ativas, `vdiUsoPct` (% de uso da plataforma pela supervisora) e `treinamentoPct` (% da base com treinamento OK).
+- `VdMunicipioRow` — adensamento de mercado por município (população real da região + números gerados).
+- `VdRevendedoraSample` — amostra de revendedoras de uma equipe, gerada sob demanda para a tela de Detalhe.
+- **Os dados são 100% de exemplo**, gerados por um PRNG determinístico (`mulberry32`, seed fixa) — não há import de planilha real ainda para este canal (diferente do Canal Loja, que usa `DataContext.tsx` + `ImportModal`). Nenhum nome real de pessoa é usado. Os nomes de cidade/população do `ADENSAMENTO` são reais (dado público), os demais números são sintéticos.
+- Quando for decidido como alimentar o Canal VD com dados reais (import de XLSX, outra fonte etc.), a estrutura de `VdEquipeRow`/`VdMunicipioRow` já reflete o formato da planilha real de referência ("BASE CICLO") e pode ser adaptada em vez de recriada.
+
+### Páginas (`src/pages/vd/`)
+
+| Página | Rota | Conteúdo |
+|---|---|---|
+| `RankingEquipesPage` | `/vd/equipes` | Ranking ordenável de equipes (base, líquidas, % financeiro, % ativos) |
+| `DetalheEquipePage` | `/vd/equipes/detalhe` | Seletor de equipe + KPIs + amostra de revendedoras |
+| `IniciosPage` | `/vd/inicios` | Meta de cadastro vs. Inícios+Reinícios vs. Falta meta vs. Líquidas, com subtotal por Gerente |
+| `AtividadePage` | `/vd/atividade` | Meta de ativas vs. realizado |
+| `FinanceiroPage` | `/vd/financeiro` | Meta financeira (R$) vs. realizado |
+| `EmRiscoPage` | `/vd/risco` | Distribuição por ciclos sem comprar (0–6) com subtotal por Gerente, + bloco de projeção de reativação até o fim do ciclo |
+| `AdensamentoPage` | `/vd/adensamento` | Penetração de mercado por município |
+| `MixProdutoPage` | `/vd/mix` | % Skin/Cabelos/Make/Multimarca entre ativas, por equipe, com meta editável por categoria |
+| `IafGeralPage` | `/vd/iaf` | Todo o Canal VD no IAF — 1 linha por equipe, 8 indicadores (PEF, Atividade, Base, Cabelos, Make, Multimarcas, VDI, Treinamentos), mesmo padrão do `IafIndicadoresPage` do Canal Loja |
+| `IafErsPage` | `/vd/iaf/ers` | Os mesmos 8 indicadores, agregados pelos 4 ERs em vez de por equipe |
+
+`vdShared.tsx` reúne helpers duplicados de `AppShell.tsx` (`KpiCard`, formatadores, hook de sort, ícones, `MetaTag`) — `AppShell.tsx` não exporta nada, então preferiu-se duplicar um pequeno subconjunto a editar o arquivo do Canal Loja.
+
+### Metas editáveis
+
+Só o **Mix de Produto** tem meta editável (`useVdMixMetas`, chips `MetaTag` no cabeçalho, persistido em `localStorage` como `prisma-prefs-vd-mix-metas`, defaults Skin 14% / Make 46% / Multimarca 32%) — mesmo padrão de `useIafMetas`/`MetaTag` do Canal Loja (`IafIndicadoresPage`). Financeiro, Ativos e Inícios **não** têm meta editável: na planilha real cada equipe tem sua própria meta numérica (definida pela empresa), diferente do Mix onde a meta é um % único para toda a rede — por isso não faz sentido um número global editável ali.
+
+### Subtotal por Gerente e projeção de reativação
+
+- `groupByGerente()` (`vdShared.tsx`) agrupa as equipes por gerente preservando a ordem de geração. Usado em Ranking de Equipes, Inícios e Em Risco para renderizar uma linha "Total {Gerente}" antes do Total Geral, espelhando as linhas "TOTAL EQUIPE X" da planilha real.
+- `projecaoAtivasPorBucket()` aplica uma curva de pesos de reativação (`REATIVACAO_WEIGHTS`, decrescente conforme mais ciclos sem comprar) sobre `equipe.base` para estimar quantas revendedoras de cada bucket devem voltar a comprar até o fim do ciclo — usado no segundo bloco de `EmRiscoPage`. É uma curva ilustrativa (não deduzida com certeza da planilha real, que tinha um segundo bloco parecido mas com a fórmula original ambígua), documentada como estimativa/exemplo na própria página.
+
+### IAF Geral / IAF ERS (`calcIafIndicadores`, `agregarPorEr`)
+
+`calcIafIndicadores(equipe)` (`vdShared.tsx`) calcula os 8 indicadores do IAF a partir de `VdEquipeRow`:
+
+| Indicador | Fórmula | Meta |
+|---|---|---|
+| PEF | `realizadoFinanceiro / metaFinanceira` | 100% da meta própria da equipe (não editável) |
+| Atividade | `realizadoAtivos / metaAtivos` | 100% da meta própria da equipe (não editável) |
+| Base | `(baseTotal - emRisco) / baseTotal` (emRisco = buckets 4+5+6) | `useVdIafMetas().base`, padrão 90% |
+| Cabelos | `cabelosQtd / ativasBase` | `useVdMixMetas().cabelos`, padrão 20% |
+| Make | `makeQtd / ativasBase` | `useVdMixMetas().make`, padrão 46% |
+| Multimarcas | `multimarcaQtd / ativasBase` | `useVdMixMetas().multimarca`, padrão 32% |
+| VDI | `vdiUsoPct / 100` — % de uso da plataforma pela supervisora pra tratar as revendedoras | `useVdIafMetas().vdi`, padrão 90% |
+| Treinamentos | `treinamentoPct / 100` — % da base com treinamento concluído | `useVdIafMetas().treinamento`, padrão 95% |
+
+`IafGeralPage` renderiza 1 linha por equipe (mesmo padrão do `IafIndicadoresPage`/`ICell` do Canal Loja — célula colorida verde/vermelho vs. meta via `MetaCell`). `IafErsPage` usa `agregarPorEr()` pra consolidar as equipes de cada um dos 4 ERs num `VdEquipeRow` agregado e reaproveita a mesma `calcIafIndicadores()`.
 
 ## Branch e PR
 

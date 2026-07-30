@@ -1,6 +1,48 @@
-import { useNavigate } from 'react-router-dom'
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
+import { VIC, VdSideItem } from './vd/vdShared'
+import RankingEquipesPage from './vd/RankingEquipesPage'
+import DetalheEquipePage from './vd/DetalheEquipePage'
+import IniciosPage from './vd/IniciosPage'
+import AtividadePage from './vd/AtividadePage'
+import FinanceiroPage from './vd/FinanceiroPage'
+import EmRiscoPage from './vd/EmRiscoPage'
+import AdensamentoPage from './vd/AdensamentoPage'
+import MixProdutoPage from './vd/MixProdutoPage'
+import IafGeralPage from './vd/IafGeralPage'
+import IafErsPage from './vd/IafErsPage'
+
+function VdSidebar() {
+  return (
+    <aside className="sidebar">
+      <nav className="nav-sections">
+        <div className="nav-group">
+          <div className="nav-group-title">Visão Geral</div>
+          <VdSideItem to="/vd/equipes"          icon={VIC.grid}  label="Ranking de Equipes" />
+          <VdSideItem to="/vd/equipes/detalhe"  icon={VIC.users} label="Detalhe da Equipe" />
+        </div>
+        <div className="nav-group">
+          <div className="nav-group-title">Indicadores do Ciclo</div>
+          <VdSideItem to="/vd/inicios"     icon={VIC.bolt}   label="Inícios" />
+          <VdSideItem to="/vd/atividade"   icon={VIC.check}  label="Atividade" />
+          <VdSideItem to="/vd/financeiro"  icon={VIC.dollar} label="Financeiro" />
+          <VdSideItem to="/vd/risco"       icon={VIC.alert}  label="Em Risco" />
+        </div>
+        <div className="nav-group">
+          <div className="nav-group-title">Mercado</div>
+          <VdSideItem to="/vd/adensamento" icon={VIC.mapPin}   label="Adensamento" />
+          <VdSideItem to="/vd/mix"         icon={VIC.pieChart} label="Mix de Produto" />
+        </div>
+        <div className="nav-group">
+          <div className="nav-group-title">IAF</div>
+          <VdSideItem to="/vd/iaf"      icon={VIC.check} label="IAF Geral" />
+          <VdSideItem to="/vd/iaf/ers"  icon={VIC.store} label="IAF ERS" />
+        </div>
+      </nav>
+    </aside>
+  )
+}
 
 export default function VendaDiretaShell() {
   const navigate = useNavigate()
@@ -31,32 +73,21 @@ export default function VendaDiretaShell() {
       </header>
 
       <div className="app-body">
+        <VdSidebar />
         <main className="app-main">
-          <div className="placeholder-page">
-            <div className="page-header">
-              <div className="page-title">Venda Direta</div>
-              <div className="page-subtitle">Rede de revendedoras — Atividade, Inícios e acompanhamento por ciclo</div>
-            </div>
-            <div className="wip-banner">
-              <span style={{ fontSize: 20 }}>🏗️</span>
-              <span><strong>Módulo em construção</strong> — este dashboard ainda está sendo desenhado, separado do Canal Loja.</span>
-            </div>
-            <div className="placeholder-grid">
-              {[
-                { icon: '📈', title: 'Atividade', desc: '% da base de revendedoras que compra no ciclo atual.' },
-                { icon: '🆕', title: 'Inícios', desc: 'Novos cadastros de revendedoras no ciclo.' },
-                { icon: '⚠️', title: 'Em Risco', desc: 'Revendedoras com ciclos consecutivos sem comprar, até desativação.' },
-                { icon: '🔄', title: 'Ciclos', desc: 'Acompanhamento por ciclo, em vez de calendário mensal.' },
-              ].map(c => (
-                <div className="placeholder-card" key={c.title}>
-                  <div className="placeholder-card-icon">{c.icon}</div>
-                  <div className="placeholder-card-title">{c.title}</div>
-                  <div className="placeholder-card-desc">{c.desc}</div>
-                  <div className="placeholder-tag">Em breve</div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Routes>
+            <Route path="equipes"          element={<RankingEquipesPage />} />
+            <Route path="equipes/detalhe"  element={<DetalheEquipePage />} />
+            <Route path="inicios"          element={<IniciosPage />} />
+            <Route path="atividade"        element={<AtividadePage />} />
+            <Route path="financeiro"       element={<FinanceiroPage />} />
+            <Route path="risco"            element={<EmRiscoPage />} />
+            <Route path="adensamento"      element={<AdensamentoPage />} />
+            <Route path="mix"              element={<MixProdutoPage />} />
+            <Route path="iaf"              element={<IafGeralPage />} />
+            <Route path="iaf/ers"          element={<IafErsPage />} />
+            <Route path="*" element={<Navigate to="equipes" replace />} />
+          </Routes>
         </main>
       </div>
     </div>
