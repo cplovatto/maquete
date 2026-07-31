@@ -396,7 +396,7 @@ Mix de Produto e IAF têm meta editável em nível de rede (não por equipe): `u
 - `IafTimePage` — detalhe por equipe, filtrado por `time`, reaproveitado nas duas rotas via prop.
 - `ErPage`/`ErIafPage` — ambas usam `agregarPorEr()` (que por baixo usa `agregarIndicadores()`) pra consolidar as equipes de cada ER; `ErPage` mostra desempenho geral, `ErIafPage` mostra o IAF total — duas páginas/itens de menu separados dentro do grupo ER, não uma só.
 - **Drill-down por equipe**: cada linha de ER (nas duas páginas) tem um botão de lupa (`LupaButton`, `vdShared.tsx`) que abre `ErEquipesModal` (`ErEquipesModal.tsx`) — modal `.modal--lg` listando as equipes daquele ER, com `mode="desempenho"` ou `mode="iaf"` decidindo quais colunas mostrar (mesmas fórmulas de `ErPage`/`ErIafPage`, só que por equipe em vez de agregado).
-- As três páginas de IAF têm um toggle local **Ciclo/Ano** (`PeriodoToggle`, reaproveita `.period-btn`) que troca entre `equipes` e `equipesAno` do `VdDataContext` — o toggle é independente por página (não é estado global/compartilhado entre elas).
+- As três páginas de IAF **e** as duas páginas de ER têm um toggle local **Ciclo/Ano** (`PeriodoToggle`, reaproveita `.period-btn`) que troca entre `equipes` e `equipesAno` do `VdDataContext` — o toggle é independente por página (não é estado global/compartilhado entre elas). No ER, o drill-down por lupa (`ErEquipesModal`) também respeita o período selecionado na página que o abriu.
 
 ## Branch e PR
 

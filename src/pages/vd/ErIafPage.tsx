@@ -2,26 +2,30 @@ import { useState } from 'react'
 import { useVdData } from '../../context/VdDataContext'
 import { ErEquipesModal } from './ErEquipesModal'
 import {
-  LupaButton, MetaCell, MetaTag,
+  LupaButton, MetaCell, MetaTag, PeriodoToggle,
   VD_IAF_METAS_DEFAULT, VD_MIX_METAS_DEFAULT,
   agregarPorEr, calcIafIndicadores, useVdIafMetas, useVdMixMetas,
 } from './vdShared'
 
 export default function ErIafPage() {
-  const { ciclo, equipes } = useVdData()
+  const { ciclo, equipes, equipesAno } = useVdData()
+  const [periodo, setPeriodo] = useState<'ciclo' | 'ano'>('ciclo')
+  const dados = periodo === 'ciclo' ? equipes : equipesAno
+
   const { metas: iafMetas, updateMeta: updateIafMeta } = useVdIafMetas()
   const { metas: mixMetas, updateMeta: updateMixMeta } = useVdMixMetas()
   const [erAberto, setErAberto] = useState<string | null>(null)
 
-  const linhas = agregarPorEr(equipes).map(er => ({ ...er, ind: calcIafIndicadores(er) }))
+  const linhas = agregarPorEr(dados).map(er => ({ ...er, ind: calcIafIndicadores(er) }))
 
   return (
     <div className="page-content">
-      <div className="page-title-row">
+      <div className="page-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 className="page-title">IAF ER</h2>
-          <p className="page-subtitle">{ciclo} — IAF total de cada um dos 4 Espaços do Revendedor</p>
+          <p className="page-subtitle">{periodo === 'ciclo' ? ciclo : 'Ano (exemplo)'} — IAF total de cada um dos 4 Espaços do Revendedor</p>
         </div>
+        <PeriodoToggle value={periodo} onChange={setPeriodo} />
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -73,7 +77,7 @@ export default function ErIafPage() {
       {erAberto && (
         <ErEquipesModal
           er={erAberto}
-          equipes={equipes.filter(e => e.er === erAberto)}
+          equipes={dados.filter(e => e.er === erAberto)}
           mode="iaf"
           onClose={() => setErAberto(null)}
         />
