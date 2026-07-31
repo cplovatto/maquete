@@ -13,6 +13,7 @@ import MixProdutoPage from './vd/MixProdutoPage'
 import IafGeralPage from './vd/IafGeralPage'
 import IafTimePage from './vd/IafTimePage'
 import ErPage from './vd/ErPage'
+import ErIafPage from './vd/ErIafPage'
 
 function VdSidebar() {
   return (
@@ -43,7 +44,8 @@ function VdSidebar() {
         </div>
         <div className="nav-group">
           <div className="nav-group-title">ER</div>
-          <VdSideItem to="/vd/er" icon={VIC.store} label="Espaço do Revendedor" />
+          <VdSideItem to="/vd/er"      icon={VIC.store} label="Desempenho" />
+          <VdSideItem to="/vd/er/iaf"  icon={VIC.check} label="IAF ER" />
         </div>
       </nav>
     </aside>
@@ -94,6 +96,7 @@ export default function VendaDiretaShell() {
             <Route path="iaf/time-inicio"  element={<IafTimePage time="Início" />} />
             <Route path="iaf/time-base"    element={<IafTimePage time="Base" />} />
             <Route path="er"               element={<ErPage />} />
+            <Route path="er/iaf"           element={<ErIafPage />} />
             <Route path="*" element={<Navigate to="equipes" replace />} />
           </Routes>
         </main>

@@ -63,7 +63,8 @@ prototipo/
   /vd/iaf                IAF Geral
   /vd/iaf/time-inicio    IAF Time de Início
   /vd/iaf/time-base      IAF Time de Base
-  /vd/er                 ER — Espaço do Revendedor
+  /vd/er                 ER — Desempenho
+  /vd/er/iaf              ER — IAF ER
 /app/*           → AppShell (protegida por ProtectedRoute)
   /app/meta              Gestão Instantânea — Meta do Dia
   /app/parcial           Gestão Instantânea — Parcial do Dia
@@ -334,7 +335,7 @@ Segundo canal do app (além do Canal Loja), para a operação de revendedoras �
 - O canal trabalha por **ciclo**, não por calendário mensal — por isso a sidebar do VD não tem o toggle Mensal/Anual do Canal Loja. As páginas de IAF têm o próprio toggle **Ciclo/Ano** local (ver seção IAF abaixo).
 - Duas pessoas são responsáveis por indicador (olhando a base toda, não um grupo de revendedoras): quem cuida de Inícios e quem cuida de Atividade — hoje mostrado nas páginas correspondentes como texto fixo ("Responsável: ..."), não como dado dinâmico.
 - **Líquidas** (crescimento líquido de cadastro) e **Premiação** só são acompanhadas por **Time** — não existe apuração por equipe/supervisora individual. As páginas que mostram essas métricas exibem "—" na linha de cada equipe e só preenchem o valor real na linha de subtotal do time.
-- **ER — Espaço do Revendedor**: lojas físicas de atendimento só para revendedoras (não confundir com "loja" do Canal Loja, nem com "escritório regional"). Hoje são 4: Caxias do Sul, Santa Maria, Uruguaiana, Bagé (`ERS` em `VdDataContext.tsx`). Cada equipe está vinculada a um ER (`VdEquipeRow.er`) e tem sua própria aba na sidebar (`/vd/er`, fora do submenu IAF).
+- **ER — Espaço do Revendedor**: lojas físicas de atendimento só para revendedoras (não confundir com "loja" do Canal Loja, nem com "escritório regional"). Hoje são 4: Caxias do Sul, Santa Maria, Uruguaiana, Bagé (`ERS` em `VdDataContext.tsx`). Cada equipe está vinculada a um ER (`VdEquipeRow.er`) e tem seu próprio grupo na sidebar (fora do submenu IAF), com dois itens: **Desempenho** (`/vd/er`) e **IAF ER** (`/vd/er/iaf`).
 
 ### Dados (`VdDataContext.tsx`)
 
@@ -360,7 +361,8 @@ Segundo canal do app (além do Canal Loja), para a operação de revendedoras �
 | `MixProdutoPage` | `/vd/mix` | % Skin/Cabelos/Make/Multimarca entre ativas, por equipe, com meta editável por categoria |
 | `IafGeralPage` | `/vd/iaf` | Visão geral do Canal VD no IAF (KPIs consolidados + comparativo Time de Início vs. Time de Base), com toggle Ciclo/Ano |
 | `IafTimePage` | `/vd/iaf/time-inicio`, `/vd/iaf/time-base` | Um componente (`<IafTimePage time="Início"|"Base" />`) — 1 linha por equipe daquele time, 8 indicadores coloridos vs. meta |
-| `ErPage` | `/vd/er` | Desempenho geral (base, líquidas, financeiro, ativos) e IAF total de cada um dos 4 ERs |
+| `ErPage` | `/vd/er` | Desempenho geral (base, líquidas, financeiro, ativos) de cada um dos 4 ERs |
+| `ErIafPage` | `/vd/er/iaf` | IAF total de cada um dos 4 ERs — mesmas 8 colunas coloridas vs. meta |
 
 `vdShared.tsx` reúne helpers duplicados de `AppShell.tsx` (`KpiCard`, formatadores, hook de sort, ícones, `MetaTag`) — `AppShell.tsx` não exporta nada, então preferiu-se duplicar um pequeno subconjunto a editar o arquivo do Canal Loja.
 
@@ -392,7 +394,7 @@ Mix de Produto e IAF têm meta editável em nível de rede (não por equipe): `u
 
 - `IafGeralPage` — visão consolidada do canal todo + comparativo Time de Início vs. Time de Base (sem detalhe por equipe).
 - `IafTimePage` — detalhe por equipe, filtrado por `time`, reaproveitado nas duas rotas via prop.
-- `ErPage` — usa `agregarPorEr()` (que por baixo usa `agregarIndicadores()`) pra consolidar as equipes de cada ER, mostrando desempenho geral e IAF total.
+- `ErPage`/`ErIafPage` — ambas usam `agregarPorEr()` (que por baixo usa `agregarIndicadores()`) pra consolidar as equipes de cada ER; `ErPage` mostra desempenho geral, `ErIafPage` mostra o IAF total — duas páginas/itens de menu separados dentro do grupo ER, não uma só.
 - As três páginas de IAF têm um toggle local **Ciclo/Ano** (`PeriodoToggle`, reaproveita `.period-btn`) que troca entre `equipes` e `equipesAno` do `VdDataContext` — o toggle é independente por página (não é estado global/compartilhado entre elas).
 
 ## Branch e PR
