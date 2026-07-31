@@ -28,7 +28,7 @@ export default function FinanceiroPage() {
         <table className="dash-table">
           <thead>
             <tr>
-              <th>Gerente</th>
+              <th>Time</th>
               <th>Equipe</th>
               <th className="col-num">Meta financeira</th>
               <th className="col-num">Realizado</th>
@@ -40,7 +40,7 @@ export default function FinanceiroPage() {
               const pct = e.realizadoFinanceiro / e.metaFinanceira
               return (
                 <tr key={e.id}>
-                  <td>{e.gerente}</td>
+                  <td>{e.time}</td>
                   <td className="td-primary">{e.nome}</td>
                   <td className="col-num">{fBRLR(e.metaFinanceira)}</td>
                   <td className="col-num">{fBRLR(e.realizadoFinanceiro)}</td>

@@ -38,7 +38,7 @@ export default function MixProdutoPage() {
         <table className="dash-table">
           <thead>
             <tr>
-              <th>Gerente</th>
+              <th>Time</th>
               <th>Equipe</th>
               <th className="col-num">Ativas</th>
               <th className="col-num">Skin <span style={{ fontWeight: 400, opacity: .6 }}>meta {fInt(metas.skin)}%</span></th>
@@ -50,7 +50,7 @@ export default function MixProdutoPage() {
           <tbody>
             {equipes.map(e => (
               <tr key={e.id}>
-                <td>{e.gerente}</td>
+                <td>{e.time}</td>
                 <td className="td-primary">{e.nome}</td>
                 <td className="col-num">{fInt(e.ativasBase)}</td>
                 <MetaCell v={e.skinQtd / e.ativasBase} meta={metas.skin} />

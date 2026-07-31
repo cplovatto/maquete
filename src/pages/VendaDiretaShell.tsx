@@ -11,7 +11,8 @@ import EmRiscoPage from './vd/EmRiscoPage'
 import AdensamentoPage from './vd/AdensamentoPage'
 import MixProdutoPage from './vd/MixProdutoPage'
 import IafGeralPage from './vd/IafGeralPage'
-import IafErsPage from './vd/IafErsPage'
+import IafTimePage from './vd/IafTimePage'
+import ErPage from './vd/ErPage'
 
 function VdSidebar() {
   return (
@@ -36,8 +37,13 @@ function VdSidebar() {
         </div>
         <div className="nav-group">
           <div className="nav-group-title">IAF</div>
-          <VdSideItem to="/vd/iaf"      icon={VIC.check} label="IAF Geral" />
-          <VdSideItem to="/vd/iaf/ers"  icon={VIC.store} label="IAF ERS" />
+          <VdSideItem to="/vd/iaf"               icon={VIC.check} label="IAF Geral" />
+          <VdSideItem to="/vd/iaf/time-inicio"   icon={VIC.bolt}  label="IAF Time de Início" />
+          <VdSideItem to="/vd/iaf/time-base"     icon={VIC.users} label="IAF Time de Base" />
+        </div>
+        <div className="nav-group">
+          <div className="nav-group-title">ER</div>
+          <VdSideItem to="/vd/er" icon={VIC.store} label="Espaço do Revendedor" />
         </div>
       </nav>
     </aside>
@@ -85,7 +91,9 @@ export default function VendaDiretaShell() {
             <Route path="adensamento"      element={<AdensamentoPage />} />
             <Route path="mix"              element={<MixProdutoPage />} />
             <Route path="iaf"              element={<IafGeralPage />} />
-            <Route path="iaf/ers"          element={<IafErsPage />} />
+            <Route path="iaf/time-inicio"  element={<IafTimePage time="Início" />} />
+            <Route path="iaf/time-base"    element={<IafTimePage time="Base" />} />
+            <Route path="er"               element={<ErPage />} />
             <Route path="*" element={<Navigate to="equipes" replace />} />
           </Routes>
         </main>

@@ -19,10 +19,15 @@ export const CICLO_ATUAL = 'Ciclo 09 (exemplo)'
 export const ERS = ['Caxias do Sul', 'Santa Maria', 'Uruguaiana', 'Bagé'] as const
 export type VdEr = typeof ERS[number]
 
+/** Classificação funcional da equipe: foco em captar revendedoras novas, ou em manter/reativar a base existente. */
+export const TIMES = ['Início', 'Base'] as const
+export type VdTime = typeof TIMES[number]
+
 export interface VdEquipeRow {
   id: string
+  /** nome da supervisora que lidera a equipe */
   nome: string
-  gerente: string
+  time: VdTime
   er: VdEr
   /** contagem de revendedoras por ciclos consecutivos sem comprar, índice 0..6 */
   base: number[]
@@ -44,6 +49,12 @@ export interface VdEquipeRow {
   vdiUsoPct: number
   /** % (0-100) da base com treinamento concluído */
   treinamentoPct: number
+  /**
+   * % (0-100) de satisfação das revendedoras — placeholder. A definição exata
+   * dessa métrica ainda vai ser explicada pelo operador quando importarmos a
+   * planilha real; por enquanto é só um número de exemplo.
+   */
+  satisfacaoPct: number
 }
 
 export interface VdMunicipioRow {
@@ -80,8 +91,9 @@ function pick<T>(rand: () => number, min: number, max: number): number {
   return min + rand() * (max - min)
 }
 
-const GERENTES = ['Gerente A', 'Gerente B', 'Gerente C', 'Gerente D']
-const EQUIPES_POR_GERENTE = [8, 7, 7, 8]
+const TOTAL_EQUIPES = 30
+/** proporção observada na planilha real: minoria das equipes é especializada em Início/Reinício */
+const CHANCE_TIME_INICIO = 0.2
 
 /** distribuição observada na base real (Total Geral): bucket 0..6 */
 const BASE_BUCKET_WEIGHTS = [0.134, 0.318, 0.131, 0.174, 0.121, 0.069, 0.053]
@@ -102,50 +114,49 @@ function distribuiBuckets(rand: () => number, total: number): number[] {
   return buckets.map(b => Math.max(0, b))
 }
 
-function generateEquipes(): VdEquipeRow[] {
-  const rand = mulberry32(42)
+function generateEquipes(seed: number): VdEquipeRow[] {
+  const rand = mulberry32(seed)
   const equipes: VdEquipeRow[] = []
-  let n = 1
-  GERENTES.forEach((gerente, gi) => {
-    for (let i = 0; i < EQUIPES_POR_GERENTE[gi]; i++) {
-      const baseTotal = Math.round(pick(rand, 220, 620))
-      const base = distribuiBuckets(rand, baseTotal)
 
-      const metaCadastro = Math.round(baseTotal * pick(rand, 0.04, 0.07))
-      const iniciosReinicios = Math.max(0, Math.round(metaCadastro * pick(rand, 0.5, 1.5)))
-      const liquidas = iniciosReinicios - Math.round(metaCadastro * pick(rand, 0.3, 0.9))
-      const premiacao = liquidas >= 4 ? [45, 45, 60, 100][Math.floor(pick(rand, 0, 4))] : null
+  for (let n = 1; n <= TOTAL_EQUIPES; n++) {
+    const baseTotal = Math.round(pick(rand, 220, 620))
+    const base = distribuiBuckets(rand, baseTotal)
+    const time: VdTime = rand() < CHANCE_TIME_INICIO ? 'Início' : 'Base'
 
-      const metaFinanceira = Math.round(pick(rand, 80_000, 320_000))
-      const realizadoFinanceiro = Math.round(metaFinanceira * pick(rand, 0.25, 1.15))
+    const metaCadastro = Math.round(baseTotal * pick(rand, 0.04, 0.07))
+    const iniciosReinicios = Math.max(0, Math.round(metaCadastro * pick(rand, 0.5, 1.5)))
+    const liquidas = iniciosReinicios - Math.round(metaCadastro * pick(rand, 0.3, 0.9))
+    const premiacao = liquidas >= 4 ? [45, 45, 60, 100][Math.floor(pick(rand, 0, 4))] : null
 
-      const metaAtivos = Math.round(baseTotal * pick(rand, 0.4, 0.55))
-      const realizadoAtivos = Math.round(metaAtivos * pick(rand, 0.3, 1.1))
-      const ativasBase = realizadoAtivos
+    const metaFinanceira = Math.round(pick(rand, 80_000, 320_000))
+    const realizadoFinanceiro = Math.round(metaFinanceira * pick(rand, 0.25, 1.15))
 
-      const skinQtd = Math.round(ativasBase * pick(rand, 0.2, 0.4))
-      const makeQtd = Math.round(ativasBase * pick(rand, 0.35, 0.55))
-      const multimarcaQtd = Math.round(ativasBase * pick(rand, 0.4, 0.6))
-      const cabelosQtd = Math.round(ativasBase * pick(rand, 0.1, 0.3))
+    const metaAtivos = Math.round(baseTotal * pick(rand, 0.4, 0.55))
+    const realizadoAtivos = Math.round(metaAtivos * pick(rand, 0.3, 1.1))
+    const ativasBase = realizadoAtivos
 
-      const vdiUsoPct = pick(rand, 55, 100)
-      const treinamentoPct = pick(rand, 70, 100)
+    const skinQtd = Math.round(ativasBase * pick(rand, 0.2, 0.4))
+    const makeQtd = Math.round(ativasBase * pick(rand, 0.35, 0.55))
+    const multimarcaQtd = Math.round(ativasBase * pick(rand, 0.4, 0.6))
+    const cabelosQtd = Math.round(ativasBase * pick(rand, 0.1, 0.3))
 
-      equipes.push({
-        id: `equipe-${n}`,
-        nome: `Equipe ${String(n).padStart(2, '0')}`,
-        gerente,
-        er: ERS[(n - 1) % ERS.length],
-        base, baseTotal,
-        metaCadastro, iniciosReinicios, liquidas, premiacao,
-        metaFinanceira, realizadoFinanceiro,
-        metaAtivos, realizadoAtivos, ativasBase,
-        skinQtd, makeQtd, multimarcaQtd, cabelosQtd,
-        vdiUsoPct, treinamentoPct,
-      })
-      n++
-    }
-  })
+    const vdiUsoPct = pick(rand, 55, 100)
+    const treinamentoPct = pick(rand, 70, 100)
+    const satisfacaoPct = pick(rand, 65, 100)
+
+    equipes.push({
+      id: `equipe-${n}`,
+      nome: `Supervisora ${String(n).padStart(2, '0')}`,
+      time,
+      er: ERS[(n - 1) % ERS.length],
+      base, baseTotal,
+      metaCadastro, iniciosReinicios, liquidas, premiacao,
+      metaFinanceira, realizadoFinanceiro,
+      metaAtivos, realizadoAtivos, ativasBase,
+      skinQtd, makeQtd, multimarcaQtd, cabelosQtd,
+      vdiUsoPct, treinamentoPct, satisfacaoPct,
+    })
+  }
   return equipes
 }
 
@@ -237,6 +248,8 @@ function generateRevendedorasAmostra(equipeId: string, equipe: VdEquipeRow | und
 interface VdDataCtxType {
   ciclo: string
   equipes: VdEquipeRow[]
+  /** dataset independente (outra seed) pra alternar Ciclo/Ano no IAF — ainda 100% exemplo, sem cálculo real de acumulado anual */
+  equipesAno: VdEquipeRow[]
   municipios: VdMunicipioRow[]
   getRevendedorasAmostra: (equipeId: string) => VdRevendedoraSample[]
 }
@@ -244,7 +257,8 @@ interface VdDataCtxType {
 const VdDataCtx = createContext<VdDataCtxType | null>(null)
 
 export function VdDataProvider({ children }: { children: ReactNode }) {
-  const equipes = useMemo(() => generateEquipes(), [])
+  const equipes = useMemo(() => generateEquipes(42), [])
+  const equipesAno = useMemo(() => generateEquipes(4242), [])
   const municipios = useMemo(() => generateMunicipios(), [])
   const sampleCache = useRef(new Map<string, VdRevendedoraSample[]>())
 
@@ -257,8 +271,8 @@ export function VdDataProvider({ children }: { children: ReactNode }) {
   }, [equipes])
 
   const value = useMemo(
-    () => ({ ciclo: CICLO_ATUAL, equipes, municipios, getRevendedorasAmostra }),
-    [equipes, municipios, getRevendedorasAmostra],
+    () => ({ ciclo: CICLO_ATUAL, equipes, equipesAno, municipios, getRevendedorasAmostra }),
+    [equipes, equipesAno, municipios, getRevendedorasAmostra],
   )
 
   return <VdDataCtx.Provider value={value}>{children}</VdDataCtx.Provider>

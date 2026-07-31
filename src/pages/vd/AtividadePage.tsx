@@ -29,7 +29,7 @@ export default function AtividadePage() {
         <table className="dash-table">
           <thead>
             <tr>
-              <th>Gerente</th>
+              <th>Time</th>
               <th>Equipe</th>
               <th className="col-num">Base</th>
               <th className="col-num">Meta ativas</th>
@@ -42,7 +42,7 @@ export default function AtividadePage() {
               const pct = e.realizadoAtivos / e.metaAtivos
               return (
                 <tr key={e.id}>
-                  <td>{e.gerente}</td>
+                  <td>{e.time}</td>
                   <td className="td-primary">{e.nome}</td>
                   <td className="col-num">{fInt(e.baseTotal)}</td>
                   <td className="col-num">{fInt(e.metaAtivos)}</td>

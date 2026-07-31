@@ -18,7 +18,7 @@ export default function DetalheEquipePage() {
       <div className="page-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 className="page-title">Raio-X da Equipe</h2>
-          <p className="page-subtitle">{ciclo} — {equipe.gerente}</p>
+          <p className="page-subtitle">{ciclo} — Time de {equipe.time}</p>
         </div>
         <div className="store-picker" ref={pickerRef}>
           <span className="detalhe-selector-label">Equipe</span>
@@ -34,7 +34,7 @@ export default function DetalheEquipePage() {
                   className={`store-picker-option${e.id === equipe.id ? ' selected' : ''}`}
                   onClick={() => { setSelectedId(e.id); setPickerOpen(false) }}
                 >
-                  {e.nome} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>· {e.gerente}</span>
+                  {e.nome} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>· Time de {e.time}</span>
                 </button>
               ))}
             </div>
@@ -44,7 +44,7 @@ export default function DetalheEquipePage() {
 
       <div className="kpi-row">
         <KpiCard label="Base total" value={fInt(equipe.baseTotal)} sub="revendedoras" />
-        <KpiCard label="Líquidas" value={`${equipe.liquidas > 0 ? '+' : ''}${fInt(equipe.liquidas)}`} />
+        <KpiCard label="Líquidas" value="—" sub="só por Time" />
         <KpiCard label="Financeiro" value={fPct(equipe.realizadoFinanceiro / equipe.metaFinanceira)} sub={`${fBRLR(equipe.realizadoFinanceiro)} de ${fBRLR(equipe.metaFinanceira)}`} />
         <KpiCard label="Ativos" value={fPct(equipe.realizadoAtivos / equipe.metaAtivos)} sub={`${fInt(equipe.realizadoAtivos)} de ${fInt(equipe.metaAtivos)}`} />
         <KpiCard label="Em risco (4-6 ciclos)" value={fInt(emRisco)} sub={fPct(emRisco / equipe.baseTotal)} />

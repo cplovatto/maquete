@@ -173,13 +173,14 @@ export function MetaCell({ v, meta }: { v: number; meta: number }) {
   )
 }
 
-/* ── Agrupamento por Gerente (mesma estrutura de "TOTAL EQUIPE X" da planilha real) ── */
-export function groupByGerente<T extends { gerente: string }>(rows: T[]): { gerente: string; items: T[] }[] {
-  const groups: { gerente: string; items: T[] }[] = []
-  const byGerente = new Map<string, T[]>()
+/** Agrupa linhas por uma chave qualquer (hoje usado pra agrupar equipes por Time: Início/Base). */
+export function groupBy<T, K extends string>(rows: T[], keyFn: (r: T) => K): { key: K; items: T[] }[] {
+  const groups: { key: K; items: T[] }[] = []
+  const map = new Map<K, T[]>()
   for (const r of rows) {
-    if (!byGerente.has(r.gerente)) { byGerente.set(r.gerente, []); groups.push({ gerente: r.gerente, items: byGerente.get(r.gerente)! }) }
-    byGerente.get(r.gerente)!.push(r)
+    const k = keyFn(r)
+    if (!map.has(k)) { map.set(k, []); groups.push({ key: k, items: map.get(k)! }) }
+    map.get(k)!.push(r)
   }
   return groups
 }
@@ -197,37 +198,52 @@ export function projecaoAtivasPorBucket(base: number[]): number[] {
 }
 
 /* ── IAF (Indicadores) do Canal VD ──────────────────────────────────
- * Consolida 8 indicadores por equipe: PEF, Atividade, Base, Cabelos,
- * Make, Multimarcas, VDI, Treinamentos. PEF e Atividade comparam contra
- * a própria meta da equipe (1 = 100% do alvo); os demais comparam
- * contra uma meta única da rede, editável (useVdIafMetas/useVdMixMetas).
+ * Consolida 7 indicadores: Receita, Atividade, Cabelos, Make,
+ * Multimarcas, VDI, Treinamentos, Satisfação. Receita e Atividade
+ * comparam contra a própria meta da equipe (1 = 100% do combinado);
+ * os demais comparam contra uma meta única da rede, editável
+ * (useVdIafMetas/useVdMixMetas).
  */
+export interface VdIafInput {
+  realizadoFinanceiro: number
+  metaFinanceira: number
+  realizadoAtivos: number
+  metaAtivos: number
+  cabelosQtd: number
+  makeQtd: number
+  multimarcaQtd: number
+  ativasBase: number
+  vdiUsoPct: number
+  treinamentoPct: number
+  satisfacaoPct: number
+}
+
 export interface VdIafIndicadores {
-  pef: number
+  receita: number
   atividade: number
-  base: number
   cabelos: number
   make: number
   multimarcas: number
   vdi: number
   treinamentos: number
+  satisfacao: number
 }
 
-export function calcIafIndicadores(e: VdEquipeRow): VdIafIndicadores {
-  const emRisco = e.base[4] + e.base[5] + e.base[6]
+export function calcIafIndicadores(e: VdIafInput): VdIafIndicadores {
   return {
-    pef: e.realizadoFinanceiro / e.metaFinanceira,
+    receita: e.realizadoFinanceiro / e.metaFinanceira,
     atividade: e.realizadoAtivos / e.metaAtivos,
-    base: (e.baseTotal - emRisco) / e.baseTotal,
     cabelos: e.cabelosQtd / e.ativasBase,
     make: e.makeQtd / e.ativasBase,
     multimarcas: e.multimarcaQtd / e.ativasBase,
     vdi: e.vdiUsoPct / 100,
     treinamentos: e.treinamentoPct / 100,
+    satisfacao: e.satisfacaoPct / 100,
   }
 }
 
-export const VD_IAF_METAS_DEFAULT = { base: 90, vdi: 90, treinamento: 95 }
+/** Satisfação ainda é um placeholder — a métrica real será definida pelo operador ao importar a planilha. */
+export const VD_IAF_METAS_DEFAULT = { vdi: 90, treinamento: 95, satisfacao: 85 }
 export type VdIafMetasKey = keyof typeof VD_IAF_METAS_DEFAULT
 
 export function useVdIafMetas() {
@@ -243,35 +259,56 @@ export function useVdIafMetas() {
   return { metas, updateMeta }
 }
 
-/** Agrega as equipes de um Espaço do Revendedor (ER) num "equipe-like" consolidado, pra reusar calcIafIndicadores. */
-export function agregarPorEr(equipes: VdEquipeRow[]): { er: string; equipes: number; consolidado: VdEquipeRow }[] {
+/** Agrega um conjunto de equipes num VdIafInput só (soma financeiro/mix, média de %). Base pra qualquer rollup (Time, ER, canal todo). */
+export function agregarIndicadores(equipes: VdEquipeRow[]): VdIafInput {
+  const sum = (f: (e: VdEquipeRow) => number) => equipes.reduce((s, e) => s + f(e), 0)
+  const avg = (f: (e: VdEquipeRow) => number) => equipes.length ? sum(f) / equipes.length : 0
+  return {
+    realizadoFinanceiro: sum(e => e.realizadoFinanceiro),
+    metaFinanceira: sum(e => e.metaFinanceira),
+    realizadoAtivos: sum(e => e.realizadoAtivos),
+    metaAtivos: sum(e => e.metaAtivos),
+    cabelosQtd: sum(e => e.cabelosQtd),
+    makeQtd: sum(e => e.makeQtd),
+    multimarcaQtd: sum(e => e.multimarcaQtd),
+    ativasBase: sum(e => e.ativasBase),
+    vdiUsoPct: avg(e => e.vdiUsoPct),
+    treinamentoPct: avg(e => e.treinamentoPct),
+    satisfacaoPct: avg(e => e.satisfacaoPct),
+  }
+}
+
+/** Agrega as equipes de um Espaço do Revendedor (ER) — usado tanto pro desempenho geral quanto pro IAF total de cada ER. */
+export interface VdErAgregado extends VdIafInput {
+  er: string
+  nEquipes: number
+  baseTotal: number
+  metaCadastro: number
+  iniciosReinicios: number
+  liquidas: number
+}
+
+export function agregarPorEr(equipes: VdEquipeRow[]): VdErAgregado[] {
   return ERS.map(er => {
     const items = equipes.filter(e => e.er === er)
     const sum = (f: (e: VdEquipeRow) => number) => items.reduce((s, e) => s + f(e), 0)
-    const sumBuckets = (idx: number) => items.reduce((s, e) => s + e.base[idx], 0)
-    const consolidado: VdEquipeRow = {
-      id: `er-${er}`,
-      nome: er,
-      gerente: '',
-      er,
-      base: [0, 1, 2, 3, 4, 5, 6].map(sumBuckets),
+    return {
+      er, nEquipes: items.length,
       baseTotal: sum(e => e.baseTotal),
       metaCadastro: sum(e => e.metaCadastro),
       iniciosReinicios: sum(e => e.iniciosReinicios),
       liquidas: sum(e => e.liquidas),
-      premiacao: null,
-      metaFinanceira: sum(e => e.metaFinanceira),
-      realizadoFinanceiro: sum(e => e.realizadoFinanceiro),
-      metaAtivos: sum(e => e.metaAtivos),
-      realizadoAtivos: sum(e => e.realizadoAtivos),
-      ativasBase: sum(e => e.ativasBase),
-      skinQtd: sum(e => e.skinQtd),
-      makeQtd: sum(e => e.makeQtd),
-      multimarcaQtd: sum(e => e.multimarcaQtd),
-      cabelosQtd: sum(e => e.cabelosQtd),
-      vdiUsoPct: items.length ? sum(e => e.vdiUsoPct) / items.length : 0,
-      treinamentoPct: items.length ? sum(e => e.treinamentoPct) / items.length : 0,
+      ...agregarIndicadores(items),
     }
-    return { er, equipes: items.length, consolidado }
   })
+}
+
+/** Toggle Ciclo/Ano — hoje só usado dentro das páginas de IAF, reaproveita o visual de .period-btn. */
+export function PeriodoToggle({ value, onChange }: { value: 'ciclo' | 'ano'; onChange: (v: 'ciclo' | 'ano') => void }) {
+  return (
+    <div style={{ display: 'flex', gap: 4 }}>
+      <button className={`period-btn${value === 'ciclo' ? ' active' : ''}`} style={{ padding: '5px 14px' }} onClick={() => onChange('ciclo')}>Ciclo</button>
+      <button className={`period-btn${value === 'ano' ? ' active' : ''}`} style={{ padding: '5px 14px' }} onClick={() => onChange('ano')}>Ano</button>
+    </div>
+  )
 }

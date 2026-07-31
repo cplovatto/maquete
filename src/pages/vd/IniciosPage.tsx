@@ -1,10 +1,10 @@
 import { Fragment } from 'react'
 import { useVdData } from '../../context/VdDataContext'
-import { KpiCard, MetaBar, fBRLR, fInt, fPct, groupByGerente } from './vdShared'
+import { KpiCard, MetaBar, fBRLR, fInt, fPct, groupBy } from './vdShared'
 
 export default function IniciosPage() {
   const { ciclo, equipes } = useVdData()
-  const groups = groupByGerente(equipes)
+  const groups = groupBy(equipes, e => e.time)
 
   const totalMeta = equipes.reduce((s, e) => s + e.metaCadastro, 0)
   const totalRealizado = equipes.reduce((s, e) => s + e.iniciosReinicios, 0)
@@ -22,7 +22,7 @@ export default function IniciosPage() {
         </div>
       </div>
       <p className="page-subtitle" style={{ marginTop: -8, marginBottom: 12 }}>
-        Líquidas e Premiação só são acompanhadas por Grupo — não têm apuração por equipe/supervisora.
+        Líquidas e Premiação só são acompanhadas por Time — não têm apuração por equipe/supervisora.
       </p>
 
       <div className="kpi-row">
@@ -37,7 +37,7 @@ export default function IniciosPage() {
         <table className="dash-table">
           <thead>
             <tr>
-              <th>Gerente</th>
+              <th>Time</th>
               <th>Equipe</th>
               <th className="col-num">Meta cadastro</th>
               <th className="col-num">Inícios + Reinícios</th>
@@ -54,13 +54,13 @@ export default function IniciosPage() {
               const gLiquidas = g.items.reduce((s, e) => s + e.liquidas, 0)
               const gFalta = gMeta - gRealizado
               return (
-                <Fragment key={g.gerente}>
+                <Fragment key={g.key}>
                   {g.items.map(e => {
                     const pct = e.iniciosReinicios / e.metaCadastro
                     const falta = e.metaCadastro - e.iniciosReinicios
                     return (
                       <tr key={e.id}>
-                        <td>{e.gerente}</td>
+                        <td>{e.time}</td>
                         <td className="td-primary">{e.nome}</td>
                         <td className="col-num">{fInt(e.metaCadastro)}</td>
                         <td className="col-num">{fInt(e.iniciosReinicios)}</td>
@@ -77,7 +77,7 @@ export default function IniciosPage() {
                     )
                   })}
                   <tr className="tfoot-total">
-                    <td colSpan={2}>Total {g.gerente}</td>
+                    <td colSpan={2}>Total Time de {g.key}</td>
                     <td className="col-num">{fInt(gMeta)}</td>
                     <td className="col-num">{fInt(gRealizado)}</td>
                     <td className="col-num" style={{ color: gFalta > 0 ? '#dc2626' : '#059669' }}>{fInt(gFalta)}</td>
