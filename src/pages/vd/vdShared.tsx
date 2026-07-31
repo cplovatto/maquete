@@ -299,21 +299,53 @@ export interface VdErAgregado extends VdIafInput {
   metaCadastro: number
   iniciosReinicios: number
   liquidas: number
+  rpaValor: number
+  upaValor: number
 }
 
 export function agregarPorEr(equipes: VdEquipeRow[]): VdErAgregado[] {
   return ERS.map(er => {
     const items = equipes.filter(e => e.er === er)
     const sum = (f: (e: VdEquipeRow) => number) => items.reduce((s, e) => s + f(e), 0)
+    const avg = (f: (e: VdEquipeRow) => number) => items.length ? sum(f) / items.length : 0
     return {
       er, nEquipes: items.length,
       baseTotal: sum(e => e.baseTotal),
       metaCadastro: sum(e => e.metaCadastro),
       iniciosReinicios: sum(e => e.iniciosReinicios),
       liquidas: sum(e => e.liquidas),
+      rpaValor: avg(e => e.rpaValor),
+      upaValor: avg(e => e.upaValor),
       ...agregarIndicadores(items),
     }
   })
+}
+
+/** Meta editável de RPA (Boleto médio) e UPA (Itens por venda) — hoje só usada no Desempenho do ER. */
+export const VD_DESEMPENHO_METAS_DEFAULT = { rpa: 120, upa: 1.8 }
+export type VdDesempenhoMetasKey = keyof typeof VD_DESEMPENHO_METAS_DEFAULT
+
+export function useVdDesempenhoMetas() {
+  const [metas, setMetas] = useState<typeof VD_DESEMPENHO_METAS_DEFAULT>(() => {
+    try { return { ...VD_DESEMPENHO_METAS_DEFAULT, ...JSON.parse(localStorage.getItem('prisma-prefs-vd-desempenho-metas') ?? '{}') } }
+    catch { return { ...VD_DESEMPENHO_METAS_DEFAULT } }
+  })
+  function updateMeta(key: VdDesempenhoMetasKey, value: number) {
+    const next = { ...metas, [key]: value }
+    setMetas(next)
+    localStorage.setItem('prisma-prefs-vd-desempenho-metas', JSON.stringify(next))
+  }
+  return { metas, updateMeta }
+}
+
+/** Célula com valor absoluto (não %) colorida conforme meta — pra indicadores tipo RPA/UPA. */
+export function ValueMetaCell({ v, meta, format }: { v: number; meta: number; format: (v: number) => string }) {
+  const ok = v >= meta
+  return (
+    <td className="col-num" style={{ fontWeight: ok ? undefined : 700, color: ok ? '#059669' : '#dc2626' }}>
+      {format(v)}
+    </td>
+  )
 }
 
 /** Toggle Ciclo/Ano — hoje só usado dentro das páginas de IAF, reaproveita o visual de .period-btn. */

@@ -1,5 +1,5 @@
 import type { VdEquipeRow } from '../../context/VdDataContext'
-import { MetaCell, calcIafIndicadores, fBRLR, fInt, fPct, useVdIafMetas, useVdMixMetas } from './vdShared'
+import { MetaCell, ValueMetaCell, calcIafIndicadores, fBRLR, fDec, fInt, fPct, useVdDesempenhoMetas, useVdIafMetas, useVdMixMetas } from './vdShared'
 
 export function ErEquipesModal({ er, equipes, mode, onClose }: {
   er: string
@@ -9,6 +9,7 @@ export function ErEquipesModal({ er, equipes, mode, onClose }: {
 }) {
   const { metas: iafMetas } = useVdIafMetas()
   const { metas: mixMetas } = useVdMixMetas()
+  const { metas: desempenhoMetas } = useVdDesempenhoMetas()
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -29,6 +30,8 @@ export function ErEquipesModal({ er, equipes, mode, onClose }: {
                     <th className="col-num">Meta financeira</th>
                     <th className="col-num">Realizado</th>
                     <th className="col-num">% Ativos</th>
+                    <th className="col-num">RPA</th>
+                    <th className="col-num">UPA</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -40,6 +43,8 @@ export function ErEquipesModal({ er, equipes, mode, onClose }: {
                       <td className="col-num">{fBRLR(e.metaFinanceira)}</td>
                       <td className="col-num">{fBRLR(e.realizadoFinanceiro)}</td>
                       <td className="col-num">{fPct(e.realizadoAtivos / e.metaAtivos)}</td>
+                      <ValueMetaCell v={e.rpaValor} meta={desempenhoMetas.rpa} format={fBRLR} />
+                      <ValueMetaCell v={e.upaValor} meta={desempenhoMetas.upa} format={fDec} />
                     </tr>
                   ))}
                 </tbody>

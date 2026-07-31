@@ -55,6 +55,10 @@ export interface VdEquipeRow {
    * planilha real; por enquanto é só um número de exemplo.
    */
   satisfacaoPct: number
+  /** RPA — equivalente ao "Boleto Médio" do Canal Loja (R$ por venda) */
+  rpaValor: number
+  /** UPA — equivalente a "Itens por Venda" do Canal Loja */
+  upaValor: number
 }
 
 export interface VdMunicipioRow {
@@ -143,6 +147,8 @@ function generateEquipes(seed: number): VdEquipeRow[] {
     const vdiUsoPct = pick(rand, 55, 100)
     const treinamentoPct = pick(rand, 70, 100)
     const satisfacaoPct = pick(rand, 65, 100)
+    const rpaValor = pick(rand, 60, 220)
+    const upaValor = pick(rand, 1.2, 2.8)
 
     equipes.push({
       id: `equipe-${n}`,
@@ -155,6 +161,7 @@ function generateEquipes(seed: number): VdEquipeRow[] {
       metaAtivos, realizadoAtivos, ativasBase,
       skinQtd, makeQtd, multimarcaQtd, cabelosQtd,
       vdiUsoPct, treinamentoPct, satisfacaoPct,
+      rpaValor, upaValor,
     })
   }
   return equipes
