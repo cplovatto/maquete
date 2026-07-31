@@ -28,7 +28,6 @@ export interface VdEquipeRow {
   /** nome da supervisora que lidera a equipe */
   nome: string
   time: VdTime
-  er: VdEr
   /** contagem de revendedoras por ciclos consecutivos sem comprar, índice 0..6 */
   base: number[]
   baseTotal: number
@@ -54,6 +53,30 @@ export interface VdEquipeRow {
    * dessa métrica ainda vai ser explicada pelo operador quando importarmos a
    * planilha real; por enquanto é só um número de exemplo.
    */
+  satisfacaoPct: number
+}
+
+/**
+ * Consultora — pessoa que atende no Espaço do Revendedor (ER), uma loja
+ * física. É outra pessoa, sem relação com a equipe/supervisora (que cuida
+ * de revendedoras remotamente) — o equivalente, no Canal VD, ao
+ * "Consultor" de uma loja no Canal Loja.
+ */
+export interface VdConsultoraRow {
+  id: string
+  nome: string
+  er: VdEr
+  metaFinanceira: number
+  realizadoFinanceiro: number
+  metaAtivos: number
+  realizadoAtivos: number
+  ativasBase: number
+  skinQtd: number
+  makeQtd: number
+  multimarcaQtd: number
+  cabelosQtd: number
+  vdiUsoPct: number
+  treinamentoPct: number
   satisfacaoPct: number
   /** RPA — equivalente ao "Boleto Médio" do Canal Loja (R$ por venda) */
   rpaValor: number
@@ -147,24 +170,65 @@ function generateEquipes(seed: number): VdEquipeRow[] {
     const vdiUsoPct = pick(rand, 55, 100)
     const treinamentoPct = pick(rand, 70, 100)
     const satisfacaoPct = pick(rand, 65, 100)
-    const rpaValor = pick(rand, 60, 220)
-    const upaValor = pick(rand, 1.2, 2.8)
 
     equipes.push({
       id: `equipe-${n}`,
       nome: `Supervisora ${String(n).padStart(2, '0')}`,
       time,
-      er: ERS[(n - 1) % ERS.length],
       base, baseTotal,
       metaCadastro, iniciosReinicios, liquidas, premiacao,
       metaFinanceira, realizadoFinanceiro,
       metaAtivos, realizadoAtivos, ativasBase,
       skinQtd, makeQtd, multimarcaQtd, cabelosQtd,
       vdiUsoPct, treinamentoPct, satisfacaoPct,
-      rpaValor, upaValor,
     })
   }
   return equipes
+}
+
+const CONSULTORAS_MIN_POR_ER = 2
+const CONSULTORAS_MAX_POR_ER = 5
+
+function generateConsultoras(seed: number): VdConsultoraRow[] {
+  const rand = mulberry32(seed)
+  const consultoras: VdConsultoraRow[] = []
+  let n = 1
+
+  ERS.forEach(er => {
+    const qtd = Math.round(pick(rand, CONSULTORAS_MIN_POR_ER, CONSULTORAS_MAX_POR_ER))
+    for (let i = 0; i < qtd; i++) {
+      const metaFinanceira = Math.round(pick(rand, 15_000, 45_000))
+      const realizadoFinanceiro = Math.round(metaFinanceira * pick(rand, 0.3, 1.2))
+
+      const metaAtivos = Math.round(pick(rand, 40, 120))
+      const realizadoAtivos = Math.round(metaAtivos * pick(rand, 0.4, 1.1))
+      const ativasBase = realizadoAtivos
+
+      const skinQtd = Math.round(ativasBase * pick(rand, 0.2, 0.4))
+      const makeQtd = Math.round(ativasBase * pick(rand, 0.35, 0.55))
+      const multimarcaQtd = Math.round(ativasBase * pick(rand, 0.4, 0.6))
+      const cabelosQtd = Math.round(ativasBase * pick(rand, 0.1, 0.3))
+
+      const vdiUsoPct = pick(rand, 55, 100)
+      const treinamentoPct = pick(rand, 70, 100)
+      const satisfacaoPct = pick(rand, 65, 100)
+      const rpaValor = pick(rand, 60, 220)
+      const upaValor = pick(rand, 1.2, 2.8)
+
+      consultoras.push({
+        id: `consultora-${n}`,
+        nome: `Consultora ${String(n).padStart(2, '0')}`,
+        er,
+        metaFinanceira, realizadoFinanceiro,
+        metaAtivos, realizadoAtivos, ativasBase,
+        skinQtd, makeQtd, multimarcaQtd, cabelosQtd,
+        vdiUsoPct, treinamentoPct, satisfacaoPct,
+        rpaValor, upaValor,
+      })
+      n++
+    }
+  })
+  return consultoras
 }
 
 /** Municípios reais da região (nome + população — dado público, não pessoal). */
@@ -257,6 +321,8 @@ interface VdDataCtxType {
   equipes: VdEquipeRow[]
   /** dataset independente (outra seed) pra alternar Ciclo/Ano no IAF — ainda 100% exemplo, sem cálculo real de acumulado anual */
   equipesAno: VdEquipeRow[]
+  consultoras: VdConsultoraRow[]
+  consultorasAno: VdConsultoraRow[]
   municipios: VdMunicipioRow[]
   getRevendedorasAmostra: (equipeId: string) => VdRevendedoraSample[]
 }
@@ -266,6 +332,8 @@ const VdDataCtx = createContext<VdDataCtxType | null>(null)
 export function VdDataProvider({ children }: { children: ReactNode }) {
   const equipes = useMemo(() => generateEquipes(42), [])
   const equipesAno = useMemo(() => generateEquipes(4242), [])
+  const consultoras = useMemo(() => generateConsultoras(77), [])
+  const consultorasAno = useMemo(() => generateConsultoras(7777), [])
   const municipios = useMemo(() => generateMunicipios(), [])
   const sampleCache = useRef(new Map<string, VdRevendedoraSample[]>())
 
@@ -278,8 +346,8 @@ export function VdDataProvider({ children }: { children: ReactNode }) {
   }, [equipes])
 
   const value = useMemo(
-    () => ({ ciclo: CICLO_ATUAL, equipes, equipesAno, municipios, getRevendedorasAmostra }),
-    [equipes, equipesAno, municipios, getRevendedorasAmostra],
+    () => ({ ciclo: CICLO_ATUAL, equipes, equipesAno, consultoras, consultorasAno, municipios, getRevendedorasAmostra }),
+    [equipes, equipesAno, consultoras, consultorasAno, municipios, getRevendedorasAmostra],
   )
 
   return <VdDataCtx.Provider value={value}>{children}</VdDataCtx.Provider>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { NavLink } from 'react-router-dom'
 import { ERS } from '../../context/VdDataContext'
-import type { VdEquipeRow } from '../../context/VdDataContext'
+import type { VdConsultoraRow, VdEquipeRow } from '../../context/VdDataContext'
 
 /* ── Formatadores (mesma convenção de AppShell.tsx) ────────────────── */
 export const fBRL  = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -272,50 +272,42 @@ export function useVdIafMetas() {
   return { metas, updateMeta }
 }
 
-/** Agrega um conjunto de equipes num VdIafInput só (soma financeiro/mix, média de %). Base pra qualquer rollup (Time, ER, canal todo). */
-export function agregarIndicadores(equipes: VdEquipeRow[]): VdIafInput {
-  const sum = (f: (e: VdEquipeRow) => number) => equipes.reduce((s, e) => s + f(e), 0)
-  const avg = (f: (e: VdEquipeRow) => number) => equipes.length ? sum(f) / equipes.length : 0
+/** Agrega um conjunto de linhas (equipe OU consultora — qualquer coisa com o formato VdIafInput) num VdIafInput só. */
+export function agregarIndicadores<T extends VdIafInput>(rows: T[]): VdIafInput {
+  const sum = (f: (r: T) => number) => rows.reduce((s, r) => s + f(r), 0)
+  const avg = (f: (r: T) => number) => rows.length ? sum(f) / rows.length : 0
   return {
-    realizadoFinanceiro: sum(e => e.realizadoFinanceiro),
-    metaFinanceira: sum(e => e.metaFinanceira),
-    realizadoAtivos: sum(e => e.realizadoAtivos),
-    metaAtivos: sum(e => e.metaAtivos),
-    cabelosQtd: sum(e => e.cabelosQtd),
-    makeQtd: sum(e => e.makeQtd),
-    multimarcaQtd: sum(e => e.multimarcaQtd),
-    ativasBase: sum(e => e.ativasBase),
-    vdiUsoPct: avg(e => e.vdiUsoPct),
-    treinamentoPct: avg(e => e.treinamentoPct),
-    satisfacaoPct: avg(e => e.satisfacaoPct),
+    realizadoFinanceiro: sum(r => r.realizadoFinanceiro),
+    metaFinanceira: sum(r => r.metaFinanceira),
+    realizadoAtivos: sum(r => r.realizadoAtivos),
+    metaAtivos: sum(r => r.metaAtivos),
+    cabelosQtd: sum(r => r.cabelosQtd),
+    makeQtd: sum(r => r.makeQtd),
+    multimarcaQtd: sum(r => r.multimarcaQtd),
+    ativasBase: sum(r => r.ativasBase),
+    vdiUsoPct: avg(r => r.vdiUsoPct),
+    treinamentoPct: avg(r => r.treinamentoPct),
+    satisfacaoPct: avg(r => r.satisfacaoPct),
   }
 }
 
-/** Agrega as equipes de um Espaço do Revendedor (ER) — usado tanto pro desempenho geral quanto pro IAF total de cada ER. */
+/** Agrega as consultoras de um Espaço do Revendedor (ER) — usado tanto pro desempenho geral quanto pro IAF total de cada ER. */
 export interface VdErAgregado extends VdIafInput {
   er: string
-  nEquipes: number
-  baseTotal: number
-  metaCadastro: number
-  iniciosReinicios: number
-  liquidas: number
+  nConsultoras: number
   rpaValor: number
   upaValor: number
 }
 
-export function agregarPorEr(equipes: VdEquipeRow[]): VdErAgregado[] {
+export function agregarPorEr(consultoras: VdConsultoraRow[]): VdErAgregado[] {
   return ERS.map(er => {
-    const items = equipes.filter(e => e.er === er)
-    const sum = (f: (e: VdEquipeRow) => number) => items.reduce((s, e) => s + f(e), 0)
-    const avg = (f: (e: VdEquipeRow) => number) => items.length ? sum(f) / items.length : 0
+    const items = consultoras.filter(c => c.er === er)
+    const sum = (f: (c: VdConsultoraRow) => number) => items.reduce((s, c) => s + f(c), 0)
+    const avg = (f: (c: VdConsultoraRow) => number) => items.length ? sum(f) / items.length : 0
     return {
-      er, nEquipes: items.length,
-      baseTotal: sum(e => e.baseTotal),
-      metaCadastro: sum(e => e.metaCadastro),
-      iniciosReinicios: sum(e => e.iniciosReinicios),
-      liquidas: sum(e => e.liquidas),
-      rpaValor: avg(e => e.rpaValor),
-      upaValor: avg(e => e.upaValor),
+      er, nConsultoras: items.length,
+      rpaValor: avg(c => c.rpaValor),
+      upaValor: avg(c => c.upaValor),
       ...agregarIndicadores(items),
     }
   })

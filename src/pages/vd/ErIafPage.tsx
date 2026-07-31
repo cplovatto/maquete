@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useVdData } from '../../context/VdDataContext'
-import { ErEquipesModal } from './ErEquipesModal'
+import { ErConsultorasModal } from './ErConsultorasModal'
 import {
   LupaButton, MetaCell, MetaTag, PeriodoToggle,
   VD_IAF_METAS_DEFAULT, VD_MIX_METAS_DEFAULT,
@@ -8,9 +8,9 @@ import {
 } from './vdShared'
 
 export default function ErIafPage() {
-  const { ciclo, equipes, equipesAno } = useVdData()
+  const { ciclo, consultoras, consultorasAno } = useVdData()
   const [periodo, setPeriodo] = useState<'ciclo' | 'ano'>('ciclo')
-  const dados = periodo === 'ciclo' ? equipes : equipesAno
+  const dados = periodo === 'ciclo' ? consultoras : consultorasAno
 
   const { metas: iafMetas, updateMeta: updateIafMeta } = useVdIafMetas()
   const { metas: mixMetas, updateMeta: updateMixMeta } = useVdMixMetas()
@@ -23,7 +23,7 @@ export default function ErIafPage() {
       <div className="page-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 className="page-title">IAF ER</h2>
-          <p className="page-subtitle">{periodo === 'ciclo' ? ciclo : 'Ano (exemplo)'} — IAF total de cada um dos 4 Espaços do Revendedor</p>
+          <p className="page-subtitle">{periodo === 'ciclo' ? ciclo : 'Ano (exemplo)'} — IAF total das consultoras de cada um dos 4 Espaços do Revendedor</p>
         </div>
         <PeriodoToggle value={periodo} onChange={setPeriodo} />
       </div>
@@ -50,12 +50,12 @@ export default function ErIafPage() {
               <th className="col-num">VDI</th>
               <th className="col-num">Treinamentos</th>
               <th className="col-num">Satisfação</th>
-              <th className="col-num">Ver equipes</th>
+              <th className="col-num">Ver consultoras</th>
             </tr>
           </thead>
           <tbody>
             {linhas.map(l => (
-              <tr key={l.er} onClick={() => setErAberto(l.er)} style={{ cursor: 'pointer' }} title={`Ver IAF por equipe — ${l.er}`}>
+              <tr key={l.er} onClick={() => setErAberto(l.er)} style={{ cursor: 'pointer' }} title={`Ver IAF por consultora — ${l.er}`}>
                 <td className="td-primary">{l.er}</td>
                 <MetaCell v={l.ind.receita} meta={100} />
                 <MetaCell v={l.ind.atividade} meta={100} />
@@ -66,7 +66,7 @@ export default function ErIafPage() {
                 <MetaCell v={l.ind.treinamentos} meta={iafMetas.treinamento} />
                 <MetaCell v={l.ind.satisfacao} meta={iafMetas.satisfacao} />
                 <td className="col-num">
-                  <LupaButton title={`Ver IAF por equipe — ${l.er}`} onClick={() => setErAberto(l.er)} />
+                  <LupaButton title={`Ver IAF por consultora — ${l.er}`} onClick={() => setErAberto(l.er)} />
                 </td>
               </tr>
             ))}
@@ -75,9 +75,9 @@ export default function ErIafPage() {
       </div>
 
       {erAberto && (
-        <ErEquipesModal
+        <ErConsultorasModal
           er={erAberto}
-          equipes={dados.filter(e => e.er === erAberto)}
+          consultoras={dados.filter(c => c.er === erAberto)}
           mode="iaf"
           onClose={() => setErAberto(null)}
         />

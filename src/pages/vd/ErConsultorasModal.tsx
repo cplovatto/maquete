@@ -1,9 +1,9 @@
-import type { VdEquipeRow } from '../../context/VdDataContext'
-import { MetaCell, ValueMetaCell, calcIafIndicadores, fBRLR, fDec, fInt, fPct, useVdDesempenhoMetas, useVdIafMetas, useVdMixMetas } from './vdShared'
+import type { VdConsultoraRow } from '../../context/VdDataContext'
+import { MetaCell, ValueMetaCell, calcIafIndicadores, fBRLR, fDec, fPct, useVdDesempenhoMetas, useVdIafMetas, useVdMixMetas } from './vdShared'
 
-export function ErEquipesModal({ er, equipes, mode, onClose }: {
+export function ErConsultorasModal({ er, consultoras, mode, onClose }: {
   er: string
-  equipes: VdEquipeRow[]
+  consultoras: VdConsultoraRow[]
   mode: 'desempenho' | 'iaf'
   onClose: () => void
 }) {
@@ -15,7 +15,7 @@ export function ErEquipesModal({ er, equipes, mode, onClose }: {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal--lg" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
-          <span className="modal-title">{er} — {mode === 'desempenho' ? 'Desempenho' : 'IAF'} por equipe</span>
+          <span className="modal-title">{er} — {mode === 'desempenho' ? 'Desempenho' : 'IAF'} por consultora</span>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body">
@@ -24,9 +24,7 @@ export function ErEquipesModal({ er, equipes, mode, onClose }: {
               <table className="dash-table">
                 <thead>
                   <tr>
-                    <th>Equipe</th>
-                    <th>Time</th>
-                    <th className="col-num">Base</th>
+                    <th>Consultora</th>
                     <th className="col-num">Meta financeira</th>
                     <th className="col-num">Realizado</th>
                     <th className="col-num">% Ativos</th>
@@ -35,16 +33,14 @@ export function ErEquipesModal({ er, equipes, mode, onClose }: {
                   </tr>
                 </thead>
                 <tbody>
-                  {equipes.map(e => (
-                    <tr key={e.id}>
-                      <td className="td-primary">{e.nome}</td>
-                      <td>{e.time}</td>
-                      <td className="col-num">{fInt(e.baseTotal)}</td>
-                      <td className="col-num">{fBRLR(e.metaFinanceira)}</td>
-                      <td className="col-num">{fBRLR(e.realizadoFinanceiro)}</td>
-                      <td className="col-num">{fPct(e.realizadoAtivos / e.metaAtivos)}</td>
-                      <ValueMetaCell v={e.rpaValor} meta={desempenhoMetas.rpa} format={fBRLR} />
-                      <ValueMetaCell v={e.upaValor} meta={desempenhoMetas.upa} format={fDec} />
+                  {consultoras.map(c => (
+                    <tr key={c.id}>
+                      <td className="td-primary">{c.nome}</td>
+                      <td className="col-num">{fBRLR(c.metaFinanceira)}</td>
+                      <td className="col-num">{fBRLR(c.realizadoFinanceiro)}</td>
+                      <td className="col-num">{fPct(c.realizadoAtivos / c.metaAtivos)}</td>
+                      <ValueMetaCell v={c.rpaValor} meta={desempenhoMetas.rpa} format={fBRLR} />
+                      <ValueMetaCell v={c.upaValor} meta={desempenhoMetas.upa} format={fDec} />
                     </tr>
                   ))}
                 </tbody>
@@ -53,7 +49,7 @@ export function ErEquipesModal({ er, equipes, mode, onClose }: {
               <table className="dash-table">
                 <thead>
                   <tr>
-                    <th>Equipe</th>
+                    <th>Consultora</th>
                     <th className="col-num">Receita</th>
                     <th className="col-num">Atividade</th>
                     <th className="col-num">Cabelos</th>
@@ -65,11 +61,11 @@ export function ErEquipesModal({ er, equipes, mode, onClose }: {
                   </tr>
                 </thead>
                 <tbody>
-                  {equipes.map(e => {
-                    const ind = calcIafIndicadores(e)
+                  {consultoras.map(c => {
+                    const ind = calcIafIndicadores(c)
                     return (
-                      <tr key={e.id}>
-                        <td className="td-primary">{e.nome}</td>
+                      <tr key={c.id}>
+                        <td className="td-primary">{c.nome}</td>
                         <MetaCell v={ind.receita} meta={100} />
                         <MetaCell v={ind.atividade} meta={100} />
                         <MetaCell v={ind.cabelos} meta={mixMetas.cabelos} />
