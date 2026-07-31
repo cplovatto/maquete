@@ -80,6 +80,19 @@ export const VIC = {
   store: <svg className="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9v11h18V9"/><path d="M9 13h6"/></svg>,
 }
 
+/** Lupa — botão de drill-down (não é um ícone de nav, por isso fora de VIC/sem a classe nav-icon). */
+export function LupaButton({ onClick, title }: { onClick: () => void; title?: string }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title ?? 'Ver por equipe'}
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 6, border: '1px solid var(--bg-border)', background: 'var(--bg-surface)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    </button>
+  )
+}
+
 /* ── Item de navegação da sidebar VD (sem sistema de import/warn dots — dados são mock) ── */
 export function VdSideItem({ to, icon, label }: { to: string; icon: ReactNode; label: string }) {
   return (

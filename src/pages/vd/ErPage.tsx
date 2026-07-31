@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { useVdData } from '../../context/VdDataContext'
-import { KpiCard, agregarPorEr, fBRLR, fInt, fPct } from './vdShared'
+import { ErEquipesModal } from './ErEquipesModal'
+import { KpiCard, LupaButton, agregarPorEr, fBRLR, fInt, fPct } from './vdShared'
 
 export default function ErPage() {
   const { ciclo, equipes } = useVdData()
   const linhas = agregarPorEr(equipes)
+  const [erAberto, setErAberto] = useState<string | null>(null)
 
   return (
     <div className="page-content">
@@ -31,6 +34,7 @@ export default function ErPage() {
               <th className="col-num">Meta financeira</th>
               <th className="col-num">Realizado financeiro</th>
               <th className="col-num">% Ativos</th>
+              <th className="col-num">Ver equipes</th>
             </tr>
           </thead>
           <tbody>
@@ -45,11 +49,23 @@ export default function ErPage() {
                 <td className="col-num">{fBRLR(l.metaFinanceira)}</td>
                 <td className="col-num">{fBRLR(l.realizadoFinanceiro)}</td>
                 <td className="col-num">{fPct(l.realizadoAtivos / l.metaAtivos)}</td>
+                <td className="col-num">
+                  <LupaButton title={`Ver desempenho por equipe — ${l.er}`} onClick={() => setErAberto(l.er)} />
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {erAberto && (
+        <ErEquipesModal
+          er={erAberto}
+          equipes={equipes.filter(e => e.er === erAberto)}
+          mode="desempenho"
+          onClose={() => setErAberto(null)}
+        />
+      )}
     </div>
   )
 }

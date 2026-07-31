@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useVdData } from '../../context/VdDataContext'
+import { ErEquipesModal } from './ErEquipesModal'
 import {
-  MetaCell, MetaTag,
+  LupaButton, MetaCell, MetaTag,
   VD_IAF_METAS_DEFAULT, VD_MIX_METAS_DEFAULT,
   agregarPorEr, calcIafIndicadores, useVdIafMetas, useVdMixMetas,
 } from './vdShared'
@@ -9,6 +11,7 @@ export default function ErIafPage() {
   const { ciclo, equipes } = useVdData()
   const { metas: iafMetas, updateMeta: updateIafMeta } = useVdIafMetas()
   const { metas: mixMetas, updateMeta: updateMixMeta } = useVdMixMetas()
+  const [erAberto, setErAberto] = useState<string | null>(null)
 
   const linhas = agregarPorEr(equipes).map(er => ({ ...er, ind: calcIafIndicadores(er) }))
 
@@ -43,6 +46,7 @@ export default function ErIafPage() {
               <th className="col-num">VDI</th>
               <th className="col-num">Treinamentos</th>
               <th className="col-num">Satisfação</th>
+              <th className="col-num">Ver equipes</th>
             </tr>
           </thead>
           <tbody>
@@ -57,11 +61,23 @@ export default function ErIafPage() {
                 <MetaCell v={l.ind.vdi} meta={iafMetas.vdi} />
                 <MetaCell v={l.ind.treinamentos} meta={iafMetas.treinamento} />
                 <MetaCell v={l.ind.satisfacao} meta={iafMetas.satisfacao} />
+                <td className="col-num">
+                  <LupaButton title={`Ver IAF por equipe — ${l.er}`} onClick={() => setErAberto(l.er)} />
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {erAberto && (
+        <ErEquipesModal
+          er={erAberto}
+          equipes={equipes.filter(e => e.er === erAberto)}
+          mode="iaf"
+          onClose={() => setErAberto(null)}
+        />
+      )}
     </div>
   )
 }
