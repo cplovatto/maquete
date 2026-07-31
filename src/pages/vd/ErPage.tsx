@@ -55,7 +55,7 @@ export default function ErPage() {
           </thead>
           <tbody>
             {linhas.map(l => (
-              <tr key={l.er}>
+              <tr key={l.er} onClick={() => setErAberto(l.er)} style={{ cursor: 'pointer' }} title={`Ver desempenho por equipe — ${l.er}`}>
                 <td className="td-primary">{l.er}</td>
                 <td className="col-num">{l.nEquipes}</td>
                 <td className="col-num">{fInt(l.baseTotal)}</td>

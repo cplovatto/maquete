@@ -55,7 +55,7 @@ export default function ErIafPage() {
           </thead>
           <tbody>
             {linhas.map(l => (
-              <tr key={l.er}>
+              <tr key={l.er} onClick={() => setErAberto(l.er)} style={{ cursor: 'pointer' }} title={`Ver IAF por equipe — ${l.er}`}>
                 <td className="td-primary">{l.er}</td>
                 <MetaCell v={l.ind.receita} meta={100} />
                 <MetaCell v={l.ind.atividade} meta={100} />
