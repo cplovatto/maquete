@@ -958,14 +958,14 @@ function VarBadge({ v }: { v: number }) {
   return <span className={`var-badge${v > 0.05 ? ' var-pos' : v < -0.05 ? ' var-neg' : ''}`}>{fVar(v)}</span>
 }
 
-function KpiCard({ label, value, var: varV, varNote, efc }: { label: string; value: string; var?: number; varNote?: string; efc?: string }) {
+function KpiCard({ label, value, var: varV, varNote, efc, hero, arrow }: { label: string; value: string; var?: number; varNote?: string; efc?: string; hero?: boolean; arrow?: boolean }) {
   return (
-    <div className="kpi-card">
+    <div className={`kpi-card${hero ? ' kpi-card--hero' : ''}`}>
       <div className="kpi-label">{label}</div>
       <div className="kpi-value">{value}</div>
       {varV !== undefined && (
         <div className={`kpi-var${varV > 0.05 ? ' pos' : varV < -0.05 ? ' neg' : ''}`}>
-          {fVar(varV)}{varNote && <span className="kpi-var-note">{varNote}</span>}
+          {arrow && (varV > 0.05 ? '▲ ' : varV < -0.05 ? '▼ ' : '')}{fVar(varV)}{varNote && <span className="kpi-var-note">{varNote}</span>}
         </div>
       )}
       {efc && <div className="kpi-efc">EFC {efc}</div>}
@@ -1158,12 +1158,12 @@ function VisaoGeralPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }
           <p className="page-subtitle">{mainRows.length} lojas</p>
         </div>
       </div>
-      <div className="kpi-row">
-        <KpiCard label="Receita"      value={fBRLR(vfValor)} var={mainTotal?.vf_var} varNote="vs LY" />
-        <KpiCard label="Qtd. Boletos" value={fInt(qbValor)}  var={mainTotal?.qb_var} varNote="vs LY" />
-        <KpiCard label="Boleto Médio" value={fBRLR(bmValor)} var={mainTotal?.bm_var} varNote="vs LY" efc={cpData?.bm_efc ? fBRLR(cpData.bm_efc) : undefined} />
-        <KpiCard label="Itens/Boleto" value={fDec(ivValor)}  var={mainTotal?.iv_var} varNote="vs LY" efc={cpData?.iv_efc ? fDec(cpData.iv_efc)  : undefined} />
-        <KpiCard label="Preço Médio"  value={fBRLR(pmValor)} var={mainTotal?.pm_var} varNote="vs LY" efc={cpData?.pm_efc ? fBRLR(cpData.pm_efc) : undefined} />
+      <div className="kpi-row kpi-row--overview">
+        <KpiCard hero arrow label="Receita"       value={fBRLR(vfValor)} var={mainTotal?.vf_var} varNote="vs LY" />
+        <KpiCard arrow label="Qtd. Boletos" value={fInt(qbValor)}  var={mainTotal?.qb_var} varNote="vs LY" />
+        <KpiCard arrow label="Boleto Médio" value={fBRLR(bmValor)} var={mainTotal?.bm_var} varNote="vs LY" efc={cpData?.bm_efc ? fBRLR(cpData.bm_efc) : undefined} />
+        <KpiCard arrow label="Itens/Boleto" value={fDec(ivValor)}  var={mainTotal?.iv_var} varNote="vs LY" efc={cpData?.iv_efc ? fDec(cpData.iv_efc)  : undefined} />
+        <KpiCard arrow label="Preço Médio"  value={fBRLR(pmValor)} var={mainTotal?.pm_var} varNote="vs LY" efc={cpData?.pm_efc ? fBRLR(cpData.pm_efc) : undefined} />
         <KpiCard label="Conv. Fluxo"  value={fPct(convTotal)} />
       </div>
 

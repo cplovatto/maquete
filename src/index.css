@@ -1028,6 +1028,35 @@ input, textarea { font-family: inherit; }
   font-size: 11px; color: var(--text-muted); margin-top: 3px;
 }
 
+/* Lojas — Visão Geral: KPI row com destaque (Receita em hero) */
+.kpi-row--overview .kpi-value {
+  font-size: 24px;
+}
+.kpi-row--overview .kpi-var {
+  font-size: 13px;
+}
+.kpi-row--overview .kpi-card--hero {
+  grid-column: span 2;
+  background: var(--brand-gradient);
+  box-shadow: var(--shadow-lg);
+}
+.kpi-row--overview .kpi-card--hero .kpi-label {
+  color: rgba(255,255,255,.85);
+}
+.kpi-row--overview .kpi-card--hero .kpi-value {
+  font-size: 38px;
+  color: #fff;
+}
+.kpi-row--overview .kpi-card--hero .kpi-var {
+  font-size: 16px;
+  color: rgba(255,255,255,.9);
+}
+.kpi-row--overview .kpi-card--hero .kpi-var.pos { color: #bbf7d0; }
+.kpi-row--overview .kpi-card--hero .kpi-var.neg { color: #fecaca; }
+.kpi-row--overview .kpi-card--hero .kpi-var-note {
+  color: rgba(255,255,255,.65);
+}
+
 /* Parcial hero card */
 .parcial-hero-card {
   grid-column: span 2;
