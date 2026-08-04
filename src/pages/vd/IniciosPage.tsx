@@ -1,25 +1,28 @@
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import { useVdData } from '../../context/VdDataContext'
-import { KpiCard, MetaBar, fBRLR, fInt, fPct, groupBy } from './vdShared'
+import { KpiCard, MetaBar, PeriodoToggle, fBRLR, fInt, fPct, groupBy } from './vdShared'
 
 export default function IniciosPage() {
-  const { ciclo, equipes } = useVdData()
-  const groups = groupBy(equipes, e => e.time)
+  const { ciclo, equipes, equipesAno } = useVdData()
+  const [periodo, setPeriodo] = useState<'ciclo' | 'ano'>('ciclo')
+  const dados = periodo === 'ciclo' ? equipes : equipesAno
+  const groups = groupBy(dados, e => e.time)
 
-  const totalMeta = equipes.reduce((s, e) => s + e.metaCadastro, 0)
-  const totalRealizado = equipes.reduce((s, e) => s + e.iniciosReinicios, 0)
-  const totalLiquidas = equipes.reduce((s, e) => s + e.liquidas, 0)
-  const totalPremiacao = equipes.reduce((s, e) => s + (e.premiacao ?? 0), 0)
+  const totalMeta = dados.reduce((s, e) => s + e.metaCadastro, 0)
+  const totalRealizado = dados.reduce((s, e) => s + e.iniciosReinicios, 0)
+  const totalLiquidas = dados.reduce((s, e) => s + e.liquidas, 0)
+  const totalPremiacao = dados.reduce((s, e) => s + (e.premiacao ?? 0), 0)
   const totalFalta = totalMeta - totalRealizado
-  const bateram = equipes.filter(e => e.iniciosReinicios >= e.metaCadastro).length
+  const bateram = dados.filter(e => e.iniciosReinicios >= e.metaCadastro).length
 
   return (
     <div className="page-content">
-      <div className="page-title-row">
+      <div className="page-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 className="page-title">Inícios</h2>
-          <p className="page-subtitle">{ciclo} — Responsável: Jaila</p>
+          <p className="page-subtitle">{periodo === 'ciclo' ? ciclo : 'Ano (exemplo)'} — Responsável: Jaila</p>
         </div>
+        <PeriodoToggle value={periodo} onChange={setPeriodo} />
       </div>
       <p className="page-subtitle" style={{ marginTop: -8, marginBottom: 12 }}>
         Líquidas e Premiação só são acompanhadas por Time — não têm apuração por equipe/supervisora.
@@ -30,7 +33,7 @@ export default function IniciosPage() {
         <KpiCard label="Inícios + Reinícios" value={fInt(totalRealizado)} sub={fPct(totalRealizado / totalMeta)} />
         <KpiCard label="Falta meta" value={totalFalta > 0 ? fInt(totalFalta) : '0'} sub={totalFalta <= 0 ? 'meta batida' : undefined} />
         <KpiCard label="Líquidas" value={`${totalLiquidas > 0 ? '+' : ''}${fInt(totalLiquidas)}`} />
-        <KpiCard label="Equipes na meta" value={`${bateram}/${equipes.length}`} />
+        <KpiCard label="Equipes na meta" value={`${bateram}/${dados.length}`} />
       </div>
 
       <div className="dash-table-wrap">

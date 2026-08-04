@@ -1,27 +1,31 @@
+import { useState } from 'react'
 import { useVdData } from '../../context/VdDataContext'
-import { KpiCard, MetaBar, fBRLR, fPct } from './vdShared'
+import { KpiCard, MetaBar, PeriodoToggle, fBRLR, fPct } from './vdShared'
 
 export default function FinanceiroPage() {
-  const { ciclo, equipes } = useVdData()
+  const { ciclo, equipes, equipesAno } = useVdData()
+  const [periodo, setPeriodo] = useState<'ciclo' | 'ano'>('ciclo')
+  const dados = periodo === 'ciclo' ? equipes : equipesAno
 
-  const totalMeta = equipes.reduce((s, e) => s + e.metaFinanceira, 0)
-  const totalRealizado = equipes.reduce((s, e) => s + e.realizadoFinanceiro, 0)
-  const bateram = equipes.filter(e => e.realizadoFinanceiro >= e.metaFinanceira).length
+  const totalMeta = dados.reduce((s, e) => s + e.metaFinanceira, 0)
+  const totalRealizado = dados.reduce((s, e) => s + e.realizadoFinanceiro, 0)
+  const bateram = dados.filter(e => e.realizadoFinanceiro >= e.metaFinanceira).length
 
   return (
     <div className="page-content">
-      <div className="page-title-row">
+      <div className="page-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 className="page-title">Financeiro</h2>
-          <p className="page-subtitle">{ciclo}</p>
+          <p className="page-subtitle">{periodo === 'ciclo' ? ciclo : 'Ano (exemplo)'}</p>
         </div>
+        <PeriodoToggle value={periodo} onChange={setPeriodo} />
       </div>
 
       <div className="kpi-row">
         <KpiCard label="Meta financeira" value={fBRLR(totalMeta)} />
         <KpiCard label="Realizado" value={fBRLR(totalRealizado)} sub={fPct(totalRealizado / totalMeta)} />
         <KpiCard label="Gap" value={fBRLR(Math.max(0, totalMeta - totalRealizado))} />
-        <KpiCard label="Equipes na meta" value={`${bateram}/${equipes.length}`} />
+        <KpiCard label="Equipes na meta" value={`${bateram}/${dados.length}`} />
       </div>
 
       <div className="dash-table-wrap">
@@ -36,7 +40,7 @@ export default function FinanceiroPage() {
             </tr>
           </thead>
           <tbody>
-            {equipes.map(e => {
+            {dados.map(e => {
               const pct = e.realizadoFinanceiro / e.metaFinanceira
               return (
                 <tr key={e.id}>

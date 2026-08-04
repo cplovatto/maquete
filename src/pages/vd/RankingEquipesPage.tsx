@@ -1,17 +1,19 @@
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import { useVdData } from '../../context/VdDataContext'
-import { KpiCard, SortTh, fBRLR, fInt, fPct, groupBy, useSort } from './vdShared'
+import { KpiCard, PeriodoToggle, SortTh, fBRLR, fInt, fPct, groupBy, useSort } from './vdShared'
 import type { VdEquipeRow } from '../../context/VdDataContext'
 
 export default function RankingEquipesPage() {
-  const { ciclo, equipes } = useVdData()
+  const { ciclo, equipes, equipesAno } = useVdData()
+  const [periodo, setPeriodo] = useState<'ciclo' | 'ano'>('ciclo')
+  const dados = periodo === 'ciclo' ? equipes : equipesAno
 
-  const totalBase = equipes.reduce((s, e) => s + e.baseTotal, 0)
-  const totalLiquidas = equipes.reduce((s, e) => s + e.liquidas, 0)
-  const totalMetaFin = equipes.reduce((s, e) => s + e.metaFinanceira, 0)
-  const totalRealFin = equipes.reduce((s, e) => s + e.realizadoFinanceiro, 0)
-  const totalMetaAtivos = equipes.reduce((s, e) => s + e.metaAtivos, 0)
-  const totalRealAtivos = equipes.reduce((s, e) => s + e.realizadoAtivos, 0)
+  const totalBase = dados.reduce((s, e) => s + e.baseTotal, 0)
+  const totalLiquidas = dados.reduce((s, e) => s + e.liquidas, 0)
+  const totalMetaFin = dados.reduce((s, e) => s + e.metaFinanceira, 0)
+  const totalRealFin = dados.reduce((s, e) => s + e.realizadoFinanceiro, 0)
+  const totalMetaAtivos = dados.reduce((s, e) => s + e.metaAtivos, 0)
+  const totalRealAtivos = dados.reduce((s, e) => s + e.realizadoAtivos, 0)
   const pctFinanceiroGeral = totalRealFin / totalMetaFin
   const pctAtivosGeral = totalRealAtivos / totalMetaAtivos
 
@@ -23,9 +25,9 @@ export default function RankingEquipesPage() {
       default: return 0
     }
   }
-  const { sortKey, sortDir, toggleSort } = useSort(equipes, keyOf, 'baseTotal')
+  const { sortKey, sortDir, toggleSort } = useSort(dados, keyOf, 'baseTotal')
 
-  const groups = groupBy(equipes, e => e.time).map(g => ({
+  const groups = groupBy(dados, e => e.time).map(g => ({
     time: g.key,
     items: [...g.items].sort((a, b) => {
       const va = keyOf(a, sortKey), vb = keyOf(b, sortKey)
@@ -35,11 +37,12 @@ export default function RankingEquipesPage() {
 
   return (
     <div className="page-content">
-      <div className="page-title-row">
+      <div className="page-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 className="page-title">Ranking de Equipes</h2>
-          <p className="page-subtitle">{ciclo} — {equipes.length} equipes</p>
+          <p className="page-subtitle">{periodo === 'ciclo' ? ciclo : 'Ano (exemplo)'} — {dados.length} equipes</p>
         </div>
+        <PeriodoToggle value={periodo} onChange={setPeriodo} />
       </div>
 
       <div className="kpi-row">
@@ -105,7 +108,7 @@ export default function RankingEquipesPage() {
       </div>
 
       <p className="page-subtitle" style={{ marginTop: 8 }}>
-        Líquidas só é acompanhada por Time — não tem apuração por equipe/supervisora. Meta financeira média: {fBRLR(equipes.reduce((s, e) => s + e.metaFinanceira, 0) / equipes.length)} por equipe.
+        Líquidas só é acompanhada por Time — não tem apuração por equipe/supervisora. Meta financeira média: {fBRLR(totalMetaFin / dados.length)} por equipe.
       </p>
     </div>
   )

@@ -1,28 +1,34 @@
+import { useState } from 'react'
 import { useVdData } from '../../context/VdDataContext'
-import { KpiCard, MetaCell, MetaTag, VD_MIX_METAS_DEFAULT, fInt, fPct, useVdMixMetas } from './vdShared'
+import { KpiCard, MetaCell, MetaTag, PeriodoToggle, VD_MIX_METAS_DEFAULT, fInt, fPct, useVdMixMetas } from './vdShared'
 
 export default function MixProdutoPage() {
-  const { ciclo, equipes } = useVdData()
+  const { ciclo, equipes, equipesAno } = useVdData()
+  const [periodo, setPeriodo] = useState<'ciclo' | 'ano'>('ciclo')
+  const dados = periodo === 'ciclo' ? equipes : equipesAno
   const { metas, updateMeta } = useVdMixMetas()
 
-  const totalAtivas = equipes.reduce((s, e) => s + e.ativasBase, 0)
-  const totalSkin = equipes.reduce((s, e) => s + e.skinQtd, 0)
-  const totalMake = equipes.reduce((s, e) => s + e.makeQtd, 0)
-  const totalMulti = equipes.reduce((s, e) => s + e.multimarcaQtd, 0)
-  const totalCabelos = equipes.reduce((s, e) => s + e.cabelosQtd, 0)
+  const totalAtivas = dados.reduce((s, e) => s + e.ativasBase, 0)
+  const totalSkin = dados.reduce((s, e) => s + e.skinQtd, 0)
+  const totalMake = dados.reduce((s, e) => s + e.makeQtd, 0)
+  const totalMulti = dados.reduce((s, e) => s + e.multimarcaQtd, 0)
+  const totalCabelos = dados.reduce((s, e) => s + e.cabelosQtd, 0)
 
   return (
     <div className="page-content">
       <div className="page-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 className="page-title">Mix de Produto</h2>
-          <p className="page-subtitle">{ciclo} — % de revendedoras ativas que compraram cada categoria</p>
+          <p className="page-subtitle">{periodo === 'ciclo' ? ciclo : 'Ano (exemplo)'} — % de revendedoras ativas que compraram cada categoria</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <MetaTag label="Meta Skin" value={metas.skin} defaultValue={VD_MIX_METAS_DEFAULT.skin} onSave={v => updateMeta('skin', v)} />
-          <MetaTag label="Meta Cabelos" value={metas.cabelos} defaultValue={VD_MIX_METAS_DEFAULT.cabelos} onSave={v => updateMeta('cabelos', v)} />
-          <MetaTag label="Meta Make" value={metas.make} defaultValue={VD_MIX_METAS_DEFAULT.make} onSave={v => updateMeta('make', v)} />
-          <MetaTag label="Meta Multimarca" value={metas.multimarca} defaultValue={VD_MIX_METAS_DEFAULT.multimarca} onSave={v => updateMeta('multimarca', v)} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <PeriodoToggle value={periodo} onChange={setPeriodo} />
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <MetaTag label="Meta Skin" value={metas.skin} defaultValue={VD_MIX_METAS_DEFAULT.skin} onSave={v => updateMeta('skin', v)} />
+            <MetaTag label="Meta Cabelos" value={metas.cabelos} defaultValue={VD_MIX_METAS_DEFAULT.cabelos} onSave={v => updateMeta('cabelos', v)} />
+            <MetaTag label="Meta Make" value={metas.make} defaultValue={VD_MIX_METAS_DEFAULT.make} onSave={v => updateMeta('make', v)} />
+            <MetaTag label="Meta Multimarca" value={metas.multimarca} defaultValue={VD_MIX_METAS_DEFAULT.multimarca} onSave={v => updateMeta('multimarca', v)} />
+          </div>
         </div>
       </div>
 
@@ -48,7 +54,7 @@ export default function MixProdutoPage() {
             </tr>
           </thead>
           <tbody>
-            {equipes.map(e => (
+            {dados.map(e => (
               <tr key={e.id}>
                 <td>{e.time}</td>
                 <td className="td-primary">{e.nome}</td>

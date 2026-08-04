@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { useVdData } from '../../context/VdDataContext'
-import { KpiCard, fBRLR, fInt, fPct, riscoBadge, useClickOutside } from './vdShared'
+import { KpiCard, PeriodoToggle, fBRLR, fInt, fPct, riscoBadge, useClickOutside } from './vdShared'
 
 export default function DetalheEquipePage() {
-  const { ciclo, equipes, getRevendedorasAmostra } = useVdData()
-  const [selectedId, setSelectedId] = useState(equipes[0]?.id)
+  const { ciclo, equipes, equipesAno, getRevendedorasAmostra } = useVdData()
+  const [periodo, setPeriodo] = useState<'ciclo' | 'ano'>('ciclo')
+  const dados = periodo === 'ciclo' ? equipes : equipesAno
+  const [selectedId, setSelectedId] = useState(dados[0]?.id)
   const [pickerOpen, setPickerOpen] = useState(false)
   const pickerRef = useClickOutside<HTMLDivElement>(() => setPickerOpen(false))
 
-  const equipe = equipes.find(e => e.id === selectedId) ?? equipes[0]
+  const equipe = dados.find(e => e.id === selectedId) ?? dados[0]
   if (!equipe) return null
   const amostra = getRevendedorasAmostra(equipe.id)
   const emRisco = equipe.base[4] + equipe.base[5] + equipe.base[6]
@@ -18,27 +20,30 @@ export default function DetalheEquipePage() {
       <div className="page-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 className="page-title">Raio-X da Equipe</h2>
-          <p className="page-subtitle">{ciclo} — Time de {equipe.time}</p>
+          <p className="page-subtitle">{periodo === 'ciclo' ? ciclo : 'Ano (exemplo)'} — Time de {equipe.time}</p>
         </div>
-        <div className="store-picker" ref={pickerRef}>
-          <span className="detalhe-selector-label">Equipe</span>
-          <button className="store-picker-btn" onClick={() => setPickerOpen(o => !o)}>
-            {equipe.nome}
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          {pickerOpen && (
-            <div className="store-picker-dropdown">
-              {equipes.map(e => (
-                <button
-                  key={e.id}
-                  className={`store-picker-option${e.id === equipe.id ? ' selected' : ''}`}
-                  onClick={() => { setSelectedId(e.id); setPickerOpen(false) }}
-                >
-                  {e.nome} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>· Time de {e.time}</span>
-                </button>
-              ))}
-            </div>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <PeriodoToggle value={periodo} onChange={setPeriodo} />
+          <div className="store-picker" ref={pickerRef}>
+            <span className="detalhe-selector-label">Equipe</span>
+            <button className="store-picker-btn" onClick={() => setPickerOpen(o => !o)}>
+              {equipe.nome}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            {pickerOpen && (
+              <div className="store-picker-dropdown">
+                {dados.map(e => (
+                  <button
+                    key={e.id}
+                    className={`store-picker-option${e.id === equipe.id ? ' selected' : ''}`}
+                    onClick={() => { setSelectedId(e.id); setPickerOpen(false) }}
+                  >
+                    {e.nome} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>· Time de {e.time}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import { useVdData } from '../../context/VdDataContext'
-import { KpiCard, fInt, fPct, groupBy, projecaoAtivasPorBucket } from './vdShared'
+import { KpiCard, PeriodoToggle, fInt, fPct, groupBy, projecaoAtivasPorBucket } from './vdShared'
 
 const BUCKET_LABELS = ['0', '1', '2', '3', '4', '5', '6']
 
@@ -11,25 +11,28 @@ function sumBuckets(rows: { base: number[] }[]): number[] {
 }
 
 export default function EmRiscoPage() {
-  const { ciclo, equipes } = useVdData()
-  const groups = groupBy(equipes, e => e.time)
+  const { ciclo, equipes, equipesAno } = useVdData()
+  const [periodo, setPeriodo] = useState<'ciclo' | 'ano'>('ciclo')
+  const dados = periodo === 'ciclo' ? equipes : equipesAno
+  const groups = groupBy(dados, e => e.time)
 
-  const totais = sumBuckets(equipes)
+  const totais = sumBuckets(dados)
   const totalBase = totais.reduce((a, b) => a + b, 0)
   const emRisco = totais[4] + totais[5] + totais[6]
   const saindo = totais[6]
 
   const projecaoTotais = [0, 0, 0, 0, 0, 0, 0]
-  equipes.forEach(e => projecaoAtivasPorBucket(e.base).forEach((v, i) => { projecaoTotais[i] += v }))
+  dados.forEach(e => projecaoAtivasPorBucket(e.base).forEach((v, i) => { projecaoTotais[i] += v }))
   const projecaoTotal = projecaoTotais.reduce((a, b) => a + b, 0)
 
   return (
     <div className="page-content">
-      <div className="page-title-row">
+      <div className="page-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 className="page-title">Em Risco</h2>
-          <p className="page-subtitle">{ciclo} — distribuição por ciclos consecutivos sem comprar. Com 6 ciclos, a revendedora sai da base.</p>
+          <p className="page-subtitle">{periodo === 'ciclo' ? ciclo : 'Ano (exemplo)'} — distribuição por ciclos consecutivos sem comprar. Com 6 ciclos, a revendedora sai da base.</p>
         </div>
+        <PeriodoToggle value={periodo} onChange={setPeriodo} />
       </div>
 
       <div className="kpi-row">
