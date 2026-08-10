@@ -195,15 +195,41 @@ export interface ShareCategoriasCP {
 
 export interface ServicosRow {
   pdv: string
+  /** Desabilitado / Não Aplicável / Habilitado — se a loja está habilitada a oferecer o serviço */
+  habilitador: string
+  /** unidade de negócio (ex: "BOT") */
+  un: string
   servicos_totais: number
+  servicos_incompletos: number
   servicos_completos: number
   pct_completos: number
+  /** meta de quantidade de serviços, já calculada na planilha (não usada no dash hoje — a meta exibida continua sendo a configurada manualmente) */
+  meta_planilha: number
+  /** % de atingimento vs. meta_planilha, decimal — idem, não usado no dash hoje */
+  atingimento_planilha: number
+  /** receita (R$) gerada pelos serviços em loja */
+  gmv: number
 }
 
 export interface ServicosTotal {
   servicos_totais: number
+  servicos_incompletos: number
   servicos_completos: number
   pct_completos: number
+  meta_planilha: number
+  atingimento_planilha: number
+  gmv: number
+}
+
+/** Detalhe de serviços por consultora e tipo de serviço (ex: "Cuidados Faciais", "Maquiagem") — aba nova da planilha, ainda sem tela própria. */
+export interface ServicosConsultorRow {
+  consultor: string
+  pdv: string
+  servico: string
+  servicos_realizados: number
+  servicos_sem_checkin: number
+  servicos_completos: number
+  gmv: number
 }
 
 export interface MetaDiaRow {
@@ -323,6 +349,7 @@ interface DataCtxType {
   shareCatCP: ShareCategoriasCP | null
   servicosRows: ServicosRow[]
   servicosTotal: ServicosTotal | null
+  servicosConsultorRows: ServicosConsultorRow[]
   resgatesPdvRows: ResgatesPdvRow[]
   resgatesTotal: ResgatesTotal | null
   resgatesConsultorRows: ResgatesConsultorRow[]
@@ -350,6 +377,7 @@ interface DataCtxType {
   anualLojaDigitalTotal: LojaDigitalTotal | null
   anualServicosRows: ServicosRow[]
   anualServicosTotal: ServicosTotal | null
+  anualServicosConsultorRows: ServicosConsultorRow[]
   anualResgatesPdvRows: ResgatesPdvRow[]
   anualResgatesTotal: ResgatesTotal | null
   anualResgatesConsultorRows: ResgatesConsultorRow[]
@@ -799,37 +827,77 @@ async function parseShareCategoriasFile(file: File): Promise<{ rows: ShareCatego
   return { rows, cp }
 }
 
-async function parseServicosFile(file: File): Promise<{ rows: ServicosRow[]; total: ServicosTotal | null }> {
+/**
+ * Formato novo da planilha de Serviços (a partir de ago/2026): aba PDV sem
+ * linha de Total (soma-se as lojas na hora) e com Meta/Atingimento/GMV já
+ * prontos na fonte; aba CONSULTANT nova, com detalhe por consultora e tipo
+ * de serviço — guardada no contexto mas ainda sem tela própria.
+ */
+async function parseServicosFile(file: File): Promise<{ rows: ServicosRow[]; total: ServicosTotal | null; consultorRows: ServicosConsultorRow[] }> {
   const buf = await file.arrayBuffer()
   const { read, utils } = await getXLSX()
   const wb = read(buf)
-  const ws = wb.Sheets['PDV']
-  if (!ws) return { rows: [], total: null }
-  const raw = utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' })
 
-  // linha 1 = Total (valores vêm como strings com aspas: "\"563.5\"")
-  const tr = raw[1] as unknown[] | undefined
-  const parseQ = (v: unknown): number => {
-    if (typeof v === 'number') return v
-    return parseFloat(String(v ?? '').replace(/"/g, '').trim()) || 0
+  const wsPdv = wb.Sheets['PDV']
+  const rows: ServicosRow[] = wsPdv
+    ? utils.sheet_to_json<unknown[]>(wsPdv, { header: 1, defval: '' })
+        .slice(1)
+        .filter(r => (r as unknown[])[0] !== '' && (r as unknown[])[0] != null)
+        .map(r => {
+          const a = r as unknown[]
+          const servicos_totais    = toNum(a[3])
+          const servicos_completos = toNum(a[5])
+          const meta_planilha      = toNum(a[6])
+          return {
+            pdv:                  String(a[0]),
+            habilitador:          String(a[1] ?? ''),
+            un:                   String(a[2] ?? ''),
+            servicos_totais,
+            servicos_incompletos: toNum(a[4]),
+            servicos_completos,
+            pct_completos:        servicos_totais > 0 ? servicos_completos / servicos_totais : 0,
+            meta_planilha,
+            atingimento_planilha: toNum(a[7]),
+            gmv:                  toNum(a[8]),
+          }
+        })
+    : []
+
+  const total: ServicosTotal | null = rows.length > 0 ? rows.reduce((acc, r) => ({
+    servicos_totais:      acc.servicos_totais + r.servicos_totais,
+    servicos_incompletos: acc.servicos_incompletos + r.servicos_incompletos,
+    servicos_completos:   acc.servicos_completos + r.servicos_completos,
+    pct_completos:        0,
+    meta_planilha:        acc.meta_planilha + r.meta_planilha,
+    atingimento_planilha: 0,
+    gmv:                  acc.gmv + r.gmv,
+  }), { servicos_totais: 0, servicos_incompletos: 0, servicos_completos: 0, pct_completos: 0, meta_planilha: 0, atingimento_planilha: 0, gmv: 0 }) : null
+
+  if (total) {
+    total.pct_completos        = total.servicos_totais > 0 ? total.servicos_completos / total.servicos_totais : 0
+    total.atingimento_planilha = total.meta_planilha > 0 ? total.servicos_completos / total.meta_planilha : 0
   }
-  const total: ServicosTotal | null = tr ? {
-    servicos_totais:   parseQ(tr[2]),
-    servicos_completos: parseQ(tr[3]),
-    pct_completos:     toNum(tr[4]),
-  } : null
 
-  const rows: ServicosRow[] = raw.slice(2).filter(r => (r as unknown[])[1]).map(r => {
-    const a = r as unknown[]
-    return {
-      pdv:                String(a[1]),
-      servicos_totais:    toNum(a[2]),
-      servicos_completos: toNum(a[3]),
-      pct_completos:      toNum(a[4]),
-    }
-  })
+  const wsConsultant = wb.Sheets['CONSULTANT']
+  const consultorRows: ServicosConsultorRow[] = wsConsultant
+    ? utils.sheet_to_json<unknown[]>(wsConsultant, { header: 1, defval: '' })
+        .slice(1)
+        .filter(r => (r as unknown[])[1] !== '' && (r as unknown[])[1] != null)
+        .map(r => {
+          const a = r as unknown[]
+          return {
+            consultor:            String(a[0] ?? ''),
+            pdv:                  String(a[1]),
+            servico:              String(a[2] ?? ''),
+            servicos_realizados:  toNum(a[3]),
+            servicos_sem_checkin: toNum(a[4]),
+            servicos_completos:   toNum(a[5]),
+            gmv:                  toNum(a[6]),
+          }
+        })
+    : []
 
-  return { rows, total }
+  return { rows, total, consultorRows }
 }
 
 async function parseBoletoPromoFile(file: File): Promise<{ rows: BoletoPromoPdvRow[]; total: BoletoPromoTotal | null; consultores: BoletoPromoConsultorRow[] }> {
@@ -1025,6 +1093,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [shareCatCP, setShareCatCP]                                 = useState<ShareCategoriasCP | null>(() => tryParse('prisma-data-sharecat-cp', null))
   const [servicosRows, setServicosRows]                             = useState<ServicosRow[]>(() => tryParse('prisma-data-servicos', []))
   const [servicosTotal, setServicosTotal]                           = useState<ServicosTotal | null>(() => tryParse('prisma-data-servicos-total', null))
+  const [servicosConsultorRows, setServicosConsultorRows]           = useState<ServicosConsultorRow[]>(() => tryParse('prisma-data-servicos-consultor', []))
   const [resgatesPdvRows, setResgatesPdvRows]                       = useState<ResgatesPdvRow[]>(() => tryParse('prisma-data-resgates', []))
   const [resgatesTotal, setResgatesTotal]                           = useState<ResgatesTotal | null>(() => tryParse('prisma-data-resgates-total', null))
   const [resgatesConsultorRows, setResgatesConsultorRows]           = useState<ResgatesConsultorRow[]>(() => tryParse('prisma-data-resgates-consultor', []))
@@ -1053,6 +1122,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [anualLojaDigitalTotal, setAnualLojaDigitalTotal]           = useState<LojaDigitalTotal | null>(() => tryParse('prisma-data-anual-lojadigital-total', null))
   const [anualServicosRows, setAnualServicosRows]                   = useState<ServicosRow[]>(() => tryParse('prisma-data-anual-servicos', []))
   const [anualServicosTotal, setAnualServicosTotal]                 = useState<ServicosTotal | null>(() => tryParse('prisma-data-anual-servicos-total', null))
+  const [anualServicosConsultorRows, setAnualServicosConsultorRows] = useState<ServicosConsultorRow[]>(() => tryParse('prisma-data-anual-servicos-consultor', []))
   const [anualResgatesPdvRows, setAnualResgatesPdvRows]             = useState<ResgatesPdvRow[]>(() => tryParse('prisma-data-anual-resgates', []))
   const [anualResgatesTotal, setAnualResgatesTotal]                 = useState<ResgatesTotal | null>(() => tryParse('prisma-data-anual-resgates-total', null))
   const [anualResgatesConsultorRows, setAnualResgatesConsultorRows] = useState<ResgatesConsultorRow[]>(() => tryParse('prisma-data-anual-resgates-consultor', []))
@@ -1079,6 +1149,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem('prisma-data-sharecat-cp', JSON.stringify(shareCatCP)) } catch {} }, [shareCatCP])
   useEffect(() => { try { localStorage.setItem('prisma-data-servicos', JSON.stringify(servicosRows)) } catch {} }, [servicosRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-servicos-total', JSON.stringify(servicosTotal)) } catch {} }, [servicosTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-servicos-consultor', JSON.stringify(servicosConsultorRows)) } catch {} }, [servicosConsultorRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-resgates', JSON.stringify(resgatesPdvRows)) } catch {} }, [resgatesPdvRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-resgates-total', JSON.stringify(resgatesTotal)) } catch {} }, [resgatesTotal])
   useEffect(() => { try { localStorage.setItem('prisma-data-resgates-consultor', JSON.stringify(resgatesConsultorRows)) } catch {} }, [resgatesConsultorRows])
@@ -1103,6 +1174,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { try { localStorage.setItem('prisma-data-anual-lojadigital-total', JSON.stringify(anualLojaDigitalTotal)) } catch {} }, [anualLojaDigitalTotal])
   useEffect(() => { try { localStorage.setItem('prisma-data-anual-servicos', JSON.stringify(anualServicosRows)) } catch {} }, [anualServicosRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-anual-servicos-total', JSON.stringify(anualServicosTotal)) } catch {} }, [anualServicosTotal])
+  useEffect(() => { try { localStorage.setItem('prisma-data-anual-servicos-consultor', JSON.stringify(anualServicosConsultorRows)) } catch {} }, [anualServicosConsultorRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-anual-resgates', JSON.stringify(anualResgatesPdvRows)) } catch {} }, [anualResgatesPdvRows])
   useEffect(() => { try { localStorage.setItem('prisma-data-anual-resgates-total', JSON.stringify(anualResgatesTotal)) } catch {} }, [anualResgatesTotal])
   useEffect(() => { try { localStorage.setItem('prisma-data-anual-resgates-consultor', JSON.stringify(anualResgatesConsultorRows)) } catch {} }, [anualResgatesConsultorRows])
@@ -1142,8 +1214,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setShareCatRows(rows); setShareCatCP(cp)
       return rows.length
     } else if (id === 'servicos') {
-      const { rows, total } = await parseServicosFile(file)
-      setServicosRows(rows); setServicosTotal(total)
+      const { rows, total, consultorRows } = await parseServicosFile(file)
+      setServicosRows(rows); setServicosTotal(total); setServicosConsultorRows(consultorRows)
       return rows.length
     } else if (id === 'resgates') {
       const { rows, total, consultores } = await parseResgatesFile(file)
@@ -1228,8 +1300,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       setAnualLojaDigitalRows(rows); setAnualLojaDigitalTotal(total)
       return rows.length
     } else if (id === 'anual-servicos') {
-      const { rows, total } = await parseServicosFile(file)
-      setAnualServicosRows(rows); setAnualServicosTotal(total)
+      const { rows, total, consultorRows } = await parseServicosFile(file)
+      setAnualServicosRows(rows); setAnualServicosTotal(total); setAnualServicosConsultorRows(consultorRows)
       return rows.length
     } else if (id === 'anual-resgates') {
       const { rows, total, consultores } = await parseResgatesFile(file)
@@ -1248,8 +1320,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, shareCatRows, shareCatCP, servicosRows, servicosTotal, resgatesPdvRows, resgatesTotal, resgatesConsultorRows, boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, metaDiaRows, parcialRows, parcialSkinRows,
-      anualMainRows, anualMainTotal, anualCpData, anualConsultorRows, anualFluxoRows, anualFluxoTotal, anualFluxoConsultorRows, anualSkinRows, anualSkinConsultorRows, anualSkinCP, anualIdClienteRows, anualIdClienteConsultorRows, anualIdClienteCP, anualLojaDigitalRows, anualLojaDigitalTotal, anualServicosRows, anualServicosTotal, anualResgatesPdvRows, anualResgatesTotal, anualResgatesConsultorRows, anualBoletoPromoPdvRows, anualBoletoPromoTotal, anualBoletoPromoConsultorRows,
+    <DataCtx.Provider value={{ mainRows, mainTotal, cpData, fluxoRows, fluxoTotal, consultorRows, fluxoConsultorRows, skinRows, skinConsultorRows, skinCP, idClienteRows, idClienteConsultorRows, idClienteCP, lojaDigitalRows, lojaDigitalTotal, shareCatRows, shareCatCP, servicosRows, servicosTotal, servicosConsultorRows, resgatesPdvRows, resgatesTotal, resgatesConsultorRows, boletoPromoPdvRows, boletoPromoTotal, boletoPromoConsultorRows, metaDiaRows, parcialRows, parcialSkinRows,
+      anualMainRows, anualMainTotal, anualCpData, anualConsultorRows, anualFluxoRows, anualFluxoTotal, anualFluxoConsultorRows, anualSkinRows, anualSkinConsultorRows, anualSkinCP, anualIdClienteRows, anualIdClienteConsultorRows, anualIdClienteCP, anualLojaDigitalRows, anualLojaDigitalTotal, anualServicosRows, anualServicosTotal, anualServicosConsultorRows, anualResgatesPdvRows, anualResgatesTotal, anualResgatesConsultorRows, anualBoletoPromoPdvRows, anualBoletoPromoTotal, anualBoletoPromoConsultorRows,
       pefRows, pefTotal, pefFiltros,
       loadFile }}>
       {children}
