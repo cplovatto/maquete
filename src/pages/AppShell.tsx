@@ -3795,9 +3795,7 @@ function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) 
                 <th className="col-rank">#</th>
                 <th className="col-pdv">PDV</th>
                 <th>Loja</th>
-                <th>Região</th>
                 <th className="col-num">Serv. Completos</th>
-                <th className="col-num">Incompletos</th>
                 <th className="col-num">GMV</th>
                 <th className="col-num">Meta</th>
                 <th className="col-num">Ating.</th>
@@ -3818,16 +3816,7 @@ function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) 
                     <td className="col-rank">{i + 1}</td>
                     <td className="col-pdv">{r.pdv}</td>
                     <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
-                    <td>
-                      <div className="label-chips-group">
-                        {(r.loja?.labels ?? []).map(lid => {
-                          const lb = labels.find(x => x.id === lid)
-                          return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
-                        })}
-                      </div>
-                    </td>
                     <td className="col-num" style={{ fontWeight: 700 }}>{fDec(r.servicos_completos, 1)}</td>
-                    <td className="col-num col-muted-val">{fDec(r.servicos_incompletos, 1)}</td>
                     <td className="col-num col-muted-val">{fBRLR(r.gmv)}</td>
                     <td className="col-num" style={{ minWidth: 110 }}>
                       {isEditing ? (
@@ -3876,9 +3865,8 @@ function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) 
             </tbody>
             <tfoot>
               <tr className="gap-table-total">
-                <td colSpan={4} className="gap-total-label">Total</td>
+                <td colSpan={3} className="gap-total-label">Total</td>
                 <td className="col-num" style={{ fontWeight: 700 }}>{fDec(totalCompletos, 1)}</td>
-                <td className="col-num" style={{ fontWeight: 700 }}>{fDec(totalIncompletos, 1)}</td>
                 <td className="col-num" style={{ fontWeight: 700 }}>{fBRLR(totalGmv)}</td>
                 <td className="col-num" style={{ fontWeight: 700 }}>{totalMeta > 0 ? fDec(totalMeta, 0) : '—'}</td>
                 <td className="col-num" style={{ fontWeight: 700, color: atingGeralColor }}>{atingGeral != null ? fDec(atingGeral, 1) + '%' : '—'}</td>
@@ -3908,7 +3896,6 @@ function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) 
                   <tr>
                     <th className="col-pdv">PDV</th>
                     <th>Loja</th>
-                    <th>Região</th>
                     <th className="col-num">Serv. Completos</th>
                     <th className="col-num">Meta</th>
                     <th className="col-num">Ating.</th>
@@ -3931,14 +3918,6 @@ function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) 
                         <tr key={r.pdv}>
                           <td className="col-pdv">{r.pdv}</td>
                           <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
-                          <td>
-                            <div className="label-chips-group">
-                              {(r.loja?.labels ?? []).map(lid => {
-                                const lb = labels.find(x => x.id === lid)
-                                return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
-                              })}
-                            </div>
-                          </td>
                           <td className="col-num" style={{ fontWeight: 700 }}>{fDec(r.servicos_completos, 1)}</td>
                           <td className="col-num">{fDec(m, 0)}</td>
                           <td className="col-num" style={{ fontWeight: 600, color: ating >= 80 ? '#d97706' : '#dc2626' }}>{fDec(ating, 1)}%</td>
