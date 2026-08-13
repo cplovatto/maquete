@@ -3679,9 +3679,11 @@ function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) 
     </div>
   )
 
-  const totalCompletos = servicosTotal?.servicos_completos ?? storeRows.reduce((s, r) => s + r.servicos_completos, 0)
-  const totalTotais    = servicosTotal?.servicos_totais    ?? storeRows.reduce((s, r) => s + r.servicos_totais, 0)
-  const pctGeral       = servicosTotal?.pct_completos      ?? (totalTotais > 0 ? totalCompletos / totalTotais : 0)
+  const totalCompletos   = servicosTotal?.servicos_completos   ?? storeRows.reduce((s, r) => s + r.servicos_completos, 0)
+  const totalTotais      = servicosTotal?.servicos_totais      ?? storeRows.reduce((s, r) => s + r.servicos_totais, 0)
+  const totalIncompletos = servicosTotal?.servicos_incompletos ?? storeRows.reduce((s, r) => s + r.servicos_incompletos, 0)
+  const totalGmv         = servicosTotal?.gmv                  ?? storeRows.reduce((s, r) => s + r.gmv, 0)
+  const pctGeral         = servicosTotal?.pct_completos        ?? (totalTotais > 0 ? totalCompletos / totalTotais : 0)
   const avgPorLoja     = storeRows.length > 0 ? storeRows.reduce((s, r) => s + r.servicos_completos, 0) / storeRows.length : 0
   const totalMeta      = Object.values(metas).reduce((s, v) => s + v, 0)
   const metasDefinidas = Object.keys(metas).length
@@ -3732,6 +3734,11 @@ function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) 
               <span style={{ fontSize: 22, lineHeight: 1 }}>🏆</span>
             )}
           </div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">GMV Serviços</div>
+          <div className="kpi-value">{fBRLR(totalGmv)}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{fDec(totalIncompletos, 1)} incompletos</div>
         </div>
         <div className="kpi-card" style={{ minWidth: 160 }}>
           <div className="kpi-label">Meta Total</div>
@@ -3788,8 +3795,8 @@ function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) 
                 <th className="col-rank">#</th>
                 <th className="col-pdv">PDV</th>
                 <th>Loja</th>
-                <th>Região</th>
                 <th className="col-num">Serv. Completos</th>
+                <th className="col-num">GMV</th>
                 <th className="col-num">Meta</th>
                 <th className="col-num">Ating.</th>
               </tr>
@@ -3809,15 +3816,8 @@ function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) 
                     <td className="col-rank">{i + 1}</td>
                     <td className="col-pdv">{r.pdv}</td>
                     <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
-                    <td>
-                      <div className="label-chips-group">
-                        {(r.loja?.labels ?? []).map(lid => {
-                          const lb = labels.find(x => x.id === lid)
-                          return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
-                        })}
-                      </div>
-                    </td>
                     <td className="col-num" style={{ fontWeight: 700 }}>{fDec(r.servicos_completos, 1)}</td>
+                    <td className="col-num col-muted-val">{fBRLR(r.gmv)}</td>
                     <td className="col-num" style={{ minWidth: 110 }}>
                       {isEditing ? (
                         <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
@@ -3865,8 +3865,9 @@ function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) 
             </tbody>
             <tfoot>
               <tr className="gap-table-total">
-                <td colSpan={4} className="gap-total-label">Total</td>
+                <td colSpan={3} className="gap-total-label">Total</td>
                 <td className="col-num" style={{ fontWeight: 700 }}>{fDec(totalCompletos, 1)}</td>
+                <td className="col-num" style={{ fontWeight: 700 }}>{fBRLR(totalGmv)}</td>
                 <td className="col-num" style={{ fontWeight: 700 }}>{totalMeta > 0 ? fDec(totalMeta, 0) : '—'}</td>
                 <td className="col-num" style={{ fontWeight: 700, color: atingGeralColor }}>{atingGeral != null ? fDec(atingGeral, 1) + '%' : '—'}</td>
               </tr>
@@ -3895,7 +3896,6 @@ function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) 
                   <tr>
                     <th className="col-pdv">PDV</th>
                     <th>Loja</th>
-                    <th>Região</th>
                     <th className="col-num">Serv. Completos</th>
                     <th className="col-num">Meta</th>
                     <th className="col-num">Ating.</th>
@@ -3918,14 +3918,6 @@ function ServicosPage({ periodo = 'mensal' }: { periodo?: 'mensal' | 'anual' }) 
                         <tr key={r.pdv}>
                           <td className="col-pdv">{r.pdv}</td>
                           <td>{r.loja?.apelido || <span className="dash-muted">—</span>}</td>
-                          <td>
-                            <div className="label-chips-group">
-                              {(r.loja?.labels ?? []).map(lid => {
-                                const lb = labels.find(x => x.id === lid)
-                                return lb ? <span key={lid} className="label-chip" style={{ '--chip-color': lb.color } as React.CSSProperties}>{lb.name}</span> : null
-                              })}
-                            </div>
-                          </td>
                           <td className="col-num" style={{ fontWeight: 700 }}>{fDec(r.servicos_completos, 1)}</td>
                           <td className="col-num">{fDec(m, 0)}</td>
                           <td className="col-num" style={{ fontWeight: 600, color: ating >= 80 ? '#d97706' : '#dc2626' }}>{fDec(ating, 1)}%</td>
