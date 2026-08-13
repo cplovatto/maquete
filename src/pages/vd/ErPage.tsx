@@ -1,0 +1,83 @@
+import { useState } from 'react'
+import { useVdData } from '../../context/VdDataContext'
+import { ErConsultorasModal } from './ErConsultorasModal'
+import {
+  KpiCard, LupaButton, MetaTag, PeriodoToggle, ValueMetaCell,
+  VD_DESEMPENHO_METAS_DEFAULT,
+  agregarPorEr, fBRLR, fDec, fPct, useVdDesempenhoMetas,
+} from './vdShared'
+
+export default function ErPage() {
+  const { ciclo, consultoras, consultorasAno } = useVdData()
+  const [periodo, setPeriodo] = useState<'ciclo' | 'ano'>('ciclo')
+  const dados = periodo === 'ciclo' ? consultoras : consultorasAno
+
+  const { metas, updateMeta } = useVdDesempenhoMetas()
+  const linhas = agregarPorEr(dados)
+  const [erAberto, setErAberto] = useState<string | null>(null)
+
+  return (
+    <div className="page-content">
+      <div className="page-title-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <h2 className="page-title">ER — Desempenho</h2>
+          <p className="page-subtitle">{periodo === 'ciclo' ? ciclo : 'Ano (exemplo)'} — desempenho geral das consultoras de cada um dos 4 Espaços do Revendedor</p>
+        </div>
+        <PeriodoToggle value={periodo} onChange={setPeriodo} />
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+        <MetaTag label="Meta RPA" value={metas.rpa} defaultValue={VD_DESEMPENHO_METAS_DEFAULT.rpa} onSave={v => updateMeta('rpa', v)} />
+        <MetaTag label="Meta UPA" value={metas.upa} defaultValue={VD_DESEMPENHO_METAS_DEFAULT.upa} onSave={v => updateMeta('upa', v)} />
+      </div>
+
+      <div className="kpi-row">
+        {linhas.map(l => (
+          <KpiCard key={l.er} label={l.er} value={`${l.nConsultoras} consultoras`} sub={fBRLR(l.realizadoFinanceiro)} />
+        ))}
+      </div>
+
+      <div className="dash-table-wrap">
+        <table className="dash-table">
+          <thead>
+            <tr>
+              <th>ER</th>
+              <th className="col-num">Consultoras</th>
+              <th className="col-num">Meta financeira</th>
+              <th className="col-num">Realizado financeiro</th>
+              <th className="col-num">% Ativos</th>
+              <th className="col-num">RPA <span style={{ fontWeight: 400, opacity: .6 }}>(Boleto médio) meta {fBRLR(metas.rpa)}</span></th>
+              <th className="col-num">UPA <span style={{ fontWeight: 400, opacity: .6 }}>(Itens/venda) meta {fDec(metas.upa)}</span></th>
+              <th className="col-num">Ver consultoras</th>
+            </tr>
+          </thead>
+          <tbody>
+            {linhas.map(l => (
+              <tr key={l.er} onClick={() => setErAberto(l.er)} style={{ cursor: 'pointer' }} title={`Ver desempenho por consultora — ${l.er}`}>
+                <td className="td-primary">{l.er}</td>
+                <td className="col-num">{l.nConsultoras}</td>
+                <td className="col-num">{fBRLR(l.metaFinanceira)}</td>
+                <td className="col-num">{fBRLR(l.realizadoFinanceiro)}</td>
+                <td className="col-num">{fPct(l.realizadoAtivos / l.metaAtivos)}</td>
+                <ValueMetaCell v={l.rpaValor} meta={metas.rpa} format={fBRLR} />
+                <ValueMetaCell v={l.upaValor} meta={metas.upa} format={fDec} />
+                <td className="col-num">
+                  <LupaButton title={`Ver desempenho por consultora — ${l.er}`} onClick={() => setErAberto(l.er)} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {erAberto && (
+        <ErConsultorasModal
+          er={erAberto}
+          consultoras={dados.filter(c => c.er === erAberto)}
+          mode="desempenho"
+          onClose={() => setErAberto(null)}
+        />
+      )}
+    </div>
+  )
+}

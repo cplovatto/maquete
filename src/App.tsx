@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { LojasProvider } from './context/LojasContext'
 import { LabelsProvider } from './context/LabelsContext'
 import { DataProvider } from './context/DataContext'
+import { VdDataProvider } from './context/VdDataContext'
 import { CompaniesProvider } from './context/CompaniesContext'
 import { UsersProvider } from './context/UsersContext'
 import { BillingProvider } from './context/BillingContext'
@@ -39,6 +40,7 @@ export default function App() {
         <LojasProvider>
         <LabelsProvider>
         <DataProvider>
+        <VdDataProvider>
         <HashRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -78,6 +80,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </HashRouter>
+        </VdDataProvider>
         </DataProvider>
         </LabelsProvider>
         </LojasProvider>

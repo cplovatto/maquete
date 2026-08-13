@@ -30,10 +30,14 @@ src/
   context/
     AuthContext.tsx          # autenticação simulada
     ThemeContext.tsx         # tema claro/escuro (persiste em localStorage)
+    VdDataContext.tsx        # dados do Canal VD — ver seção "Canal VD"
   pages/
     Landing.tsx              # página de marketing (rota "/")
     SignIn.tsx               # login simulado (rota "/entrar")
-    AppShell.tsx             # shell principal do app (rota "/app/*")
+    ChannelSelect.tsx        # escolha de canal, Loja x Venda Direta (rota "/selecionar-canal")
+    AppShell.tsx             # shell do Canal Loja (rota "/app/*")
+    VendaDiretaShell.tsx     # shell do Canal VD (rota "/vd/*") — ver seção "Canal VD"
+    vd/                      # páginas de dashboard do Canal VD
 prototipo/
   prototipo01.html           # protótipo HTML original — fonte de referência
                              # para menu, ícones SVG e fontes de dados
@@ -46,6 +50,21 @@ prototipo/
 ```
 /                → Landing
 /entrar          → SignIn
+/selecionar-canal → ChannelSelect (Canal Loja x Venda Direta)
+/vd/*            → VendaDiretaShell (protegida por ProtectedRoute) — ver seção "Canal VD"
+  /vd/equipes            Ranking de Equipes
+  /vd/equipes/detalhe    Detalhe da Equipe
+  /vd/inicios            Inícios
+  /vd/atividade          Atividade
+  /vd/financeiro         Financeiro
+  /vd/risco              Em Risco
+  /vd/adensamento        Adensamento
+  /vd/mix                Mix de Produto
+  /vd/iaf                IAF Geral
+  /vd/iaf/time-inicio    IAF Time de Início
+  /vd/iaf/time-base      IAF Time de Base
+  /vd/er                 ER — Desempenho
+  /vd/er/iaf              ER — IAF ER
 /app/*           → AppShell (protegida por ProtectedRoute)
   /app/meta              Gestão Instantânea — Meta do Dia
   /app/parcial           Gestão Instantânea — Parcial do Dia
@@ -303,6 +322,85 @@ Documentada nos issues:
 - **#8** — ADR: IndexedDB vs backend. Decisão: pular IndexedDB, ir direto para backend se o protótipo virar produto
 - **#9** — Modo demo: limpar dados automaticamente a cada 8h para testers
 - **#10** — Google Login via Supabase Auth (substituir `demo/demo`)
+
+## Canal VD (Venda Direta)
+
+Segundo canal do app (além do Canal Loja), para a operação de revendedoras — rota `/vd/*`, shell em `src/pages/VendaDiretaShell.tsx`, páginas em `src/pages/vd/`.
+
+### Modelo de negócio
+
+- **Hierarquia**: Equipe (liderada por uma supervisora, `VdEquipeRow.nome` = nome da supervisora) → Revendedoras. Uma equipe é o equivalente, no Canal VD, ao "Consultor" do Canal Loja.
+- **Time**: toda equipe é classificada como **Time de Início** (foco em captar revendedoras novas) ou **Time de Base** (foco em manter/reativar a base existente) — `VdEquipeRow.time`. Esse é o eixo de agrupamento usado em todo o Canal VD (Ranking de Equipes, Inícios, Em Risco, IAF) — não existe mais um nível "Gerente" separado.
+- Revendedoras **não são colaboradoras** — são cadastradas. Saem da base automaticamente após **6 ciclos consecutivos sem comprar**.
+- O canal trabalha por **ciclo**, não por calendário mensal — por isso a sidebar do VD não tem o toggle Mensal/Anual do Canal Loja. As páginas de IAF têm o próprio toggle **Ciclo/Ano** local (ver seção IAF abaixo).
+- Duas pessoas são responsáveis por indicador (olhando a base toda, não um grupo de revendedoras): quem cuida de Inícios e quem cuida de Atividade — hoje mostrado nas páginas correspondentes como texto fixo ("Responsável: ..."), não como dado dinâmico.
+- **Líquidas** (crescimento líquido de cadastro) e **Premiação** só são acompanhadas por **Time** — não existe apuração por equipe/supervisora individual. As páginas que mostram essas métricas exibem "—" na linha de cada equipe e só preenchem o valor real na linha de subtotal do time.
+- **ER — Espaço do Revendedor**: lojas físicas de atendimento só para revendedoras (não confundir com "loja" do Canal Loja, nem com "escritório regional"). Hoje são 4: Caxias do Sul, Santa Maria, Uruguaiana, Bagé (`ERS` em `VdDataContext.tsx`). Tem seu próprio grupo na sidebar (fora do submenu IAF), com dois itens: **Desempenho** (`/vd/er`) e **IAF ER** (`/vd/er/iaf`).
+- **Consultora ≠ Equipe/Supervisora**: quem atende no ER é a **Consultora** (`VdConsultoraRow`), uma pessoa totalmente separada da supervisora/equipe — a supervisora cuida de revendedoras remotamente, a consultora atende fisicamente no ER, igual um Consultor de loja no Canal Loja. `VdEquipeRow` **não** tem campo `er` — não existe vínculo entre equipe e ER.
+
+### Dados (`VdDataContext.tsx`)
+
+- `VdEquipeRow` — indicadores por equipe: `nome` (nome da supervisora), `time` ('Início' | 'Base'), base por ciclos-sem-comprar (`base: number[]`, índice 0–6), meta/realizado de cadastro (Inícios), financeiro e ativos, mix de produto (Skin/Cabelos/Make/Multimarca) entre as ativas, `vdiUsoPct` (% de uso da plataforma pela supervisora), `treinamentoPct` (% da base com treinamento OK) e `satisfacaoPct` (placeholder — métrica real ainda não definida, ver abaixo). **Não tem campo `er`** — equipe não tem relação com ER (ver seção "Modelo de negócio").
+- `VdConsultoraRow` — pessoa que atende no ER (não é supervisora, ver "Modelo de negócio"): `er`, financeiro e ativos, mix de produto, `vdiUsoPct`/`treinamentoPct`/`satisfacaoPct` (mesmo formato de `VdEquipeRow`) e `rpaValor`/`upaValor` (RPA/UPA, exclusivos dela).
+- `VdMunicipioRow` — adensamento de mercado por município (população real da região + números gerados).
+- `VdRevendedoraSample` — amostra de revendedoras de uma equipe, gerada sob demanda para a tela de Detalhe.
+- `equipesAno` — um segundo array de equipes, gerado com outra seed, exposto por `useVdData()` só pra alimentar o toggle Ciclo/Ano das páginas de IAF. **Não é um cálculo real de acumulado anual** — é só outro conjunto de exemplo, independente do de ciclo. `consultorasAno` é o equivalente pras páginas de ER.
+- **Os dados são 100% de exemplo**, gerados por um PRNG determinístico (`mulberry32`, seed fixa) — não há import de planilha real ainda para este canal (diferente do Canal Loja, que usa `DataContext.tsx` + `ImportModal`). Nenhum nome real de pessoa é usado — os nomes de supervisora são gerados como "Supervisora 01" etc. Os nomes de cidade/população do `ADENSAMENTO` são reais (dado público), os demais números são sintéticos.
+- **Satisfação das revendedoras**: a definição exata dessa métrica (o que conta, como é medida) ainda vai ser explicada pelo operador ao importar a planilha real. Por enquanto `satisfacaoPct` é só um % de exemplo (65–100%).
+- Quando for decidido como alimentar o Canal VD com dados reais (import de XLSX, outra fonte etc.), a estrutura de `VdEquipeRow`/`VdMunicipioRow` já reflete o formato da planilha real de referência ("BASE CICLO") e pode ser adaptada em vez de recriada.
+
+### Páginas (`src/pages/vd/`)
+
+| Página | Rota | Conteúdo |
+|---|---|---|
+| `RankingEquipesPage` | `/vd/equipes` | Ranking ordenável de equipes (base, % financeiro, % ativos), com subtotal por Time |
+| `DetalheEquipePage` | `/vd/equipes/detalhe` | Seletor de equipe + KPIs + amostra de revendedoras |
+| `IniciosPage` | `/vd/inicios` | Meta de cadastro vs. Inícios+Reinícios vs. Falta meta, com subtotal por Time (Líquidas/Premiação só aparecem no subtotal) |
+| `AtividadePage` | `/vd/atividade` | Meta de ativas vs. realizado |
+| `FinanceiroPage` | `/vd/financeiro` | Meta financeira (R$) vs. realizado |
+| `EmRiscoPage` | `/vd/risco` | Distribuição por ciclos sem comprar (0–6) com subtotal por Time, + bloco de projeção de reativação até o fim do ciclo |
+| `AdensamentoPage` | `/vd/adensamento` | Penetração de mercado por município |
+| `MixProdutoPage` | `/vd/mix` | % Skin/Cabelos/Make/Multimarca entre ativas, por equipe, com meta editável por categoria |
+| `IafGeralPage` | `/vd/iaf` | Visão geral do Canal VD no IAF (KPIs consolidados + comparativo Time de Início vs. Time de Base), com toggle Ciclo/Ano |
+| `IafTimePage` | `/vd/iaf/time-inicio`, `/vd/iaf/time-base` | Um componente (`<IafTimePage time="Início"|"Base" />`) — 1 linha por equipe daquele time, 8 indicadores coloridos vs. meta |
+| `ErPage` | `/vd/er` | Desempenho geral das consultoras (financeiro, ativos, RPA, UPA) de cada um dos 4 ERs |
+| `ErIafPage` | `/vd/er/iaf` | IAF total das consultoras de cada um dos 4 ERs — mesmas 8 colunas coloridas vs. meta |
+
+`vdShared.tsx` reúne helpers duplicados de `AppShell.tsx` (`KpiCard`, formatadores, hook de sort, ícones, `MetaTag`) — `AppShell.tsx` não exporta nada, então preferiu-se duplicar um pequeno subconjunto a editar o arquivo do Canal Loja.
+
+### Metas editáveis
+
+Mix de Produto e IAF têm meta editável em nível de rede (não por equipe): `useVdMixMetas` (Skin/Cabelos/Make/Multimarca, `prisma-prefs-vd-mix-metas`) e `useVdIafMetas` (VDI/Treinamentos/Satisfação, `prisma-prefs-vd-iaf-metas`) — mesmo padrão de `useIafMetas`/`MetaTag` do Canal Loja (`IafIndicadoresPage`). Financeiro, Ativos e Inícios (Receita/Atividade no IAF) **não** têm meta editável: na planilha real cada equipe tem sua própria meta numérica (definida pela empresa) — por isso essas colunas comparam sempre com 100% da meta própria da equipe, não com um número global.
+
+### Subtotal por Time e projeção de reativação
+
+- `groupBy(rows, keyFn)` (`vdShared.tsx`) é o agrupador genérico — hoje usado como `groupBy(equipes, e => e.time)` em Ranking de Equipes, Inícios, Em Risco e no comparativo do IAF Geral, renderizando uma linha "Total Time de {time}" antes do Total Geral.
+- `projecaoAtivasPorBucket()` aplica uma curva de pesos de reativação (`REATIVACAO_WEIGHTS`, decrescente conforme mais ciclos sem comprar) sobre `equipe.base` para estimar quantas revendedoras de cada bucket devem voltar a comprar até o fim do ciclo — usado no segundo bloco de `EmRiscoPage`. É uma curva ilustrativa (não deduzida com certeza da planilha real, que tinha um segundo bloco parecido mas com a fórmula original ambígua), documentada como estimativa/exemplo na própria página.
+
+### IAF (`calcIafIndicadores`, `agregarIndicadores`, `agregarPorEr`)
+
+`calcIafIndicadores(input: VdIafInput)` (`vdShared.tsx`) calcula os 8 indicadores do IAF. `VdIafInput` é um subconjunto de campos (não o `VdEquipeRow` inteiro), pra poder ser calculado tanto pra uma equipe quanto pra um agregado (Time, ER, canal todo) via `agregarIndicadores(equipes)`:
+
+| Indicador | Fórmula | Meta |
+|---|---|---|
+| Receita | `realizadoFinanceiro / metaFinanceira` | 100% da meta própria da equipe (não editável) |
+| Atividade | `realizadoAtivos / metaAtivos` | 100% da meta própria da equipe (não editável) |
+| Cabelos | `cabelosQtd / ativasBase` | `useVdMixMetas().cabelos`, padrão 20% |
+| Make | `makeQtd / ativasBase` | `useVdMixMetas().make`, padrão 46% |
+| Multimarcas | `multimarcaQtd / ativasBase` | `useVdMixMetas().multimarca`, padrão 32% |
+| VDI | `vdiUsoPct / 100` — % de uso da plataforma pela supervisora pra tratar as revendedoras | `useVdIafMetas().vdi`, padrão 90% |
+| Treinamentos | `treinamentoPct / 100` — % da base com treinamento concluído | `useVdIafMetas().treinamento`, padrão 95% |
+| Satisfação | `satisfacaoPct / 100` — placeholder, métrica real pendente | `useVdIafMetas().satisfacao`, padrão 85% |
+
+(O indicador "Base" que existia antes foi removido do IAF — a distribuição por ciclos-sem-comprar continua em `EmRiscoPage`, só não entra mais nessa tabela consolidada.)
+
+- `IafGeralPage` — visão consolidada do canal todo + comparativo Time de Início vs. Time de Base (sem detalhe por equipe).
+- `IafTimePage` — detalhe por equipe, filtrado por `time`, reaproveitado nas duas rotas via prop.
+- `ErPage`/`ErIafPage` — ambas usam `agregarPorEr(consultoras)` (que por baixo usa `agregarIndicadores()`, hoje genérica — funciona tanto com `VdEquipeRow[]` quanto `VdConsultoraRow[]`) pra consolidar as **consultoras** de cada ER; `ErPage` mostra desempenho geral, `ErIafPage` mostra o IAF total — duas páginas/itens de menu separados dentro do grupo ER, não uma só.
+- A linha inteira de ER é clicável (não só o ícone) — abre `ErConsultorasModal` (`ErConsultorasModal.tsx`), modal `.modal--lg` listando as **consultoras** daquele ER, com `mode="desempenho"` ou `mode="iaf"` decidindo quais colunas mostrar (mesmas fórmulas de `ErPage`/`ErIafPage`, só que por consultora em vez de agregado). `LupaButton` (`vdShared.tsx`) continua ali só como indicação visual do que a linha faz.
+- **RPA e UPA** (só no Desempenho do ER, `ErPage`/`ErConsultorasModal` modo desempenho): `rpaValor` (equivalente ao "Boleto Médio" do Canal Loja, R$) e `upaValor` (equivalente a "Itens por Venda"), ambos em `VdConsultoraRow`. Meta editável em nível de rede via `useVdDesempenhoMetas()` (`prisma-prefs-vd-desempenho-metas`, defaults RPA R$120 / UPA 1,8), célula colorida vs. meta via `ValueMetaCell` (variante de `MetaCell` pra valores absolutos, não percentuais). No agregado por ER, `agregarPorEr()` usa a média das consultoras (não soma, já que é um valor médio por venda).
+- As três páginas de IAF têm um toggle local **Ciclo/Ano** (`PeriodoToggle`, reaproveita `.period-btn`) que troca entre `equipes` e `equipesAno`; as duas páginas de ER fazem o mesmo trocando entre `consultoras` e `consultorasAno` (`VdDataContext`) — o toggle é independente por página (não é estado global/compartilhado entre elas). No ER, o drill-down (`ErConsultorasModal`) também respeita o período selecionado na página que o abriu.
+- **RPA/UPA vivem em `VdConsultoraRow`**, não em `VdEquipeRow` — são conceitos de venda no balcão (boleto médio, itens por venda), que fazem sentido pra quem atende fisicamente no ER, não pra quem gerencia revendedoras remotamente.
 
 ## Branch e PR
 
